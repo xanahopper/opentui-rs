@@ -1,3 +1,5 @@
+#![allow(clippy::float_cmp, clippy::used_underscore_binding)]
+
 #[cfg(test)]
 mod tests {
     use opentui_core::layout::{ComputedLayout, LayoutStyle};
@@ -214,5 +216,146 @@ mod tests {
 
         tree.set_focused_widget(Some(child));
         assert!(tree.has_focused_descendant(root));
+    }
+
+    #[test]
+    fn test_overlay_add_remove() {
+        use opentui_core::widget::Overlay;
+
+        let mut tree = WidgetTree::new();
+        let w = tree.add(StubWidget::new(10));
+
+        tree.add_overlay(Overlay::new(w, 5.0, 5.0, 20.0, 10.0));
+        assert!(tree.has_overlay(w));
+        assert_eq!(tree.overlays().len(), 1);
+        assert_eq!(tree.top_overlay().unwrap().widget_id, w);
+
+        tree.remove_overlay(w);
+        assert!(!tree.has_overlay(w));
+        assert_eq!(tree.overlays().len(), 0);
+    }
+
+    #[test]
+    fn test_overlay_z_order() {
+        use opentui_core::widget::{Overlay, OverlayZOrder};
+
+        let mut tree = WidgetTree::new();
+        let w1 = tree.add(StubWidget::new(10));
+        let w2 = tree.add(StubWidget::new(11));
+
+        tree.add_overlay(Overlay::new(w1, 0.0, 0.0, 10.0, 10.0).z_order(OverlayZOrder::TOP));
+        tree.add_overlay(Overlay::new(w2, 0.0, 0.0, 10.0, 10.0).z_order(OverlayZOrder::MODAL));
+
+        assert_eq!(tree.top_overlay().unwrap().widget_id, w2);
+    }
+
+    #[test]
+    fn test_progress_bar_widget() {
+        use opentui_core::widgets::ProgressBarWidget;
+
+        let mut bar = ProgressBarWidget::new(1, LayoutStyle::default().width(20.0).height(1.0));
+        assert_eq!(bar.progress_value(), 0.0);
+
+        bar.set_progress(0.5);
+        assert_eq!(bar.progress_value(), 0.5);
+
+        bar.set_progress(2.0);
+        assert!((bar.progress_value() - 1.0).abs() < f32::EPSILON);
+    }
+
+    #[test]
+    fn test_tabs_widget() {
+        use opentui_core::widgets::{Tab, TabsWidget};
+
+        let tabs = TabsWidget::new(1, LayoutStyle::default()).tabs(vec![
+            Tab::new("File"),
+            Tab::new("Edit"),
+            Tab::new("View"),
+        ]);
+
+        assert_eq!(tabs.active_index(), 0);
+        assert_eq!(tabs.tab_count(), 3);
+    }
+
+    #[test]
+    fn test_tabs_navigation() {
+        use opentui_core::widgets::{Tab, TabsWidget};
+
+        let mut tabs = TabsWidget::new(1, LayoutStyle::default()).tabs(vec![
+            Tab::new("A"),
+            Tab::new("B"),
+            Tab::new("C"),
+        ]);
+
+        tabs.select_next();
+        assert_eq!(tabs.active_index(), 1);
+
+        tabs.select_next();
+        assert_eq!(tabs.active_index(), 2);
+
+        tabs.select_next();
+        assert_eq!(tabs.active_index(), 0);
+
+        tabs.select_prev();
+        assert_eq!(tabs.active_index(), 2);
+
+        tabs.set_active(1);
+        assert_eq!(tabs.active_index(), 1);
+    }
+
+    #[test]
+    fn test_status_line_widget() {
+        use opentui_core::widgets::StatusLineWidget;
+
+        let sl = StatusLineWidget::new(1, LayoutStyle::default())
+            .left("main.rs")
+            .center("NORMAL")
+            .right("ln 42, col 1");
+
+        assert!(sl.visible());
+    }
+
+    #[test]
+    fn test_dispatch_key_tab() {
+        use opentui_rust::{KeyCode, KeyEvent, KeyModifiers};
+
+        let mut tree = WidgetTree::new();
+        let root = tree.add(StubWidget::new(1));
+        let a = tree.add_child(root, StubWidget::new(2).with_focusable());
+        let b = tree.add_child(root, StubWidget::new(3).with_focusable());
+
+        tree.build_focus_chain();
+
+        let result = tree.dispatch_key(&KeyEvent {
+            code: KeyCode::Tab,
+            modifiers: KeyModifiers::empty(),
+        });
+        assert!(result.consumed);
+        assert_eq!(result.target, Some(a));
+
+        let result = tree.dispatch_key(&KeyEvent {
+            code: KeyCode::Tab,
+            modifiers: KeyModifiers::empty(),
+        });
+        assert_eq!(result.target, Some(b));
+    }
+
+    #[test]
+    fn test_dispatch_key_shift_tab() {
+        use opentui_rust::{KeyCode, KeyEvent, KeyModifiers};
+
+        let mut tree = WidgetTree::new();
+        let root = tree.add(StubWidget::new(1));
+        let _a = tree.add_child(root, StubWidget::new(2).with_focusable());
+        let b = tree.add_child(root, StubWidget::new(3).with_focusable());
+
+        tree.build_focus_chain();
+
+        let result = tree.dispatch_key(&KeyEvent {
+            code: KeyCode::Tab,
+            modifiers: KeyModifiers::SHIFT,
+        });
+        assert!(result.consumed);
+        assert_eq!(result.target, Some(b));
     }
 }

@@ -93,6 +93,77 @@ struct WidgetNode {
     has_focused_descendant: bool,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct OverlayZOrder(u16);
+
+impl OverlayZOrder {
+    pub const BOTTOM: Self = Self(0);
+    pub const MIDDLE: Self = Self(100);
+    pub const TOP: Self = Self(200);
+    pub const TOOLTIP: Self = Self(300);
+    pub const MODAL: Self = Self(400);
+
+    pub fn new(z: u16) -> Self {
+        Self(z)
+    }
+
+    pub fn value(self) -> u16 {
+        self.0
+    }
+}
+
+impl Default for OverlayZOrder {
+    fn default() -> Self {
+        Self::MIDDLE
+    }
+}
+
+impl Ord for OverlayZOrder {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.0.cmp(&other.0)
+    }
+}
+
+impl PartialOrd for OverlayZOrder {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+pub struct Overlay {
+    pub widget_id: WidgetId,
+    pub x: f32,
+    pub y: f32,
+    pub width: f32,
+    pub height: f32,
+    pub z_order: OverlayZOrder,
+    pub backdrop: bool,
+}
+
+impl Overlay {
+    pub fn new(widget_id: WidgetId, x: f32, y: f32, width: f32, height: f32) -> Self {
+        Self {
+            widget_id,
+            x,
+            y,
+            width,
+            height,
+            z_order: OverlayZOrder::default(),
+            backdrop: false,
+        }
+    }
+
+    pub fn z_order(mut self, z: OverlayZOrder) -> Self {
+        self.z_order = z;
+        self
+    }
+
+    pub fn backdrop(mut self, enable: bool) -> Self {
+        self.backdrop = enable;
+        self
+    }
+}
+
 pub struct WidgetTree {
     nodes: HashMap<WidgetId, WidgetNode>,
     layout_engine: LayoutEngine,
@@ -102,6 +173,7 @@ pub struct WidgetTree {
     render_commands: RenderCommandList,
     focus_chain: Vec<WidgetId>,
     focused_id: Option<WidgetId>,
+    overlays: Vec<Overlay>,
 }
 
 impl WidgetTree {
@@ -115,6 +187,7 @@ impl WidgetTree {
             render_commands: RenderCommandList::new(),
             focus_chain: Vec::new(),
             focused_id: None,
+            overlays: Vec::new(),
         }
     }
 
@@ -317,6 +390,84 @@ impl WidgetTree {
     pub fn render(&mut self, ctx: &mut RenderContext<'_>) {
         self.build_render_commands();
         self.execute_render_commands(ctx);
+        self.render_overlays(ctx);
+    }
+
+    pub fn add_overlay(&mut self, overlay: Overlay) {
+        self.overlays.push(overlay);
+    }
+
+    pub fn remove_overlay(&mut self, widget_id: WidgetId) {
+        self.overlays.retain(|o| o.widget_id != widget_id);
+    }
+
+    pub fn overlays(&self) -> &[Overlay] {
+        &self.overlays
+    }
+
+    pub fn has_overlay(&self, widget_id: WidgetId) -> bool {
+        self.overlays.iter().any(|o| o.widget_id == widget_id)
+    }
+
+    pub fn top_overlay(&self) -> Option<&Overlay> {
+        self.overlays.iter().max_by_key(|o| o.z_order)
+    }
+
+    fn render_overlays(&mut self, ctx: &mut RenderContext<'_>) {
+        if self.overlays.is_empty() {
+            return;
+        }
+
+        let mut sorted: Vec<(usize, OverlayZOrder)> = self
+            .overlays
+            .iter()
+            .enumerate()
+            .map(|(i, o)| (i, o.z_order))
+            .collect();
+        sorted.sort_by_key(|(_, z)| z.value());
+
+        let backdrop_style = ot::Style::builder()
+            .bg(ot::Rgba::new(0.0, 0.0, 0.0, 0.5))
+            .build();
+
+        for (idx, _) in sorted {
+            let overlay = &self.overlays[idx];
+
+            if overlay.backdrop {
+                let buf_w = ctx.buffer.width();
+                let buf_h = ctx.buffer.height();
+                for row in 0..buf_h {
+                    for col in 0..buf_w {
+                        ctx.buffer.set(col, row, ot::Cell::new(' ', backdrop_style));
+                    }
+                }
+            }
+
+            let layout = ComputedLayout {
+                x: overlay.x,
+                y: overlay.y,
+                width: overlay.width,
+                height: overlay.height,
+            };
+
+            let widget_id = overlay.widget_id;
+            if let Some(node) = self.nodes.get_mut(&widget_id) {
+                node.computed_layout = Some(layout);
+            }
+
+            if let Some(node) = self.nodes.get(&widget_id) {
+                if let Some(ref layout) = node.computed_layout {
+                    ctx.buffer.push_scissor(ot::buffer::ClipRect::new(
+                        layout.x as i32,
+                        layout.y as i32,
+                        layout.width as u32,
+                        layout.height as u32,
+                    ));
+                    node.widget.render(ctx, layout);
+                    ctx.buffer.pop_scissor();
+                }
+            }
+        }
     }
 
     pub fn get(&self, id: WidgetId) -> Option<&dyn Widget> {

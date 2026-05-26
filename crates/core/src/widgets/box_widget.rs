@@ -193,6 +193,12 @@ impl BoxWidget {
         self
     }
 
+    pub fn set_border_focused_color(&mut self, color: Rgba) {
+        if let Some(ref mut b) = self.border {
+            b.focused_color = Some(color);
+        }
+    }
+
     pub fn title(mut self, title: impl Into<String>) -> Self {
         self.title = Some(title.into());
         self
