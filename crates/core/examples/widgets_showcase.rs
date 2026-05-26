@@ -20,7 +20,7 @@ use std::io::{self, Read};
 use std::time::Duration;
 
 use opentui_rust::input::{Event, InputParser, KeyCode};
-use opentui_rust::terminal::terminal_size;
+use opentui_rust::terminal::{enable_raw_mode, terminal_size};
 use opentui_rust::{Renderer, RendererOptions, Rgba};
 
 use opentui_core::layout::LayoutStyle;
@@ -72,6 +72,7 @@ fn main() -> io::Result<()> {
         query_capabilities: true,
     };
     let mut renderer = Renderer::new_with_options(w, h, options)?;
+    let _raw_guard = enable_raw_mode()?;
     renderer.set_title("OpenTUI Core — Widgets Showcase")?;
     renderer.set_background(Rgba::from_rgb_u8(18, 18, 24));
 
