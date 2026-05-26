@@ -87,6 +87,29 @@ harness = false
 name = "input"
 harness = false
 
+[workspace]
+members = ["crates/core"]
+resolver = "3"
+
+[workspace.package]
+edition = "2024"
+rust-version = "1.85"
+license = "MIT"
+repository = "https://github.com/Dicklesworthstone/opentui_rust"
+homepage = "https://github.com/Dicklesworthstone/opentui_rust"
+
+[workspace.dependencies]
+opentui_rust = { path = "." }
+taffy = { version = "0.10", default-features = false, features = ["std", "flexbox", "grid", "block_layout", "taffy_tree"] }
+
+[workspace.lints.rust]
+unsafe_code = "warn"
+
+[workspace.lints.clippy]
+all = "warn"
+pedantic = "warn"
+nursery = "warn"
+
 [profile.release]
 opt-level = "z"
 lto = true
@@ -97,10 +120,5 @@ strip = true
 [profile.dev]
 opt-level = 1
 
-[lints.rust]
-unsafe_code = "warn"
-
-[lints.clippy]
-all = "warn"
-pedantic = "warn"
-nursery = "warn"
+[lints]
+workspace = true

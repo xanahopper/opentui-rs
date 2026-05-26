@@ -33,3 +33,4 @@ perf.data.*
 
 # Screenshots
 Snipping_*.png
+.harness/

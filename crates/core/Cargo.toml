@@ -1,0 +1,23 @@
+[package]
+name = "opentui-core"
+version = "0.1.0"
+description = "Higher-level UI abstractions for opentui: layout, widgets, scrollable views"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+keywords = ["tui", "terminal", "ui", "layout", "widgets"]
+categories = ["command-line-interface", "gui"]
+
+[features]
+default = []
+
+[dependencies]
+opentui_rust.workspace = true
+taffy.workspace = true
+
+[dev-dependencies]
+
+[lints]
+workspace = true
