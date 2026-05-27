@@ -18,6 +18,6 @@ pub use input_widget::{InputMode, InputWidget};
 pub use list_widget::ListWidget;
 pub use progress_widget::{ProgressBarStyle, ProgressBarWidget, ProgressChars};
 pub use scroll_view_widget::ScrollViewWidget;
-pub use status_line_widget::StatusLineWidget;
-pub use tabs_widget::{Tab, TabsWidget};
+pub use status_line_widget::{StatusLineStyle, StatusLineWidget};
+pub use tabs_widget::{Tab, TabsStyle, TabsWidget};
 pub use text_widget::{TextAlign, TextWidget};

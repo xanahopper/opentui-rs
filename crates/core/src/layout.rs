@@ -104,6 +104,16 @@ impl LayoutStyle {
         self
     }
 
+    pub fn padding_all(mut self, v: f32) -> Self {
+        self.inner.padding = taffy::geometry::Rect {
+            top: length(v),
+            right: length(v),
+            bottom: length(v),
+            left: length(v),
+        };
+        self
+    }
+
     pub fn gap(mut self, gap: f32) -> Self {
         self.inner.gap = taffy::geometry::Size {
             width: length(gap),

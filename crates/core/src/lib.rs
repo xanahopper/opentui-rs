@@ -55,6 +55,7 @@ pub mod event;
 pub mod keybinding;
 pub mod layout;
 pub mod list;
+pub mod prelude;
 pub mod render_command;
 pub mod scroll;
 pub mod theme;
