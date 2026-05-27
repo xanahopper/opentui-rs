@@ -16,7 +16,9 @@ pub use crate::widget::{
     RenderContext, Widget, WidgetId, WidgetTree,
 };
 pub use crate::widgets::{
-    BorderChars, BorderSides, BorderStyle, BoxWidget, EditorWidget, InputMode, InputWidget,
-    ListWidget, ProgressBarStyle, ProgressBarWidget, ProgressChars, ScrollViewWidget,
-    StatusLineStyle, StatusLineWidget, Tab, TabsStyle, TabsWidget, TextAlign, TextWidget,
+    BorderChars, BorderSides, BorderStyle, BoxWidget, EditorWidget, FillWidget, InputMode,
+    InputWidget, ListWidget, ProgressBarStyle, ProgressBarWidget, ProgressChars,
+    ScrollViewWidget, SeparatorWidget, StatusLineStyle, StatusLineWidget, StyledSegment,
+    StyledTextAlign, StyledTextWidget, Tab, TabsStyle, TabsWidget, TextLineAlign, TextLineWidget,
+    TextAlign, TextWidget,
 };

@@ -6,7 +6,7 @@
 use std::cell::RefCell;
 
 use opentui_rust as ot;
-use opentui_rust::WrapMode;
+use opentui_rust::{Cell, Rgba, Style, WrapMode};
 use opentui_rust::text::{EditBuffer, EditorView};
 
 use crate::layout::{ComputedLayout, LayoutStyle};
@@ -28,6 +28,8 @@ pub struct EditorWidget {
     editor: RefCell<EditorView>,
     line_numbers: bool,
     wrap_mode: WrapMode,
+    placeholder: Option<String>,
+    placeholder_style: Style,
     visible: bool,
     opacity: f32,
     focusable: bool,
@@ -42,6 +44,10 @@ impl EditorWidget {
             editor: RefCell::new(EditorView::new(EditBuffer::new())),
             line_numbers: false,
             wrap_mode: WrapMode::None,
+            placeholder: None,
+            placeholder_style: Style::builder()
+                .fg(Rgba::new(0.5, 0.5, 0.5, 1.0))
+                .build(),
             visible: true,
             opacity: 1.0,
             focusable: true,
@@ -77,6 +83,20 @@ impl EditorWidget {
     pub fn set_text(&self, text: &str) {
         self.editor.borrow_mut().edit_buffer_mut().set_text(text);
     }
+
+    pub fn placeholder(mut self, text: impl Into<String>) -> Self {
+        self.placeholder = Some(text.into());
+        self
+    }
+
+    pub fn placeholder_style(mut self, style: Style) -> Self {
+        self.placeholder_style = style;
+        self
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.editor.borrow().edit_buffer().buffer().is_empty()
+    }
 }
 
 impl Widget for EditorWidget {
@@ -100,6 +120,25 @@ impl Widget for EditorWidget {
 
         if w == 0 || h == 0 {
             return;
+        }
+
+        let is_empty = self.editor.borrow().edit_buffer().buffer().is_empty();
+        if is_empty && !self.focused {
+            if let Some(ref ph) = self.placeholder {
+                let display_w = ot::unicode::display_width(ph) as u32;
+                let chars: Vec<char> = ph.chars().collect();
+                let max = display_w.min(w);
+                for i in 0..max {
+                    if let Some(ch) = chars.get(i as usize) {
+                        ctx.buffer.set_blended(
+                            x + i,
+                            y,
+                            Cell::new(*ch, self.placeholder_style),
+                        );
+                    }
+                }
+                return;
+            }
         }
 
         let mut editor = self.editor.borrow_mut();

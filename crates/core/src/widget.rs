@@ -269,6 +269,10 @@ impl WidgetTree {
     }
 
     pub fn layout(&mut self, width: f32, height: f32) {
+        self.layout_with_offset(width, height, 0.0, 0.0);
+    }
+
+    pub fn layout_with_offset(&mut self, width: f32, height: f32, offset_x: f32, offset_y: f32) {
         let Some(root_id) = self.root else { return };
         let Some(root_taffy) = self.taffy_nodes.get(&root_id).copied() else {
             return;
@@ -276,7 +280,7 @@ impl WidgetTree {
 
         self.layout_engine
             .compute_with_size(root_taffy, width, height);
-        self.compute_layout_recursive(root_id, 0.0, 0.0);
+        self.compute_layout_recursive(root_id, offset_x, offset_y);
     }
 
     fn compute_layout_recursive(&mut self, id: WidgetId, parent_x: f32, parent_y: f32) {

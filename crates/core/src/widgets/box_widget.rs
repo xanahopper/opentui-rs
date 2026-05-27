@@ -84,6 +84,35 @@ impl BorderChars {
             vertical: '┃',
         }
     }
+
+    /// All chars are null (invisible). Use as base for custom borders.
+    pub fn empty() -> Self {
+        Self {
+            top_left: '\0',
+            top_right: '\0',
+            bottom_left: '\0',
+            bottom_right: '\0',
+            horizontal: '\0',
+            vertical: '\0',
+        }
+    }
+
+    /// OpenCode SplitBorder pattern: only a left vertical `┃` with `╹` bottom-left.
+    pub fn split_left() -> Self {
+        Self {
+            vertical: '┃',
+            bottom_left: '╹',
+            ..Self::empty()
+        }
+    }
+
+    /// OpenCode SplitBorder pattern: only a left vertical `┃`, no corners.
+    pub fn split_left_no_bottom() -> Self {
+        Self {
+            vertical: '┃',
+            ..Self::empty()
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -135,7 +164,9 @@ impl BorderSides {
 #[derive(Debug, Clone)]
 pub struct BoxWidget {
     id: WidgetId,
-    style: LayoutStyle,
+    user_style: LayoutStyle,
+    base_padding: (f32, f32, f32, f32),
+    effective_style: LayoutStyle,
     bg: Option<Rgba>,
     border: Option<BorderStyle>,
     title: Option<String>,
@@ -150,9 +181,12 @@ pub struct BoxWidget {
 
 impl BoxWidget {
     pub fn new(id: WidgetId, style: LayoutStyle) -> Self {
+        let eff = style.clone();
         Self {
             id,
-            style,
+            user_style: style,
+            base_padding: (0.0, 0.0, 0.0, 0.0),
+            effective_style: eff,
             bg: None,
             border: None,
             title: None,
@@ -166,6 +200,43 @@ impl BoxWidget {
         }
     }
 
+    fn recompute_effective_style(&mut self) {
+        let mut eff = self.user_style.clone();
+        let (pt, pr, pb, pl) = self.base_padding;
+        let mut top = pt;
+        let mut right = pr;
+        let mut bottom = pb;
+        let mut left = pl;
+
+        if let Some(ref b) = self.border {
+            if b.sides.top && b.chars.horizontal != '\0' {
+                top += 1.0;
+            }
+            if b.sides.bottom && b.chars.horizontal != '\0' {
+                bottom += 1.0;
+            }
+            if b.sides.left && b.chars.vertical != '\0' {
+                left += 1.0;
+            }
+            if b.sides.right && b.chars.vertical != '\0' {
+                right += 1.0;
+            }
+        }
+
+        eff = eff.padding(top, right, bottom, left);
+        self.effective_style = eff;
+    }
+
+    pub fn layout_style(&self) -> &LayoutStyle {
+        &self.effective_style
+    }
+
+    pub fn base_padding(mut self, top: f32, right: f32, bottom: f32, left: f32) -> Self {
+        self.base_padding = (top, right, bottom, left);
+        self.recompute_effective_style();
+        self
+    }
+
     pub fn background(mut self, color: Rgba) -> Self {
         self.bg = Some(color);
         self
@@ -173,6 +244,7 @@ impl BoxWidget {
 
     pub fn border(mut self, border: BorderStyle) -> Self {
         self.border = Some(border);
+        self.recompute_effective_style();
         self
     }
 
@@ -183,6 +255,18 @@ impl BoxWidget {
             focused_color: None,
             sides: BorderSides::all(),
         });
+        self.recompute_effective_style();
+        self
+    }
+
+    pub fn border_custom(mut self, chars: BorderChars, color: Rgba, sides: BorderSides) -> Self {
+        self.border = Some(BorderStyle {
+            chars,
+            color,
+            focused_color: None,
+            sides,
+        });
+        self.recompute_effective_style();
         self
     }
 
@@ -244,6 +328,7 @@ impl BoxWidget {
 
     pub fn set_border(&mut self, border: Option<BorderStyle>) {
         self.border = border;
+        self.recompute_effective_style();
     }
 
     fn border_color(&self) -> Rgba {
@@ -266,11 +351,11 @@ impl Widget for BoxWidget {
     }
 
     fn style(&self) -> &LayoutStyle {
-        &self.style
+        &self.effective_style
     }
 
     fn style_mut(&mut self) -> &mut LayoutStyle {
-        &mut self.style
+        &mut self.user_style
     }
 
     fn render(&self, ctx: &mut RenderContext<'_>, layout: &ComputedLayout) {
@@ -281,12 +366,6 @@ impl Widget for BoxWidget {
 
         if w == 0 || h == 0 {
             return;
-        }
-
-        if let Some(bg) = self.bg {
-            if bg.a > 0.0 {
-                ctx.buffer.fill_rect(x, y, w, h, bg);
-            }
         }
 
         if let Some(ref border) = self.border {
@@ -303,6 +382,8 @@ impl Widget for BoxWidget {
                 style,
             };
 
+            let fill = self.bg.filter(|bg| bg.a > 0.0);
+
             let options = BoxOptions {
                 style: bs,
                 sides: BoxSides {
@@ -311,12 +392,16 @@ impl Widget for BoxWidget {
                     bottom: border.sides.bottom,
                     left: border.sides.left,
                 },
-                fill: None,
+                fill,
                 title: self.title.clone(),
                 title_align: self.title_align,
             };
 
             ctx.buffer.draw_box_with_options(x, y, w, h, options);
+        } else if let Some(bg) = self.bg {
+            if bg.a > 0.0 {
+                ctx.buffer.fill_rect(x, y, w, h, bg);
+            }
         }
     }
 

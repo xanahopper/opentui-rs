@@ -387,30 +387,41 @@ pub fn draw_box_with_options(
     h: u32,
     options: BoxOptions,
 ) {
-    if w < 2 || h < 2 {
+    if w == 0 || h == 0 {
         return;
     }
 
     let style = options.style.style;
 
-    // Optional fill
+    let has_top = options.sides.top && options.style.horizontal != '\0';
+    let has_bottom = options.sides.bottom && options.style.horizontal != '\0';
+    let has_left = options.sides.left && options.style.vertical != '\0';
+    let has_right = options.sides.right && options.style.vertical != '\0';
+
+    let inner_x = if has_left { x + 1 } else { x };
+    let inner_y = if has_top { y + 1 } else { y };
+    let inner_right = if has_right { x + w } else { x + w };
+    let inner_bottom = if has_bottom { y + h } else { y + h };
+    let inner_w = inner_right.saturating_sub(inner_x);
+    let inner_h = inner_bottom.saturating_sub(inner_y);
+
     if let Some(bg) = options.fill {
-        if w > 2 && h > 2 {
-            buffer.fill_rect(x + 1, y + 1, w - 2, h - 2, bg);
+        if inner_w > 0 && inner_h > 0 {
+            buffer.fill_rect(inner_x, inner_y, inner_w, inner_h, bg);
         }
     }
 
-    // Corners
-    if options.sides.top && options.sides.left {
+    // Corners — skip if char is '\0'
+    if has_top && has_left && options.style.top_left != '\0' {
         buffer.set_blended(x, y, Cell::new(options.style.top_left, style));
     }
-    if options.sides.top && options.sides.right {
+    if has_top && has_right && options.style.top_right != '\0' {
         buffer.set_blended(x + w - 1, y, Cell::new(options.style.top_right, style));
     }
-    if options.sides.bottom && options.sides.left {
+    if has_bottom && has_left && options.style.bottom_left != '\0' {
         buffer.set_blended(x, y + h - 1, Cell::new(options.style.bottom_left, style));
     }
-    if options.sides.bottom && options.sides.right {
+    if has_bottom && has_right && options.style.bottom_right != '\0' {
         buffer.set_blended(
             x + w - 1,
             y + h - 1,
@@ -419,32 +430,40 @@ pub fn draw_box_with_options(
     }
 
     // Horizontal edges
-    if options.sides.top {
-        for col in (x + 1)..(x + w - 1) {
+    if has_top {
+        let start = if has_left { x + 1 } else { x };
+        let end = if has_right { x + w - 1 } else { x + w };
+        for col in start..end {
             buffer.set_blended(col, y, Cell::new(options.style.horizontal, style));
         }
     }
-    if options.sides.bottom {
-        for col in (x + 1)..(x + w - 1) {
+    if has_bottom {
+        let start = if has_left { x + 1 } else { x };
+        let end = if has_right { x + w - 1 } else { x + w };
+        for col in start..end {
             buffer.set_blended(col, y + h - 1, Cell::new(options.style.horizontal, style));
         }
     }
 
     // Vertical edges
-    if options.sides.left {
-        for row in (y + 1)..(y + h - 1) {
+    if has_left {
+        let start = if has_top { y + 1 } else { y };
+        let end = if has_bottom { y + h - 1 } else { y + h };
+        for row in start..end {
             buffer.set_blended(x, row, Cell::new(options.style.vertical, style));
         }
     }
-    if options.sides.right {
-        for row in (y + 1)..(y + h - 1) {
+    if has_right {
+        let start = if has_top { y + 1 } else { y };
+        let end = if has_bottom { y + h - 1 } else { y + h };
+        for row in start..end {
             buffer.set_blended(x + w - 1, row, Cell::new(options.style.vertical, style));
         }
     }
 
     // Title
     if let Some(title) = options.title {
-        if options.sides.top && w > 2 {
+        if has_top && w > 2 {
             let title_width = crate::unicode::display_width(&title) as i32;
             let box_width = w as i32;
             let min_title_space = 4;
