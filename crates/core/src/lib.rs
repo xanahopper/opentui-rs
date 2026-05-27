@@ -52,6 +52,7 @@
 #![allow(clippy::option_if_let_else)]
 
 pub mod event;
+pub mod keybinding;
 pub mod layout;
 pub mod list;
 pub mod render_command;

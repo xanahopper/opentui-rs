@@ -276,20 +276,28 @@ impl WidgetTree {
 
         self.layout_engine
             .compute_with_size(root_taffy, width, height);
-        self.compute_layout_recursive(root_id);
+        self.compute_layout_recursive(root_id, 0.0, 0.0);
     }
 
-    fn compute_layout_recursive(&mut self, id: WidgetId) {
+    fn compute_layout_recursive(&mut self, id: WidgetId, parent_x: f32, parent_y: f32) {
         let Some(taffy_id) = self.taffy_nodes.get(&id).copied() else {
             return;
         };
         let computed = self.layout_engine.layout(taffy_id);
+        let abs_x = parent_x + computed.x;
+        let abs_y = parent_y + computed.y;
+        let abs_layout = ComputedLayout {
+            x: abs_x,
+            y: abs_y,
+            width: computed.width,
+            height: computed.height,
+        };
 
         if let Some(node) = self.nodes.get_mut(&id) {
-            node.computed_layout = Some(computed);
+            node.computed_layout = Some(abs_layout);
             let child_ids: Vec<WidgetId> = node.children.clone();
             for child_id in child_ids {
-                self.compute_layout_recursive(child_id);
+                self.compute_layout_recursive(child_id, abs_x, abs_y);
             }
         }
     }
