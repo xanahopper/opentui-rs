@@ -198,8 +198,15 @@ impl Widget for TextLineWidget {
             if dw == 0 {
                 continue;
             }
+            let cell_bg = self.bg.unwrap_or(ot::Rgba::TRANSPARENT);
             if let Some(ch) = grapheme.chars().next() {
                 ctx.buffer.set_blended(col, y, ot::Cell::new(ch, style));
+            }
+            for i in 1..dw {
+                if col + i < max_col {
+                    ctx.buffer
+                        .set_blended(col + i, y, ot::Cell::continuation(cell_bg));
+                }
             }
             col += dw;
         }
