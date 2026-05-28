@@ -5,7 +5,9 @@ use crate::layout::LayoutStyle;
 use crate::view::element::{Element, ElementKind};
 use crate::view::key::Key;
 use crate::view::node::{Node, OverlayNode};
-use crate::view::props::{InputProps, ListProps, Props, StyledTextProps, TextProps, ViewProps};
+use crate::view::props::{
+    FillProps, InputProps, ListProps, Props, SeparatorProps, StyledTextProps, TextProps, ViewProps,
+};
 use crate::widget::Overflow;
 use crate::widgets::{BorderChars, BorderSides, BorderStyle, StyledSegment};
 
@@ -45,6 +47,18 @@ pub fn list(item_count: usize) -> ElementBuilder {
         item_count,
         scrollbar: true,
     });
+    builder
+}
+
+pub fn fill(color: Rgba) -> ElementBuilder {
+    let mut builder = ElementBuilder::new(ElementKind::Fill);
+    builder.props = Props::Fill(FillProps { color });
+    builder
+}
+
+pub fn separator() -> ElementBuilder {
+    let mut builder = ElementBuilder::new(ElementKind::Separator);
+    builder.props = Props::Separator(SeparatorProps::default());
     builder
 }
 
@@ -144,6 +158,8 @@ impl ElementBuilder {
             ElementKind::StyledText => Props::StyledText(StyledTextProps::default()),
             ElementKind::Input => Props::Input(InputProps::default()),
             ElementKind::List => Props::List(ListProps::default()),
+            ElementKind::Fill => Props::Fill(FillProps::default()),
+            ElementKind::Separator => Props::Separator(SeparatorProps::default()),
             ElementKind::Custom(_) => Props::Empty,
         };
         Self {

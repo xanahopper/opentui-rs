@@ -1,8 +1,13 @@
+use opentui_rust::Rgba;
+
 use crate::view::element::{Element, ElementKind};
 use crate::view::node::Node;
 use crate::view::props::Props;
 use crate::widget::{Overlay, OverlayZOrder, WidgetTree};
-use crate::widgets::{InputWidget, ListWidget, StyledTextWidget, TextLineWidget, ViewWidget};
+use crate::widgets::{
+    FillWidget, InputWidget, ListWidget, SeparatorWidget, StyledTextWidget, TextLineWidget,
+    ViewWidget,
+};
 
 pub fn build_tree(node: &Node) -> WidgetTree {
     let mut ctx = BuildContext { next_id: 1 };
@@ -103,6 +108,21 @@ fn create_widget(id: u64, elem: &Element) -> Box<dyn crate::widget::Widget> {
             let mut widget = ListWidget::new(id, elem.layout.clone());
             if let Props::List(ref props) = elem.props {
                 widget = widget.scrollbar(props.scrollbar);
+            }
+            Box::new(widget)
+        }
+        ElementKind::Fill => {
+            let color = if let Props::Fill(ref props) = elem.props {
+                props.color
+            } else {
+                Rgba::TRANSPARENT
+            };
+            Box::new(FillWidget::new(id, elem.layout.clone(), color))
+        }
+        ElementKind::Separator => {
+            let mut widget = SeparatorWidget::new(id, elem.layout.clone());
+            if let Props::Separator(ref props) = elem.props {
+                widget = widget.char_(props.char).fg(props.fg);
             }
             Box::new(widget)
         }

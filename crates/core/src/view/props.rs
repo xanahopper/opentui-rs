@@ -11,6 +11,8 @@ pub enum Props {
     StyledText(StyledTextProps),
     Input(InputProps),
     List(ListProps),
+    Fill(FillProps),
+    Separator(SeparatorProps),
     Empty,
 }
 
@@ -82,4 +84,32 @@ pub struct InputProps {
 pub struct ListProps {
     pub item_count: usize,
     pub scrollbar: bool,
+}
+
+#[derive(Debug, Clone)]
+pub struct FillProps {
+    pub color: Rgba,
+}
+
+#[derive(Debug, Clone)]
+pub struct SeparatorProps {
+    pub char: char,
+    pub fg: Rgba,
+}
+
+impl Default for FillProps {
+    fn default() -> Self {
+        Self {
+            color: Rgba::TRANSPARENT,
+        }
+    }
+}
+
+impl Default for SeparatorProps {
+    fn default() -> Self {
+        Self {
+            char: '\u{2500}',
+            fg: Rgba::new(0.3, 0.3, 0.35, 1.0),
+        }
+    }
 }

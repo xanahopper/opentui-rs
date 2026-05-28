@@ -20,5 +20,7 @@ pub enum ElementKind {
     StyledText,
     Input,
     List,
+    Fill,
+    Separator,
     Custom(&'static str),
 }
