@@ -159,3 +159,75 @@ fn test_rebuild_with_overlay() {
     runtime.layout(20.0, 10.0);
     assert!(runtime.tree().overlays().len() == 1);
 }
+
+#[test]
+fn test_overlay_child_text_is_rendered() {
+    let content = panel()
+        .title("Popup")
+        .size(10.0, 3.0)
+        .children([text("ok").fg(TEXT).height(1.0).build()])
+        .build();
+    let node = view()
+        .column()
+        .size(20.0, 10.0)
+        .bg(BG)
+        .children([
+            text("bg").fg(TEXT).height(1.0).build(),
+            overlay(content).position(5, 2).size(10, 3).build(),
+        ])
+        .build();
+
+    let mut runtime = ViewRuntime::new();
+    runtime.rebuild(&node);
+    runtime.layout(20.0, 10.0);
+
+    let mut buffer = OptimizedBuffer::new(20, 10);
+    let mut ctx = RenderContext {
+        buffer: &mut buffer,
+        grapheme_pool: None,
+        link_pool: None,
+        hit_grid: None,
+        theme: None,
+    };
+    runtime.render(&mut ctx);
+
+    let found_o = buffer.get(7, 3).and_then(|c| c.content.as_char()) == Some('o');
+    let found_k = buffer.get(8, 3).and_then(|c| c.content.as_char()) == Some('k');
+    assert!(found_o, "overlay child 'o' should be rendered at (7,3)");
+    assert!(found_k, "overlay child 'k' should be rendered at (8,3)");
+}
+
+#[test]
+fn test_text_grapheme_wide_char_has_continuation() {
+    let node = view()
+        .column()
+        .size(10.0, 3.0)
+        .bg(BG)
+        .children([text("\u{4E16}").fg(TEXT).height(1.0).build()])
+        .build();
+
+    let mut runtime = ViewRuntime::new();
+    runtime.rebuild(&node);
+    runtime.layout(10.0, 3.0);
+
+    let mut buffer = OptimizedBuffer::new(10, 3);
+    let mut ctx = RenderContext {
+        buffer: &mut buffer,
+        grapheme_pool: None,
+        link_pool: None,
+        hit_grid: None,
+        theme: None,
+    };
+    runtime.render(&mut ctx);
+
+    let ch = buffer.get(0, 0).and_then(|c| c.content.as_char());
+    let cont = buffer.get(1, 0);
+    assert!(
+        ch == Some('\u{4E16}'),
+        "wide char should be at col 0, got {ch:?}"
+    );
+    assert!(
+        cont.is_some_and(|c| c.content.is_continuation()),
+        "col 1 should be a continuation cell, got {cont:?}"
+    );
+}
