@@ -52,8 +52,8 @@ impl ViewWidget {
 
     pub fn apply_view_props(&mut self, props: &ViewProps) {
         self.bg = props.bg;
-        self.border = props.border.clone();
-        self.title = props.title.clone();
+        self.border.clone_from(&props.border);
+        self.title.clone_from(&props.title);
         self.title_align = props.title_align;
         self.overflow = props.overflow;
         self.opacity = props.opacity;

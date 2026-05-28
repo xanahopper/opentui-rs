@@ -3,11 +3,12 @@
 //! Demonstrates `view()`, `text()`, `when()`, and `ViewRuntime` in a
 //! simple render loop.
 //!
-//! Run: cargo run -p opentui-core --example declarative_hello
+//! Run: cargo run -p opentui-core --example `declarative_hello`
 
 #![allow(unsafe_code)]
 #![allow(clippy::cast_lossless)]
 #![allow(clippy::cast_possible_truncation)]
+#![allow(clippy::borrow_as_ptr)]
 #![allow(clippy::cast_possible_wrap)]
 #![allow(clippy::cast_precision_loss)]
 

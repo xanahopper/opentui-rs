@@ -6,7 +6,7 @@ use opentui_core::view::{
 fn unwrap_element(node: &Node) -> &Element {
     match node {
         Node::Element(e) => e,
-        _ => panic!("expected Element, got {:?}", node),
+        _ => panic!("expected Element, got {node:?}"),
     }
 }
 
@@ -174,7 +174,7 @@ fn test_rich_text_with_segments() {
     assert_eq!(elem.kind, ElementKind::StyledText);
     if let Props::StyledText(ref sp) = elem.props {
         assert_eq!(sp.segments.len(), 2);
-        assert_eq!(sp.segments[1].bold, true);
+        assert!(sp.segments[1].bold);
     } else {
         panic!("expected StyledTextProps");
     }
@@ -216,7 +216,7 @@ fn test_overlay_builder() {
             assert!(ov.backdrop);
             assert_eq!(ov.z_order, 400);
         }
-        _ => panic!("expected Overlay, got {:?}", node),
+        _ => panic!("expected Overlay, got {node:?}"),
     }
 }
 

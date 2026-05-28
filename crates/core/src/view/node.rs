@@ -2,9 +2,9 @@ use crate::view::element::Element;
 
 #[derive(Debug, Clone)]
 pub enum Node {
-    Element(Element),
-    Overlay(OverlayNode),
-    Fragment(Vec<Node>),
+    Element(Box<Element>),
+    Overlay(Box<OverlayNode>),
+    Fragment(Vec<Self>),
     Empty,
 }
 

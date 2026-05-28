@@ -121,7 +121,7 @@ impl TextLineWidget {
     }
 
     pub fn apply_text_props(&mut self, props: &TextProps) {
-        self.text = props.content.clone();
+        self.text.clone_from(&props.content);
         self.fg = props.fg;
         self.bg = props.bg;
         self.bold = props.bold;

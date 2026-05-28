@@ -1,3 +1,5 @@
+#![allow(clippy::cast_precision_loss)]
+
 use opentui_core::view::{ViewRuntime, overlay, panel, text, view};
 use opentui_core::widget::RenderContext;
 use opentui_rust::{OptimizedBuffer, Rgba};

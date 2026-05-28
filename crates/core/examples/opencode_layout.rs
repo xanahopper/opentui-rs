@@ -238,7 +238,7 @@ fn draw_messages(buf: &mut OptimizedBuffer, app: &App, x: u32, y: u32, w: u32, h
 
     for (idx, msg) in app.messages.iter().enumerate() {
         let lines: Vec<&str> = msg.text.split('\n').collect();
-        let margin_top = if idx == 0 { 0 } else { 1 };
+        let margin_top = i32::from(idx != 0);
 
         if msg.role == "user" {
             let padding_top: i32 = 1;
@@ -687,7 +687,7 @@ fn main() -> io::Result<()> {
                                                 app.palette_filter.clear();
                                                 match name {
                                                     "Toggle Sidebar" => {
-                                                        app.sidebar_visible = !app.sidebar_visible
+                                                        app.sidebar_visible = !app.sidebar_visible;
                                                     }
                                                     "New Session" => {
                                                         app.messages.clear();

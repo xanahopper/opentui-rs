@@ -80,7 +80,6 @@ fn build_recursive(
 
 fn create_widget(id: u64, elem: &Element) -> Box<dyn crate::widget::Widget> {
     match elem.kind {
-        ElementKind::View => Box::new(ViewWidget::from_element(id, elem)),
         ElementKind::Text => Box::new(TextLineWidget::from_element(id, elem)),
         ElementKind::StyledText => {
             let mut widget = StyledTextWidget::new(id, elem.layout.clone());
@@ -126,6 +125,6 @@ fn create_widget(id: u64, elem: &Element) -> Box<dyn crate::widget::Widget> {
             }
             Box::new(widget)
         }
-        ElementKind::Custom(_) => Box::new(ViewWidget::from_element(id, elem)),
+        ElementKind::Custom(_) | ElementKind::View => Box::new(ViewWidget::from_element(id, elem)),
     }
 }

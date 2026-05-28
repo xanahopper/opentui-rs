@@ -121,7 +121,7 @@ impl OverlayBuilder {
     }
 
     pub fn build(self) -> Node {
-        Node::Overlay(OverlayNode {
+        Node::Overlay(Box::new(OverlayNode {
             content: self.content,
             x: self.x,
             y: self.y,
@@ -129,7 +129,7 @@ impl OverlayBuilder {
             height: self.height,
             backdrop: self.backdrop,
             z_order: self.z_order,
-        })
+        }))
     }
 }
 
@@ -259,9 +259,8 @@ impl ElementBuilder {
     }
 
     pub fn overflow_hidden(mut self) -> Self {
-        match &mut self.props {
-            Props::View(vp) => vp.overflow = Overflow::Hidden,
-            _ => {}
+        if let Props::View(vp) = &mut self.props {
+            vp.overflow = Overflow::Hidden;
         }
         self.layout = self.layout.overflow(taffy::style::Overflow::Hidden);
         self
@@ -450,14 +449,14 @@ impl ElementBuilder {
             }
             _ => self.layout,
         };
-        Node::Element(Element {
+        Node::Element(Box::new(Element {
             kind: self.kind,
             key: self.key,
             layout,
             props,
             children: self.children,
             action: self.action,
-        })
+        }))
     }
 }
 
@@ -490,13 +489,13 @@ impl IntoChildren for Node {
 }
 
 impl From<&'static str> for Key {
-    fn from(s: &'static str) -> Key {
-        Key::Static(s)
+    fn from(s: &'static str) -> Self {
+        Self::Static(s)
     }
 }
 
 impl From<String> for Key {
-    fn from(s: String) -> Key {
-        Key::Owned(s)
+    fn from(s: String) -> Self {
+        Self::Owned(s)
     }
 }

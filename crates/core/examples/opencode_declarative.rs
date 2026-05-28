@@ -892,14 +892,14 @@ fn main() -> io::Result<()> {
                                                 match name {
                                                     "Toggle Sidebar" => {
                                                         app_mut.sidebar_visible =
-                                                            !app_mut.sidebar_visible
+                                                            !app_mut.sidebar_visible;
                                                     }
                                                     "New Session" => {
                                                         app_mut.messages.clear();
                                                         app_mut.input_text.clear();
                                                     }
                                                     "Quit" => {
-                                                        running.store(false, Ordering::SeqCst)
+                                                        running.store(false, Ordering::SeqCst);
                                                     }
                                                     _ => {}
                                                 }

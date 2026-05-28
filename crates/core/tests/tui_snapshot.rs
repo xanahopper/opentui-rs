@@ -7,8 +7,11 @@
 #![allow(clippy::cast_lossless)]
 #![allow(clippy::cast_possible_truncation)]
 #![allow(clippy::cast_sign_loss)]
+#![allow(clippy::cast_precision_loss)]
+#![allow(dead_code)]
 
 use std::cell::RefCell;
+use std::fmt::Write;
 use std::rc::Rc;
 
 use opentui_rust::{Cell, OptimizedBuffer, Rgba, Style};
@@ -293,7 +296,7 @@ fn cell_char(buf: &OptimizedBuffer, x: u32, y: u32) -> Option<char> {
 fn build_tree(
     w: f32,
     h: f32,
-    app: Rc<RefCell<FakeApp>>,
+    app: &Rc<RefCell<FakeApp>>,
     sidebar: bool,
 ) -> (WidgetTree, [WidgetId; 5]) {
     let mut tree = WidgetTree::new();
@@ -317,8 +320,8 @@ fn build_tree(
             .overflow_hidden(),
     );
 
-    tree.add_child(main_id, MessageAreaWidget::new(msg_id, app.clone()));
-    tree.add_child(main_id, PromptWidget::new(prompt_id, app.clone()));
+    tree.add_child(main_id, MessageAreaWidget::new(msg_id, Rc::clone(app)));
+    tree.add_child(main_id, PromptWidget::new(prompt_id, Rc::clone(app)));
     tree.add_child(main_id, HintBarWidget::new(hint_id));
 
     if sidebar {
@@ -335,12 +338,13 @@ fn dump_layouts(tree: &WidgetTree, ids: &[WidgetId], names: &[&str]) -> String {
     let mut out = String::new();
     for (id, name) in ids.iter().zip(names) {
         if let Some(l) = tree.computed_layout(*id) {
-            out.push_str(&format!(
-                "{}: x={} y={} w={} h={}\n",
+            let _ = writeln!(
+                out,
+                "{}: x={} y={} w={} h={}",
                 name, l.x, l.y, l.width, l.height
-            ));
+            );
         } else {
-            out.push_str(&format!("{name}: NO LAYOUT\n"));
+            let _ = writeln!(out, "{name}: NO LAYOUT");
         }
     }
     out
@@ -354,7 +358,7 @@ fn render_to_string(buf: &OptimizedBuffer, w: u32, h: u32) -> String {
             let ch = cell_char(buf, col, row).unwrap_or(' ');
             line.push(ch);
         }
-        out.push_str(&format!("{row:3}: |{line}|\n"));
+        let _ = writeln!(out, "{row:3}: |{line}|");
     }
     out
 }
@@ -366,7 +370,7 @@ fn test_layout_no_sidebar() {
         input_text: String::new(),
     }));
 
-    let (tree, ids) = build_tree(100.0, 30.0, app, false);
+    let (tree, ids) = build_tree(100.0, 30.0, &app, false);
 
     let names = ["root", "main", "messages", "prompt", "hint"];
     let dump = dump_layouts(&tree, &ids, &names);
@@ -420,7 +424,7 @@ fn test_layout_with_sidebar() {
         input_text: String::new(),
     }));
 
-    let (tree, ids) = build_tree(140.0, 30.0, app, true);
+    let (tree, ids) = build_tree(140.0, 30.0, &app, true);
 
     let root_l = tree.computed_layout(ids[0]).unwrap();
     let main_l = tree.computed_layout(ids[1]).unwrap();
@@ -443,7 +447,7 @@ fn test_render_snapshot_no_sidebar() {
     let w = 40u32;
     let h = 12u32;
 
-    let (mut tree, ids) = build_tree(w as f32, h as f32, app, false);
+    let (mut tree, ids) = build_tree(w as f32, h as f32, &app, false);
 
     let dump = dump_layouts(&tree, &ids, &["root", "main", "messages", "prompt", "hint"]);
 
@@ -500,7 +504,7 @@ fn test_render_snapshot_with_sidebar() {
     let w = 80u32;
     let h = 12u32;
 
-    let (mut tree, ids) = build_tree(w as f32, h as f32, app, true);
+    let (mut tree, ids) = build_tree(w as f32, h as f32, &app, true);
 
     let dump = dump_layouts(&tree, &ids, &["root", "main", "messages", "prompt", "hint"]);
 
