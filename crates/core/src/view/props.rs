@@ -2,12 +2,14 @@ use opentui_rust::Rgba;
 use opentui_rust::buffer::TitleAlign;
 
 use crate::widget::Overflow;
-use crate::widgets::{BorderStyle, TextLineAlign};
+use crate::widgets::{BorderStyle, StyledSegment, TextLineAlign};
 
 #[derive(Debug, Clone)]
 pub enum Props {
     View(ViewProps),
     Text(TextProps),
+    StyledText(StyledTextProps),
+    Input(InputProps),
     Empty,
 }
 
@@ -61,4 +63,16 @@ impl Default for TextProps {
             align: TextLineAlign::Left,
         }
     }
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct StyledTextProps {
+    pub segments: Vec<StyledSegment>,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct InputProps {
+    pub placeholder: Option<String>,
+    pub password: bool,
+    pub initial_value: Option<String>,
 }

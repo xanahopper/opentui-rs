@@ -51,6 +51,7 @@ impl From<Layout> for ComputedLayout {
 #[derive(Debug, Clone, Default)]
 pub struct LayoutStyle {
     pub inner: taffy::style::Style,
+    base_padding: (f32, f32, f32, f32),
 }
 
 impl LayoutStyle {
@@ -61,6 +62,7 @@ impl LayoutStyle {
                 flex_direction: taffy::style::FlexDirection::Column,
                 ..Default::default()
             },
+            base_padding: (0.0, 0.0, 0.0, 0.0),
         }
     }
 
@@ -71,6 +73,7 @@ impl LayoutStyle {
                 flex_direction: taffy::style::FlexDirection::Row,
                 ..Default::default()
             },
+            base_padding: (0.0, 0.0, 0.0, 0.0),
         }
     }
 
@@ -95,6 +98,7 @@ impl LayoutStyle {
     }
 
     pub fn padding(mut self, top: f32, right: f32, bottom: f32, left: f32) -> Self {
+        self.base_padding = (top, right, bottom, left);
         self.inner.padding = taffy::geometry::Rect {
             top: length(top),
             right: length(right),
@@ -102,6 +106,18 @@ impl LayoutStyle {
             left: length(left),
         };
         self
+    }
+
+    pub fn add_padding(self, top: f32, right: f32, bottom: f32, left: f32) -> Self {
+        if top == 0.0 && right == 0.0 && bottom == 0.0 && left == 0.0 {
+            return self;
+        }
+        self.padding_extra(top, right, bottom, left)
+    }
+
+    fn padding_extra(self, top: f32, right: f32, bottom: f32, left: f32) -> Self {
+        let base = self.base_padding;
+        self.padding(base.0 + top, base.1 + right, base.2 + bottom, base.3 + left)
     }
 
     pub fn padding_all(mut self, v: f32) -> Self {

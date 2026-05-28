@@ -4,10 +4,10 @@ use opentui_rust::buffer::TitleAlign;
 use crate::layout::LayoutStyle;
 use crate::view::element::{Element, ElementKind};
 use crate::view::key::Key;
-use crate::view::node::Node;
-use crate::view::props::{Props, TextProps, ViewProps};
+use crate::view::node::{Node, OverlayNode};
+use crate::view::props::{InputProps, Props, StyledTextProps, TextProps, ViewProps};
 use crate::widget::Overflow;
-use crate::widgets::{BorderChars, BorderSides, BorderStyle};
+use crate::widgets::{BorderChars, BorderSides, BorderStyle, StyledSegment};
 
 pub fn view() -> ElementBuilder {
     ElementBuilder::new(ElementKind::View)
@@ -23,6 +23,22 @@ pub fn text(content: impl Into<String>) -> ElementBuilder {
     builder
 }
 
+pub fn rich_text(segments: Vec<StyledSegment>) -> ElementBuilder {
+    let mut builder = ElementBuilder::new(ElementKind::StyledText);
+    builder.props = Props::StyledText(StyledTextProps { segments });
+    builder
+}
+
+pub fn span(text: impl Into<String>, fg: Rgba) -> StyledSegment {
+    StyledSegment::new(text, fg)
+}
+
+pub fn input() -> ElementBuilder {
+    let mut builder = ElementBuilder::new(ElementKind::Input);
+    builder.props = Props::Input(InputProps::default());
+    builder
+}
+
 pub fn fragment(children: Vec<Node>) -> Node {
     Node::Fragment(children)
 }
@@ -33,6 +49,71 @@ pub fn when(condition: bool, f: impl FnOnce() -> Node) -> Node {
 
 pub fn empty() -> Node {
     Node::Empty
+}
+
+pub fn overlay(content: Node) -> OverlayBuilder {
+    OverlayBuilder {
+        content: Box::new(content),
+        x: 0,
+        y: 0,
+        width: 0,
+        height: 0,
+        backdrop: false,
+        z_order: 0,
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct OverlayBuilder {
+    content: Box<Node>,
+    x: u32,
+    y: u32,
+    width: u32,
+    height: u32,
+    backdrop: bool,
+    z_order: u16,
+}
+
+impl OverlayBuilder {
+    pub fn position(mut self, x: u32, y: u32) -> Self {
+        self.x = x;
+        self.y = y;
+        self
+    }
+
+    pub fn size(mut self, width: u32, height: u32) -> Self {
+        self.width = width;
+        self.height = height;
+        self
+    }
+
+    pub fn backdrop(mut self) -> Self {
+        self.backdrop = true;
+        self
+    }
+
+    pub fn z_order(mut self, z: u16) -> Self {
+        self.z_order = z;
+        self
+    }
+
+    pub fn build(self) -> Node {
+        Node::Overlay(OverlayNode {
+            content: self.content,
+            x: self.x,
+            y: self.y,
+            width: self.width,
+            height: self.height,
+            backdrop: self.backdrop,
+            z_order: self.z_order,
+        })
+    }
+}
+
+impl From<OverlayBuilder> for Node {
+    fn from(builder: OverlayBuilder) -> Self {
+        builder.build()
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -50,6 +131,8 @@ impl ElementBuilder {
         let props = match kind {
             ElementKind::View => Props::View(ViewProps::default()),
             ElementKind::Text => Props::Text(TextProps::default()),
+            ElementKind::StyledText => Props::StyledText(StyledTextProps::default()),
+            ElementKind::Input => Props::Input(InputProps::default()),
             ElementKind::Custom(_) => Props::Empty,
         };
         Self {
@@ -268,15 +351,64 @@ impl ElementBuilder {
         self
     }
 
+    pub fn placeholder(mut self, text: impl Into<String>) -> Self {
+        if let Props::Input(ip) = &mut self.props {
+            ip.placeholder = Some(text.into());
+        }
+        self
+    }
+
+    pub fn password(mut self) -> Self {
+        if let Props::Input(ip) = &mut self.props {
+            ip.password = true;
+        }
+        self
+    }
+
+    pub fn value(mut self, text: impl Into<String>) -> Self {
+        if let Props::Input(ip) = &mut self.props {
+            ip.initial_value = Some(text.into());
+        }
+        self
+    }
+
     pub fn build(self) -> Node {
         let mut props = self.props;
         if let (Props::Text(tp), Some(content)) = (&mut props, self.text_content) {
             tp.content = content;
         }
+        let layout = match &props {
+            Props::View(vp) => {
+                let mut layout = self.layout;
+                if let Some(ref border) = vp.border {
+                    let mut top = 0.0_f32;
+                    let mut right = 0.0_f32;
+                    let mut bottom = 0.0_f32;
+                    let mut left = 0.0_f32;
+                    if border.sides.top && border.chars.horizontal != '\0' {
+                        top = 1.0;
+                    }
+                    if border.sides.bottom && border.chars.horizontal != '\0' {
+                        bottom = 1.0;
+                    }
+                    if border.sides.left && border.chars.vertical != '\0' {
+                        left = 1.0;
+                    }
+                    if border.sides.right && border.chars.vertical != '\0' {
+                        right = 1.0;
+                    }
+                    if top > 0.0 || right > 0.0 || bottom > 0.0 || left > 0.0 {
+                        layout = layout.add_padding(top, right, bottom, left);
+                    }
+                }
+                layout
+            }
+            _ => self.layout,
+        };
         Node::Element(Element {
             kind: self.kind,
             key: self.key,
-            layout: self.layout,
+            layout,
             props,
             children: self.children,
         })

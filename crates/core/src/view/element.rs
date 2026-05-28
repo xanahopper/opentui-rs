@@ -16,5 +16,7 @@ pub struct Element {
 pub enum ElementKind {
     View,
     Text,
+    StyledText,
+    Input,
     Custom(&'static str),
 }

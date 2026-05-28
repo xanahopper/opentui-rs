@@ -1,4 +1,4 @@
-use opentui_core::view::{ViewRuntime, text, view};
+use opentui_core::view::{ViewRuntime, overlay, panel, text, view};
 use opentui_core::widget::RenderContext;
 use opentui_rust::{OptimizedBuffer, Rgba};
 
@@ -129,4 +129,31 @@ fn test_when_conditional_rendering() {
     let buffer = render_node(&node, 20, 5);
     let ch = buffer.get(0, 0).and_then(|c| c.content.as_char());
     assert_eq!(ch, Some('a'));
+}
+
+#[test]
+fn test_rebuild_with_overlay() {
+    let content = panel()
+        .title("Popup")
+        .size(10.0, 3.0)
+        .children([text("ok").fg(TEXT).height(1.0).build()])
+        .build();
+    let node = view()
+        .column()
+        .size(20.0, 10.0)
+        .bg(BG)
+        .children([
+            text("bg").fg(TEXT).height(1.0).build(),
+            overlay(content)
+                .position(5, 2)
+                .size(10, 3)
+                .backdrop()
+                .build(),
+        ])
+        .build();
+
+    let mut runtime = ViewRuntime::new();
+    runtime.rebuild(&node);
+    runtime.layout(20.0, 10.0);
+    assert!(runtime.tree().overlays().len() == 1);
 }

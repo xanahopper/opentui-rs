@@ -1,5 +1,6 @@
 use opentui_core::view::{
-    Element, ElementKind, Key, Node, Props, empty, fragment, panel, text, view, when,
+    Element, ElementKind, Key, Node, Props, empty, fragment, input, overlay, panel, rich_text,
+    span, text, view, when,
 };
 
 fn unwrap_element(node: &Node) -> &Element {
@@ -161,5 +162,60 @@ fn test_panel_title() {
     let elem = unwrap_element(&node);
     if let Props::View(ref vp) = elem.props {
         assert_eq!(vp.title.as_deref(), Some("My Panel"));
+    }
+}
+
+#[test]
+fn test_rich_text_with_segments() {
+    let seg1 = span("Hello ", opentui_rust::Rgba::WHITE);
+    let seg2 = span("World", opentui_rust::Rgba::new(1.0, 0.0, 0.0, 1.0)).bold();
+    let node = rich_text(vec![seg1, seg2]).build();
+    let elem = unwrap_element(&node);
+    assert_eq!(elem.kind, ElementKind::StyledText);
+    if let Props::StyledText(ref sp) = elem.props {
+        assert_eq!(sp.segments.len(), 2);
+        assert_eq!(sp.segments[1].bold, true);
+    } else {
+        panic!("expected StyledTextProps");
+    }
+}
+
+#[test]
+fn test_input_builder() {
+    let node = input()
+        .placeholder("Enter text...")
+        .password()
+        .value("secret")
+        .build();
+    let elem = unwrap_element(&node);
+    assert_eq!(elem.kind, ElementKind::Input);
+    if let Props::Input(ref ip) = elem.props {
+        assert_eq!(ip.placeholder.as_deref(), Some("Enter text..."));
+        assert!(ip.password);
+        assert_eq!(ip.initial_value.as_deref(), Some("secret"));
+    } else {
+        panic!("expected InputProps");
+    }
+}
+
+#[test]
+fn test_overlay_builder() {
+    let content = panel().title("Modal").build();
+    let node = overlay(content)
+        .position(10, 5)
+        .size(40, 10)
+        .backdrop()
+        .z_order(400)
+        .build();
+    match &node {
+        Node::Overlay(ov) => {
+            assert_eq!(ov.x, 10);
+            assert_eq!(ov.y, 5);
+            assert_eq!(ov.width, 40);
+            assert_eq!(ov.height, 10);
+            assert!(ov.backdrop);
+            assert_eq!(ov.z_order, 400);
+        }
+        _ => panic!("expected Overlay, got {:?}", node),
     }
 }

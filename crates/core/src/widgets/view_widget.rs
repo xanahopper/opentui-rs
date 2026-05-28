@@ -59,10 +59,10 @@ impl ViewWidget {
         self.opacity = props.opacity;
         self.focusable = props.focusable;
         self.visible = props.visible;
-        self.recompute_border_padding();
+        self.compute_border_padding();
     }
 
-    fn recompute_border_padding(&mut self) {
+    fn compute_border_padding(&mut self) {
         let mut top = 0.0_f32;
         let mut right = 0.0_f32;
         let mut bottom = 0.0_f32;
@@ -96,7 +96,7 @@ impl ViewWidget {
             focused_color: None,
             sides: BorderSides::all(),
         });
-        self.recompute_border_padding();
+        self.compute_border_padding();
         self
     }
 

@@ -28,6 +28,18 @@ impl ViewRuntime {
         self.tree.render(ctx);
     }
 
+    pub fn render_to_buffer(
+        &mut self,
+        ctx: &mut RenderContext<'_>,
+        node: &Node,
+        width: f32,
+        height: f32,
+    ) {
+        self.rebuild(node);
+        self.layout(width, height);
+        self.render(ctx);
+    }
+
     pub fn dispatch_key(&mut self, key: &opentui_rust::KeyEvent) -> KeyDispatchResult {
         self.tree.dispatch_key(key)
     }
