@@ -5,7 +5,7 @@ use crate::layout::LayoutStyle;
 use crate::view::element::{Element, ElementKind};
 use crate::view::key::Key;
 use crate::view::node::{Node, OverlayNode};
-use crate::view::props::{InputProps, Props, StyledTextProps, TextProps, ViewProps};
+use crate::view::props::{InputProps, ListProps, Props, StyledTextProps, TextProps, ViewProps};
 use crate::widget::Overflow;
 use crate::widgets::{BorderChars, BorderSides, BorderStyle, StyledSegment};
 
@@ -36,6 +36,15 @@ pub fn span(text: impl Into<String>, fg: Rgba) -> StyledSegment {
 pub fn input() -> ElementBuilder {
     let mut builder = ElementBuilder::new(ElementKind::Input);
     builder.props = Props::Input(InputProps::default());
+    builder
+}
+
+pub fn list(item_count: usize) -> ElementBuilder {
+    let mut builder = ElementBuilder::new(ElementKind::List);
+    builder.props = Props::List(ListProps {
+        item_count,
+        scrollbar: true,
+    });
     builder
 }
 
@@ -124,6 +133,7 @@ pub struct ElementBuilder {
     props: Props,
     children: Vec<Node>,
     text_content: Option<String>,
+    action: Option<String>,
 }
 
 impl ElementBuilder {
@@ -133,6 +143,7 @@ impl ElementBuilder {
             ElementKind::Text => Props::Text(TextProps::default()),
             ElementKind::StyledText => Props::StyledText(StyledTextProps::default()),
             ElementKind::Input => Props::Input(InputProps::default()),
+            ElementKind::List => Props::List(ListProps::default()),
             ElementKind::Custom(_) => Props::Empty,
         };
         Self {
@@ -142,6 +153,7 @@ impl ElementBuilder {
             props,
             children: Vec::new(),
             text_content: None,
+            action: None,
         }
     }
 
@@ -351,6 +363,11 @@ impl ElementBuilder {
         self
     }
 
+    pub fn on_action(mut self, action: impl Into<String>) -> Self {
+        self.action = Some(action.into());
+        self
+    }
+
     pub fn placeholder(mut self, text: impl Into<String>) -> Self {
         if let Props::Input(ip) = &mut self.props {
             ip.placeholder = Some(text.into());
@@ -411,6 +428,7 @@ impl ElementBuilder {
             layout,
             props,
             children: self.children,
+            action: self.action,
         })
     }
 }

@@ -10,6 +10,7 @@ pub enum Props {
     Text(TextProps),
     StyledText(StyledTextProps),
     Input(InputProps),
+    List(ListProps),
     Empty,
 }
 
@@ -75,4 +76,10 @@ pub struct InputProps {
     pub placeholder: Option<String>,
     pub password: bool,
     pub initial_value: Option<String>,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct ListProps {
+    pub item_count: usize,
+    pub scrollbar: bool,
 }

@@ -1,6 +1,6 @@
 use opentui_core::view::{
-    Element, ElementKind, Key, Node, Props, empty, fragment, input, overlay, panel, rich_text,
-    span, text, view, when,
+    Element, ElementKind, Key, Node, Props, empty, fragment, input, list, overlay, panel,
+    rich_text, span, text, view, when,
 };
 
 fn unwrap_element(node: &Node) -> &Element {
@@ -218,4 +218,24 @@ fn test_overlay_builder() {
         }
         _ => panic!("expected Overlay, got {:?}", node),
     }
+}
+
+#[test]
+fn test_list_builder() {
+    let node = list(100).build();
+    let elem = unwrap_element(&node);
+    assert_eq!(elem.kind, ElementKind::List);
+    if let Props::List(ref lp) = elem.props {
+        assert_eq!(lp.item_count, 100);
+        assert!(lp.scrollbar);
+    } else {
+        panic!("expected ListProps");
+    }
+}
+
+#[test]
+fn test_on_action() {
+    let node = view().on_action("submit").focusable().build();
+    let elem = unwrap_element(&node);
+    assert_eq!(elem.action.as_deref(), Some("submit"));
 }

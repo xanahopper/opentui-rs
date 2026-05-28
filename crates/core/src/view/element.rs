@@ -10,6 +10,7 @@ pub struct Element {
     pub layout: LayoutStyle,
     pub props: Props,
     pub children: Vec<Node>,
+    pub action: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -18,5 +19,6 @@ pub enum ElementKind {
     Text,
     StyledText,
     Input,
+    List,
     Custom(&'static str),
 }

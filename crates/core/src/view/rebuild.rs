@@ -2,7 +2,7 @@ use crate::view::element::{Element, ElementKind};
 use crate::view::node::Node;
 use crate::view::props::Props;
 use crate::widget::{Overlay, OverlayZOrder, WidgetTree};
-use crate::widgets::{InputWidget, StyledTextWidget, TextLineWidget, ViewWidget};
+use crate::widgets::{InputWidget, ListWidget, StyledTextWidget, TextLineWidget, ViewWidget};
 
 pub fn build_tree(node: &Node) -> WidgetTree {
     let mut ctx = BuildContext { next_id: 1 };
@@ -96,6 +96,13 @@ fn create_widget(id: u64, elem: &Element) -> Box<dyn crate::widget::Widget> {
                 if let Some(ref val) = props.initial_value {
                     widget.set_value(val);
                 }
+            }
+            Box::new(widget)
+        }
+        ElementKind::List => {
+            let mut widget = ListWidget::new(id, elem.layout.clone());
+            if let Props::List(ref props) = elem.props {
+                widget = widget.scrollbar(props.scrollbar);
             }
             Box::new(widget)
         }
