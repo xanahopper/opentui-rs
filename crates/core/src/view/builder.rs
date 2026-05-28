@@ -248,6 +248,11 @@ impl ElementBuilder {
         self
     }
 
+    pub fn margin(mut self, top: f32, right: f32, bottom: f32, left: f32) -> Self {
+        self.layout = self.layout.margin(top, right, bottom, left);
+        self
+    }
+
     pub fn gap(mut self, v: f32) -> Self {
         self.layout = self.layout.gap(v);
         self
@@ -381,6 +386,13 @@ impl ElementBuilder {
 
     pub fn on_action(mut self, action: impl Into<String>) -> Self {
         self.action = Some(action.into());
+        self
+    }
+
+    pub fn char_(mut self, ch: char) -> Self {
+        if let Props::Separator(sp) = &mut self.props {
+            sp.char = ch;
+        }
         self
     }
 
