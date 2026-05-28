@@ -133,7 +133,7 @@ impl Widget for StyledTextWidget {
         &mut self.style
     }
 
-    fn render(&self, ctx: &mut RenderContext<'_>, layout: &ComputedLayout) {
+    fn render(&mut self, ctx: &mut RenderContext<'_>, layout: &ComputedLayout) {
         let x = layout.x as u32;
         let y = layout.y as u32;
         let w = layout.width as u32;
@@ -183,17 +183,18 @@ impl Widget for StyledTextWidget {
                 }
                 let seg_style = builder.build();
 
-                for ch in segment.text.chars() {
+                for (grapheme, dw) in ot::unicode::split_graphemes_with_widths(&segment.text) {
                     if col >= max_col {
                         break;
                     }
-                    let text = ch.to_string();
-                    let display_w = ot::unicode::display_width(&text) as u32;
-                    if display_w == 0 {
+                    let dw = dw as u32;
+                    if dw == 0 {
                         continue;
                     }
-                    ctx.buffer.set_blended(col, row, Cell::new(ch, seg_style));
-                    col += display_w;
+                    if let Some(ch) = grapheme.chars().next() {
+                        ctx.buffer.set_blended(col, row, Cell::new(ch, seg_style));
+                    }
+                    col += dw;
                 }
             }
         }

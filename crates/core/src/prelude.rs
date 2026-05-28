@@ -11,14 +11,18 @@ pub use crate::list::{FixedHeightItemRenderer, ItemRenderer, VirtualList, Virtua
 pub use crate::render_command::{RenderCommand, RenderCommandList};
 pub use crate::scroll::{ScrollBarRenderer, ScrollState, ScrollView};
 pub use crate::theme::{UiTheme, UiThemeRegistry};
+pub use crate::view::{
+    ElementBuilder, ElementKind, Key, Node, Props, TextProps, ViewProps, ViewRuntime, empty,
+    fragment, panel, text, view, when,
+};
 pub use crate::widget::{
     KeyAction, KeyDispatchResult, MouseDispatchResult, Overflow, Overlay, OverlayZOrder,
     RenderContext, Widget, WidgetId, WidgetTree,
 };
 pub use crate::widgets::{
     BorderChars, BorderSides, BorderStyle, BoxWidget, EditorWidget, FillWidget, InputMode,
-    InputWidget, ListWidget, ProgressBarStyle, ProgressBarWidget, ProgressChars,
-    ScrollViewWidget, SeparatorWidget, StatusLineStyle, StatusLineWidget, StyledSegment,
-    StyledTextAlign, StyledTextWidget, Tab, TabsStyle, TabsWidget, TextLineAlign, TextLineWidget,
-    TextAlign, TextWidget,
+    InputWidget, ListWidget, ProgressBarStyle, ProgressBarWidget, ProgressChars, ScrollViewWidget,
+    SeparatorWidget, StatusLineStyle, StatusLineWidget, StyledSegment, StyledTextAlign,
+    StyledTextWidget, Tab, TabsStyle, TabsWidget, TextAlign, TextLineAlign, TextLineWidget,
+    TextWidget, ViewWidget,
 };

@@ -75,20 +75,44 @@ impl std::fmt::Debug for SidebarWidget {
 macro_rules! impl_widget_boilerplate {
     ($t:ty) => {
         impl Widget for $t {
-            fn id(&self) -> WidgetId { self.id }
-            fn style(&self) -> &LayoutStyle { &self.style }
-            fn style_mut(&mut self) -> &mut LayoutStyle { &mut self.style }
-            fn render(&self, _ctx: &mut RenderContext<'_>, _layout: &ComputedLayout) {}
-            fn visible(&self) -> bool { true }
-            fn opacity(&self) -> f32 { 1.0 }
-            fn overflow(&self) -> Overflow { Overflow::Hidden }
-            fn focusable(&self) -> bool { false }
-            fn focused(&self) -> bool { false }
+            fn id(&self) -> WidgetId {
+                self.id
+            }
+            fn style(&self) -> &LayoutStyle {
+                &self.style
+            }
+            fn style_mut(&mut self) -> &mut LayoutStyle {
+                &mut self.style
+            }
+            fn render(&mut self, _ctx: &mut RenderContext<'_>, _layout: &ComputedLayout) {}
+            fn visible(&self) -> bool {
+                true
+            }
+            fn opacity(&self) -> f32 {
+                1.0
+            }
+            fn overflow(&self) -> Overflow {
+                Overflow::Hidden
+            }
+            fn focusable(&self) -> bool {
+                false
+            }
+            fn focused(&self) -> bool {
+                false
+            }
             fn set_focused(&mut self, _focused: bool) {}
-            fn handle_key(&mut self, _key: &opentui_rust::KeyEvent) -> bool { false }
-            fn handle_mouse(&mut self, _mouse: &opentui_rust::MouseEvent) -> bool { false }
-            fn as_any(&self) -> &dyn std::any::Any { self }
-            fn as_any_mut(&mut self) -> &mut dyn std::any::Any { self }
+            fn handle_key(&mut self, _key: &opentui_rust::KeyEvent) -> bool {
+                false
+            }
+            fn handle_mouse(&mut self, _mouse: &opentui_rust::MouseEvent) -> bool {
+                false
+            }
+            fn as_any(&self) -> &dyn std::any::Any {
+                self
+            }
+            fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+                self
+            }
         }
     };
 }
@@ -98,34 +122,54 @@ impl_widget_boilerplate!(SidebarWidget);
 
 impl MessageAreaWidget {
     fn new(id: WidgetId, app: Rc<RefCell<FakeApp>>) -> Self {
-        Self { id, style: LayoutStyle::column().flex_grow(1.0), app }
+        Self {
+            id,
+            style: LayoutStyle::column().flex_grow(1.0),
+            app,
+        }
     }
 }
 
 impl PromptWidget {
     fn new(id: WidgetId, app: Rc<RefCell<FakeApp>>) -> Self {
-        Self { id, style: LayoutStyle::column().height(5.0).flex_shrink(0.0), app }
+        Self {
+            id,
+            style: LayoutStyle::column().height(5.0).flex_shrink(0.0),
+            app,
+        }
     }
 }
 
 impl HintBarWidget {
     fn new(id: WidgetId) -> Self {
-        Self { id, style: LayoutStyle::column().height(1.0).flex_shrink(0.0) }
+        Self {
+            id,
+            style: LayoutStyle::column().height(1.0).flex_shrink(0.0),
+        }
     }
 }
 
 impl SidebarWidget {
     fn new(id: WidgetId) -> Self {
-        Self { id, style: LayoutStyle::column().width(42.0).flex_shrink(0.0) }
+        Self {
+            id,
+            style: LayoutStyle::column().width(42.0).flex_shrink(0.0),
+        }
     }
 }
 
 impl Widget for MessageAreaWidget {
-    fn id(&self) -> WidgetId { self.id }
-    fn style(&self) -> &LayoutStyle { &self.style }
-    fn style_mut(&mut self) -> &mut LayoutStyle { &mut self.style }
+    fn id(&self) -> WidgetId {
+        self.id
+    }
+    fn style(&self) -> &LayoutStyle {
+        &self.style
+    }
+    fn style_mut(&mut self) -> &mut LayoutStyle {
+        &mut self.style
+    }
 
-    fn render(&self, ctx: &mut RenderContext<'_>, layout: &ComputedLayout) {
+    fn render(&mut self, ctx: &mut RenderContext<'_>, layout: &ComputedLayout) {
         let x = layout.x as u32;
         let y = layout.y as u32;
         let w = layout.width as u32;
@@ -150,24 +194,48 @@ impl Widget for MessageAreaWidget {
         }
     }
 
-    fn visible(&self) -> bool { true }
-    fn opacity(&self) -> f32 { 1.0 }
-    fn overflow(&self) -> Overflow { Overflow::Hidden }
-    fn focusable(&self) -> bool { false }
-    fn focused(&self) -> bool { false }
+    fn visible(&self) -> bool {
+        true
+    }
+    fn opacity(&self) -> f32 {
+        1.0
+    }
+    fn overflow(&self) -> Overflow {
+        Overflow::Hidden
+    }
+    fn focusable(&self) -> bool {
+        false
+    }
+    fn focused(&self) -> bool {
+        false
+    }
     fn set_focused(&mut self, _focused: bool) {}
-    fn handle_key(&mut self, _key: &opentui_rust::KeyEvent) -> bool { false }
-    fn handle_mouse(&mut self, _mouse: &opentui_rust::MouseEvent) -> bool { false }
-    fn as_any(&self) -> &dyn std::any::Any { self }
-    fn as_any_mut(&mut self) -> &mut dyn std::any::Any { self }
+    fn handle_key(&mut self, _key: &opentui_rust::KeyEvent) -> bool {
+        false
+    }
+    fn handle_mouse(&mut self, _mouse: &opentui_rust::MouseEvent) -> bool {
+        false
+    }
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+        self
+    }
 }
 
 impl Widget for PromptWidget {
-    fn id(&self) -> WidgetId { self.id }
-    fn style(&self) -> &LayoutStyle { &self.style }
-    fn style_mut(&mut self) -> &mut LayoutStyle { &mut self.style }
+    fn id(&self) -> WidgetId {
+        self.id
+    }
+    fn style(&self) -> &LayoutStyle {
+        &self.style
+    }
+    fn style_mut(&mut self) -> &mut LayoutStyle {
+        &mut self.style
+    }
 
-    fn render(&self, ctx: &mut RenderContext<'_>, layout: &ComputedLayout) {
+    fn render(&mut self, ctx: &mut RenderContext<'_>, layout: &ComputedLayout) {
         let x = layout.x as u32;
         let y = layout.y as u32;
         let w = layout.width as u32;
@@ -188,16 +256,34 @@ impl Widget for PromptWidget {
         }
     }
 
-    fn visible(&self) -> bool { true }
-    fn opacity(&self) -> f32 { 1.0 }
-    fn overflow(&self) -> Overflow { Overflow::Hidden }
-    fn focusable(&self) -> bool { false }
-    fn focused(&self) -> bool { false }
+    fn visible(&self) -> bool {
+        true
+    }
+    fn opacity(&self) -> f32 {
+        1.0
+    }
+    fn overflow(&self) -> Overflow {
+        Overflow::Hidden
+    }
+    fn focusable(&self) -> bool {
+        false
+    }
+    fn focused(&self) -> bool {
+        false
+    }
     fn set_focused(&mut self, _focused: bool) {}
-    fn handle_key(&mut self, _key: &opentui_rust::KeyEvent) -> bool { false }
-    fn handle_mouse(&mut self, _mouse: &opentui_rust::MouseEvent) -> bool { false }
-    fn as_any(&self) -> &dyn std::any::Any { self }
-    fn as_any_mut(&mut self) -> &mut dyn std::any::Any { self }
+    fn handle_key(&mut self, _key: &opentui_rust::KeyEvent) -> bool {
+        false
+    }
+    fn handle_mouse(&mut self, _mouse: &opentui_rust::MouseEvent) -> bool {
+        false
+    }
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+        self
+    }
 }
 
 fn cell_char(buf: &OptimizedBuffer, x: u32, y: u32) -> Option<char> {
@@ -308,7 +394,11 @@ fn test_layout_no_sidebar() {
     assert_eq!(msg_l.y, 0.0);
     assert_eq!(msg_l.width, 100.0);
     // messages height = 30 - 5 (prompt) - 1 (hint) = 24
-    assert_eq!(msg_l.height, 24.0, "messages height should be 24 (30-5-1), got {}\n{dump}", msg_l.height);
+    assert_eq!(
+        msg_l.height, 24.0,
+        "messages height should be 24 (30-5-1), got {}\n{dump}",
+        msg_l.height
+    );
 
     // Prompt at row 24, height 5
     assert_eq!(prompt_l.x, 0.0);
@@ -336,7 +426,11 @@ fn test_layout_with_sidebar() {
     let main_l = tree.computed_layout(ids[1]).unwrap();
 
     assert_eq!(root_l.width, 140.0);
-    assert_eq!(main_l.width, 98.0, "main width should be 98 (140-42), got {}", main_l.width);
+    assert_eq!(
+        main_l.width, 98.0,
+        "main width should be 98 (140-42), got {}",
+        main_l.width
+    );
 }
 
 #[test]
@@ -371,7 +465,10 @@ fn test_render_snapshot_no_sidebar() {
 
     // Messages area: first 6 rows (h=12, prompt=5, hint=1, messages=6)
     let msg_l = tree.computed_layout(ids[2]).unwrap();
-    assert_eq!(msg_l.height, 6.0, "messages should be 6 rows tall\n{dump}\n{snapshot}");
+    assert_eq!(
+        msg_l.height, 6.0,
+        "messages should be 6 rows tall\n{dump}\n{snapshot}"
+    );
 
     // "Hello" should appear in messages area at row 0, col 2
     assert_eq!(cell_char(&buf, 2, 0), Some('H'), "H at (2,0)\n{snapshot}");
@@ -382,7 +479,11 @@ fn test_render_snapshot_no_sidebar() {
     assert_eq!(prompt_l.y, 6.0, "prompt should start at y=6\n{dump}");
 
     // Placeholder text in prompt at row 7 (y=6 + 1 padding row)
-    assert_eq!(cell_char(&buf, 3, 7), Some('A'), "A (from 'Ask anything...') at (3,7)\n{snapshot}");
+    assert_eq!(
+        cell_char(&buf, 3, 7),
+        Some('A'),
+        "A (from 'Ask anything...') at (3,7)\n{snapshot}"
+    );
 
     // Hint bar at row 11
     let hint_l = tree.computed_layout(ids[4]).unwrap();

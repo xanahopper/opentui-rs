@@ -82,10 +82,7 @@ impl Widget for ListWidget {
         &mut self.style
     }
 
-    fn render(&self, _ctx: &mut RenderContext<'_>, _layout: &ComputedLayout) {
-        // VirtualList::render needs &mut state which we can't provide from &self.
-        // Use render_with_renderer() instead for actual rendering.
-    }
+    fn render(&mut self, _ctx: &mut RenderContext<'_>, _layout: &ComputedLayout) {}
 
     fn visible(&self) -> bool {
         self.visible

@@ -59,6 +59,7 @@ pub mod prelude;
 pub mod render_command;
 pub mod scroll;
 pub mod theme;
+pub mod view;
 pub mod widget;
 pub mod widgets;
 

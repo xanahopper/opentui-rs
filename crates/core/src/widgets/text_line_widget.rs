@@ -8,6 +8,8 @@ use opentui_rust as ot;
 use opentui_rust::{Rgba, Style};
 
 use crate::layout::{ComputedLayout, LayoutStyle};
+use crate::view::element::Element;
+use crate::view::props::{Props, TextProps};
 use crate::widget::{Overflow, RenderContext, Widget, WidgetId};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -109,6 +111,24 @@ impl TextLineWidget {
     pub fn get_text(&self) -> &str {
         &self.text
     }
+
+    pub fn from_element(id: WidgetId, elem: &Element) -> Self {
+        let mut widget = Self::new(id, elem.layout.clone());
+        if let Props::Text(ref props) = elem.props {
+            widget.apply_text_props(props);
+        }
+        widget
+    }
+
+    pub fn apply_text_props(&mut self, props: &TextProps) {
+        self.text = props.content.clone();
+        self.fg = props.fg;
+        self.bg = props.bg;
+        self.bold = props.bold;
+        self.italic = props.italic;
+        self.underline = props.underline;
+        self.align = props.align;
+    }
 }
 
 impl Widget for TextLineWidget {
@@ -124,7 +144,7 @@ impl Widget for TextLineWidget {
         &mut self.style
     }
 
-    fn render(&self, ctx: &mut RenderContext<'_>, layout: &ComputedLayout) {
+    fn render(&mut self, ctx: &mut RenderContext<'_>, layout: &ComputedLayout) {
         let x = layout.x as u32;
         let y = layout.y as u32;
         let w = layout.width as u32;
@@ -148,9 +168,7 @@ impl Widget for TextLineWidget {
 
         let start_x = match self.align {
             TextLineAlign::Left => x,
-            TextLineAlign::Center => {
-                x + w.saturating_sub(text_width) / 2
-            }
+            TextLineAlign::Center => x + w.saturating_sub(text_width) / 2,
             TextLineAlign::Right => x + w.saturating_sub(text_width),
         };
 
@@ -172,15 +190,17 @@ impl Widget for TextLineWidget {
         let max_col = x + w;
         let mut col = start_x;
 
-        for ch in self.text.chars() {
+        for (grapheme, dw) in ot::unicode::split_graphemes_with_widths(&self.text) {
             if col >= max_col {
                 break;
             }
-            let dw = ot::unicode::display_width(ch.to_string().as_str()) as u32;
+            let dw = dw as u32;
             if dw == 0 {
                 continue;
             }
-            ctx.buffer.set_blended(col, y, ot::Cell::new(ch, style));
+            if let Some(ch) = grapheme.chars().next() {
+                ctx.buffer.set_blended(col, y, ot::Cell::new(ch, style));
+            }
             col += dw;
         }
     }

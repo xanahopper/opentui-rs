@@ -6,8 +6,8 @@
 use std::cell::RefCell;
 
 use opentui_rust as ot;
-use opentui_rust::{Cell, Rgba, Style, WrapMode};
 use opentui_rust::text::{EditBuffer, EditorView};
+use opentui_rust::{Cell, Rgba, Style, WrapMode};
 
 use crate::layout::{ComputedLayout, LayoutStyle};
 use crate::widget::{Overflow, RenderContext, Widget, WidgetId};
@@ -45,9 +45,7 @@ impl EditorWidget {
             line_numbers: false,
             wrap_mode: WrapMode::None,
             placeholder: None,
-            placeholder_style: Style::builder()
-                .fg(Rgba::new(0.5, 0.5, 0.5, 1.0))
-                .build(),
+            placeholder_style: Style::builder().fg(Rgba::new(0.5, 0.5, 0.5, 1.0)).build(),
             visible: true,
             opacity: 1.0,
             focusable: true,
@@ -112,7 +110,7 @@ impl Widget for EditorWidget {
         &mut self.style
     }
 
-    fn render(&self, ctx: &mut RenderContext<'_>, layout: &ComputedLayout) {
+    fn render(&mut self, ctx: &mut RenderContext<'_>, layout: &ComputedLayout) {
         let x = layout.x as u32;
         let y = layout.y as u32;
         let w = layout.width as u32;
@@ -130,11 +128,8 @@ impl Widget for EditorWidget {
                 let max = display_w.min(w);
                 for i in 0..max {
                     if let Some(ch) = chars.get(i as usize) {
-                        ctx.buffer.set_blended(
-                            x + i,
-                            y,
-                            Cell::new(*ch, self.placeholder_style),
-                        );
+                        ctx.buffer
+                            .set_blended(x + i, y, Cell::new(*ch, self.placeholder_style));
                     }
                 }
                 return;

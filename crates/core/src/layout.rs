@@ -29,7 +29,7 @@ use taffy::tree::Layout;
 
 pub use taffy::style as taffy_style;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy, Default)]
 pub struct ComputedLayout {
     pub x: f32,
     pub y: f32,

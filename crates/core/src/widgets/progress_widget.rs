@@ -143,7 +143,7 @@ impl Widget for ProgressBarWidget {
         &mut self.style
     }
 
-    fn render(&self, ctx: &mut RenderContext<'_>, layout: &ComputedLayout) {
+    fn render(&mut self, ctx: &mut RenderContext<'_>, layout: &ComputedLayout) {
         let x = layout.x as u32;
         let y = layout.y as u32;
         let w = layout.width as u32;

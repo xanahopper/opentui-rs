@@ -124,7 +124,7 @@ impl Widget for TextWidget {
         &mut self.style
     }
 
-    fn render(&self, ctx: &mut RenderContext<'_>, layout: &ComputedLayout) {
+    fn render(&mut self, ctx: &mut RenderContext<'_>, layout: &ComputedLayout) {
         let x = layout.x as i32;
         let y = layout.y as i32;
         let w = layout.width as u32;

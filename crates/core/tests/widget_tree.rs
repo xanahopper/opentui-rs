@@ -46,7 +46,7 @@ mod tests {
         fn style_mut(&mut self) -> &mut LayoutStyle {
             &mut self.style
         }
-        fn render(&self, _ctx: &mut RenderContext<'_>, _layout: &ComputedLayout) {}
+        fn render(&mut self, _ctx: &mut RenderContext<'_>, _layout: &ComputedLayout) {}
         fn visible(&self) -> bool {
             self.visible
         }

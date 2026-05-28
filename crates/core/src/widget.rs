@@ -44,7 +44,7 @@ pub trait Widget {
 
     fn style_mut(&mut self) -> &mut LayoutStyle;
 
-    fn render(&self, ctx: &mut RenderContext<'_>, layout: &ComputedLayout);
+    fn render(&mut self, ctx: &mut RenderContext<'_>, layout: &ComputedLayout);
 
     fn children(&self) -> &[WidgetId] {
         &[]
@@ -83,6 +83,68 @@ pub trait Widget {
     fn as_any(&self) -> &dyn std::any::Any;
 
     fn as_any_mut(&mut self) -> &mut dyn std::any::Any;
+}
+
+impl Widget for Box<dyn Widget> {
+    fn id(&self) -> WidgetId {
+        (**self).id()
+    }
+
+    fn style(&self) -> &LayoutStyle {
+        (**self).style()
+    }
+
+    fn style_mut(&mut self) -> &mut LayoutStyle {
+        (**self).style_mut()
+    }
+
+    fn render(&mut self, ctx: &mut RenderContext<'_>, layout: &ComputedLayout) {
+        (**self).render(ctx, layout);
+    }
+
+    fn children(&self) -> &[WidgetId] {
+        (**self).children()
+    }
+
+    fn visible(&self) -> bool {
+        (**self).visible()
+    }
+
+    fn opacity(&self) -> f32 {
+        (**self).opacity()
+    }
+
+    fn overflow(&self) -> Overflow {
+        (**self).overflow()
+    }
+
+    fn focusable(&self) -> bool {
+        (**self).focusable()
+    }
+
+    fn focused(&self) -> bool {
+        (**self).focused()
+    }
+
+    fn set_focused(&mut self, focused: bool) {
+        (**self).set_focused(focused);
+    }
+
+    fn handle_key(&mut self, key: &ot::KeyEvent) -> bool {
+        (**self).handle_key(key)
+    }
+
+    fn handle_mouse(&mut self, mouse: &ot::MouseEvent) -> bool {
+        (**self).handle_mouse(mouse)
+    }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        (**self).as_any()
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+        (**self).as_any_mut()
+    }
 }
 
 struct WidgetNode {
@@ -368,13 +430,13 @@ impl WidgetTree {
         for cmd in &commands {
             match cmd {
                 RenderCommand::Render { id } => {
-                    let Some(node) = self.nodes.get(id) else {
+                    let layout = self.nodes.get(id).and_then(|n| n.computed_layout);
+                    let Some(layout) = layout else {
                         continue;
                     };
-                    let Some(ref layout) = node.computed_layout else {
-                        continue;
-                    };
-                    node.widget.render(ctx, layout);
+                    if let Some(node) = self.nodes.get_mut(id) {
+                        node.widget.render(ctx, &layout);
+                    }
                 }
                 RenderCommand::PushScissor {
                     x,
@@ -467,7 +529,7 @@ impl WidgetTree {
                 node.computed_layout = Some(layout);
             }
 
-            if let Some(node) = self.nodes.get(&widget_id) {
+            if let Some(node) = self.nodes.get_mut(&widget_id) {
                 if let Some(ref layout) = node.computed_layout {
                     ctx.buffer.push_scissor(ot::buffer::ClipRect::new(
                         layout.x as i32,
@@ -475,7 +537,8 @@ impl WidgetTree {
                         layout.width as u32,
                         layout.height as u32,
                     ));
-                    node.widget.render(ctx, layout);
+                    let layout_copy = *layout;
+                    node.widget.render(ctx, &layout_copy);
                     ctx.buffer.pop_scissor();
                 }
             }

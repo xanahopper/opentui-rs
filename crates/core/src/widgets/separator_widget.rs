@@ -68,7 +68,7 @@ impl Widget for SeparatorWidget {
         &mut self.style
     }
 
-    fn render(&self, ctx: &mut RenderContext<'_>, layout: &ComputedLayout) {
+    fn render(&mut self, ctx: &mut RenderContext<'_>, layout: &ComputedLayout) {
         let x = layout.x as u32;
         let y = layout.y as u32;
         let w = layout.width as u32;
@@ -86,7 +86,8 @@ impl Widget for SeparatorWidget {
 
         for row in 0..h {
             for col in 0..w {
-                ctx.buffer.set(x + col, y + row, Cell::new(self.char, style));
+                ctx.buffer
+                    .set(x + col, y + row, Cell::new(self.char, style));
             }
         }
     }

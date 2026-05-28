@@ -40,8 +40,8 @@
 use std::cell::RefCell;
 use std::io::{self, Read};
 use std::rc::Rc;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use opentui_core::prelude::*;
@@ -136,17 +136,61 @@ impl App {
 
     fn commands() -> &'static [CommandItem] {
         &[
-            CommandItem { name: "New Session", shortcut: "ctrl+x n", category: "Session" },
-            CommandItem { name: "Session List", shortcut: "ctrl+x l", category: "Session" },
-            CommandItem { name: "Toggle Sidebar", shortcut: "ctrl+x b", category: "View" },
-            CommandItem { name: "Model Picker", shortcut: "ctrl+x m", category: "Agent" },
-            CommandItem { name: "Agent Picker", shortcut: "ctrl+x a", category: "Agent" },
-            CommandItem { name: "Theme", shortcut: "ctrl+x t", category: "Settings" },
-            CommandItem { name: "Timeline", shortcut: "ctrl+x g", category: "Session" },
-            CommandItem { name: "Help", shortcut: "ctrl+x h", category: "General" },
-            CommandItem { name: "Export Session", shortcut: "ctrl+x x", category: "Session" },
-            CommandItem { name: "Status", shortcut: "ctrl+x s", category: "General" },
-            CommandItem { name: "Quit", shortcut: "ctrl+x q", category: "General" },
+            CommandItem {
+                name: "New Session",
+                shortcut: "ctrl+x n",
+                category: "Session",
+            },
+            CommandItem {
+                name: "Session List",
+                shortcut: "ctrl+x l",
+                category: "Session",
+            },
+            CommandItem {
+                name: "Toggle Sidebar",
+                shortcut: "ctrl+x b",
+                category: "View",
+            },
+            CommandItem {
+                name: "Model Picker",
+                shortcut: "ctrl+x m",
+                category: "Agent",
+            },
+            CommandItem {
+                name: "Agent Picker",
+                shortcut: "ctrl+x a",
+                category: "Agent",
+            },
+            CommandItem {
+                name: "Theme",
+                shortcut: "ctrl+x t",
+                category: "Settings",
+            },
+            CommandItem {
+                name: "Timeline",
+                shortcut: "ctrl+x g",
+                category: "Session",
+            },
+            CommandItem {
+                name: "Help",
+                shortcut: "ctrl+x h",
+                category: "General",
+            },
+            CommandItem {
+                name: "Export Session",
+                shortcut: "ctrl+x x",
+                category: "Session",
+            },
+            CommandItem {
+                name: "Status",
+                shortcut: "ctrl+x s",
+                category: "General",
+            },
+            CommandItem {
+                name: "Quit",
+                shortcut: "ctrl+x q",
+                category: "General",
+            },
         ]
     }
 
@@ -195,44 +239,76 @@ fn build_sidebar(tree: &mut WidgetTree, parent: WidgetId) {
 
     tree.add_child(
         parent,
-        FillWidget::new(spacer1, LayoutStyle::column().height(1.0).flex_shrink(0.0), BG_PANEL),
+        FillWidget::new(
+            spacer1,
+            LayoutStyle::column().height(1.0).flex_shrink(0.0),
+            BG_PANEL,
+        ),
     );
     tree.add_child(
         parent,
-        TextLineWidget::with_text(title, LayoutStyle::column().height(1.0).flex_shrink(0.0), "OpenCode")
-            .fg(TEXT)
-            .bg(BG_PANEL)
-            .bold(),
+        TextLineWidget::with_text(
+            title,
+            LayoutStyle::column().height(1.0).flex_shrink(0.0),
+            "OpenCode",
+        )
+        .fg(TEXT)
+        .bg(BG_PANEL)
+        .bold(),
     );
     tree.add_child(
         parent,
-        FillWidget::new(spacer2, LayoutStyle::column().height(1.0).flex_shrink(0.0), BG_PANEL),
+        FillWidget::new(
+            spacer2,
+            LayoutStyle::column().height(1.0).flex_shrink(0.0),
+            BG_PANEL,
+        ),
     );
     tree.add_child(
         parent,
-        TextLineWidget::with_text(label_session, LayoutStyle::column().height(1.0).flex_shrink(0.0), "Session")
-            .fg(TEXT_MUTED)
-            .bg(BG_PANEL),
+        TextLineWidget::with_text(
+            label_session,
+            LayoutStyle::column().height(1.0).flex_shrink(0.0),
+            "Session",
+        )
+        .fg(TEXT_MUTED)
+        .bg(BG_PANEL),
     );
     tree.add_child(
         parent,
-        TextLineWidget::with_text(val_session, LayoutStyle::column().height(1.0).flex_shrink(0.0), "abc123def456")
-            .fg(TEXT_MUTED)
-            .bg(BG_PANEL),
+        TextLineWidget::with_text(
+            val_session,
+            LayoutStyle::column().height(1.0).flex_shrink(0.0),
+            "abc123def456",
+        )
+        .fg(TEXT_MUTED)
+        .bg(BG_PANEL),
     );
     tree.add_child(
         parent,
-        FillWidget::new(spacer3, LayoutStyle::column().height(1.0).flex_shrink(0.0), BG_PANEL),
+        FillWidget::new(
+            spacer3,
+            LayoutStyle::column().height(1.0).flex_shrink(0.0),
+            BG_PANEL,
+        ),
     );
     tree.add_child(
         parent,
-        TextLineWidget::with_text(git_status, LayoutStyle::column().height(1.0).flex_shrink(0.0), "\u{25CF} git: main")
-            .fg(SUCCESS)
-            .bg(BG_PANEL),
+        TextLineWidget::with_text(
+            git_status,
+            LayoutStyle::column().height(1.0).flex_shrink(0.0),
+            "\u{25CF} git: main",
+        )
+        .fg(SUCCESS)
+        .bg(BG_PANEL),
     );
     tree.add_child(
         parent,
-        FillWidget::new(spacer4, LayoutStyle::column().height(1.0).flex_shrink(0.0), BG_PANEL),
+        FillWidget::new(
+            spacer4,
+            LayoutStyle::column().height(1.0).flex_shrink(0.0),
+            BG_PANEL,
+        ),
     );
     tree.add_child(
         parent,
@@ -242,19 +318,31 @@ fn build_sidebar(tree: &mut WidgetTree, parent: WidgetId) {
     );
     tree.add_child(
         parent,
-        FillWidget::new(spacer5, LayoutStyle::column().height(1.0).flex_shrink(0.0), BG_PANEL),
+        FillWidget::new(
+            spacer5,
+            LayoutStyle::column().height(1.0).flex_shrink(0.0),
+            BG_PANEL,
+        ),
     );
     tree.add_child(
         parent,
-        TextLineWidget::with_text(label_share, LayoutStyle::column().height(1.0).flex_shrink(0.0), "Share URL")
-            .fg(TEXT_MUTED)
-            .bg(BG_PANEL),
+        TextLineWidget::with_text(
+            label_share,
+            LayoutStyle::column().height(1.0).flex_shrink(0.0),
+            "Share URL",
+        )
+        .fg(TEXT_MUTED)
+        .bg(BG_PANEL),
     );
     tree.add_child(
         parent,
-        TextLineWidget::with_text(val_share, LayoutStyle::column().height(1.0).flex_shrink(0.0), "Not shared")
-            .fg(TEXT_MUTED)
-            .bg(BG_PANEL),
+        TextLineWidget::with_text(
+            val_share,
+            LayoutStyle::column().height(1.0).flex_shrink(0.0),
+            "Not shared",
+        )
+        .fg(TEXT_MUTED)
+        .bg(BG_PANEL),
     );
     tree.add_child(
         parent,
@@ -262,9 +350,13 @@ fn build_sidebar(tree: &mut WidgetTree, parent: WidgetId) {
     );
     tree.add_child(
         parent,
-        TextLineWidget::with_text(version, LayoutStyle::column().height(1.0).flex_shrink(0.0), "\u{25CF} OpenCode v0.1.0")
-            .fg(TEXT_MUTED)
-            .bg(BG_PANEL),
+        TextLineWidget::with_text(
+            version,
+            LayoutStyle::column().height(1.0).flex_shrink(0.0),
+            "\u{25CF} OpenCode v0.1.0",
+        )
+        .fg(TEXT_MUTED)
+        .bg(BG_PANEL),
     );
 }
 
@@ -281,7 +373,11 @@ fn build_prompt_rows(tree: &mut WidgetTree, parent: WidgetId, app: &App) {
         parent,
         BoxWidget::new(row1, border_style.clone())
             .background(BG_ELEMENT)
-            .border_custom(BorderChars::split_left(), BORDER_ACTIVE, BorderSides::left_only()),
+            .border_custom(
+                BorderChars::split_left(),
+                BORDER_ACTIVE,
+                BorderSides::left_only(),
+            ),
     );
 
     let input_text = if app.input_text.is_empty() {
@@ -289,14 +385,26 @@ fn build_prompt_rows(tree: &mut WidgetTree, parent: WidgetId, app: &App) {
     } else {
         app.input_text.clone()
     };
-    let input_fg = if app.input_text.is_empty() { TEXT_MUTED } else { TEXT };
-    let cursor = if app.input_text.is_empty() { "" } else { "\u{2588}" };
+    let input_fg = if app.input_text.is_empty() {
+        TEXT_MUTED
+    } else {
+        TEXT
+    };
+    let cursor = if app.input_text.is_empty() {
+        ""
+    } else {
+        "\u{2588}"
+    };
 
     tree.add_child(
         parent,
         BoxWidget::new(row2, border_style.clone())
             .background(BG_ELEMENT)
-            .border_custom(BorderChars::split_left(), BORDER_ACTIVE, BorderSides::left_only())
+            .border_custom(
+                BorderChars::split_left(),
+                BORDER_ACTIVE,
+                BorderSides::left_only(),
+            )
             .base_padding(0.0, 0.0, 0.0, 2.0),
     );
 
@@ -304,9 +412,13 @@ fn build_prompt_rows(tree: &mut WidgetTree, parent: WidgetId, app: &App) {
         let id = tree.allocate_id();
         tree.add_child(
             row2,
-            TextLineWidget::with_text(id, LayoutStyle::row().flex_grow(1.0).flex_shrink(0.0), format!("{input_text}{cursor}"))
-                .fg(input_fg)
-                .bg(BG_ELEMENT),
+            TextLineWidget::with_text(
+                id,
+                LayoutStyle::row().flex_grow(1.0).flex_shrink(0.0),
+                format!("{input_text}{cursor}"),
+            )
+            .fg(input_fg)
+            .bg(BG_ELEMENT),
         );
         Some(id)
     } {
@@ -317,14 +429,22 @@ fn build_prompt_rows(tree: &mut WidgetTree, parent: WidgetId, app: &App) {
         parent,
         BoxWidget::new(row3, border_style.clone())
             .background(BG_ELEMENT)
-            .border_custom(BorderChars::split_left(), BORDER_ACTIVE, BorderSides::left_only()),
+            .border_custom(
+                BorderChars::split_left(),
+                BORDER_ACTIVE,
+                BorderSides::left_only(),
+            ),
     );
 
     tree.add_child(
         parent,
         BoxWidget::new(row4, border_style.clone())
             .background(BG_ELEMENT)
-            .border_custom(BorderChars::split_left(), BORDER_ACTIVE, BorderSides::left_only())
+            .border_custom(
+                BorderChars::split_left(),
+                BORDER_ACTIVE,
+                BorderSides::left_only(),
+            )
             .base_padding(0.0, 0.0, 0.0, 2.0),
     );
 
@@ -343,8 +463,11 @@ fn build_prompt_rows(tree: &mut WidgetTree, parent: WidgetId, app: &App) {
 
     tree.add_child(
         parent,
-        BoxWidget::new(row5, border_style)
-            .border_custom(BorderChars::split_left_no_bottom(), BORDER_ACTIVE, BorderSides::left_only()),
+        BoxWidget::new(row5, border_style).border_custom(
+            BorderChars::split_left_no_bottom(),
+            BORDER_ACTIVE,
+            BorderSides::left_only(),
+        ),
     );
     let deco_id = tree.allocate_id();
     tree.add_child(
@@ -364,35 +487,59 @@ fn build_messages(tree: &mut WidgetTree, parent: WidgetId, app: &App) {
         if msg.role == "user" {
             tree.add_child(
                 parent,
-                BoxWidget::new(msg_id, LayoutStyle::column().flex_shrink(0.0).margin(if idx == 0 { 0.0 } else { 1.0 }, 0.0, 0.0, 0.0))
-                    .background(BG_PANEL)
-                    .border_custom(BorderChars::split_left(), PRIMARY, BorderSides::left_only())
-                    .base_padding(1.0, 0.0, 1.0, 2.0),
+                BoxWidget::new(
+                    msg_id,
+                    LayoutStyle::column().flex_shrink(0.0).margin(
+                        if idx == 0 { 0.0 } else { 1.0 },
+                        0.0,
+                        0.0,
+                        0.0,
+                    ),
+                )
+                .background(BG_PANEL)
+                .border_custom(BorderChars::split_left(), PRIMARY, BorderSides::left_only())
+                .base_padding(1.0, 0.0, 1.0, 2.0),
             );
             for line in &lines {
                 let line_id = tree.allocate_id();
                 tree.add_child(
                     msg_id,
-                    TextLineWidget::with_text(line_id, LayoutStyle::column().height(1.0).flex_shrink(0.0), *line)
-                        .fg(TEXT)
-                        .bg(BG_PANEL),
+                    TextLineWidget::with_text(
+                        line_id,
+                        LayoutStyle::column().height(1.0).flex_shrink(0.0),
+                        *line,
+                    )
+                    .fg(TEXT)
+                    .bg(BG_PANEL),
                 );
             }
         } else {
             tree.add_child(
                 parent,
-                BoxWidget::new(msg_id, LayoutStyle::column().flex_shrink(0.0).margin(if idx == 0 { 0.0 } else { 1.0 }, 0.0, 0.0, 0.0))
-                    .background(BG)
-                    .base_padding(0.0, 0.0, 0.0, 3.0),
+                BoxWidget::new(
+                    msg_id,
+                    LayoutStyle::column().flex_shrink(0.0).margin(
+                        if idx == 0 { 0.0 } else { 1.0 },
+                        0.0,
+                        0.0,
+                        0.0,
+                    ),
+                )
+                .background(BG)
+                .base_padding(0.0, 0.0, 0.0, 3.0),
             );
             for line in &lines {
                 let line_id = tree.allocate_id();
                 let is_tool = line.starts_with("  \u{25B8}") || line.starts_with("  \u{25CF}");
                 tree.add_child(
                     msg_id,
-                    TextLineWidget::with_text(line_id, LayoutStyle::column().height(1.0).flex_shrink(0.0), *line)
-                        .fg(if is_tool { TEXT_MUTED } else { TEXT })
-                        .bg(BG),
+                    TextLineWidget::with_text(
+                        line_id,
+                        LayoutStyle::column().height(1.0).flex_shrink(0.0),
+                        *line,
+                    )
+                    .fg(if is_tool { TEXT_MUTED } else { TEXT })
+                    .bg(BG),
                 );
             }
         }
@@ -445,9 +592,16 @@ fn draw_palette(buf: &mut OptimizedBuffer, app: &App, w: u32, h: u32) {
         }
     }
 
-    let sep_style = Style::builder().fg(Rgba::new(0.176, 0.176, 0.216, 1.0)).bg(BG_PANEL).build();
+    let sep_style = Style::builder()
+        .fg(Rgba::new(0.176, 0.176, 0.216, 1.0))
+        .bg(BG_PANEL)
+        .build();
     for col in 4..(dialog_w - 4) {
-        buf.set(dialog_x + col, dialog_y + 3, Cell::new('\u{2500}', sep_style));
+        buf.set(
+            dialog_x + col,
+            dialog_y + 3,
+            Cell::new('\u{2500}', sep_style),
+        );
     }
 
     let indices = app.filtered_indices();
@@ -460,7 +614,9 @@ fn draw_palette(buf: &mut OptimizedBuffer, app: &App, w: u32, h: u32) {
 
     for (vi, &oi) in visible.enumerate() {
         let row_y = list_y + vi as u32;
-        if row_y >= dialog_y + dialog_h - 1 { break; }
+        if row_y >= dialog_y + dialog_h - 1 {
+            break;
+        }
 
         let item = &cmds[oi];
         let is_selected = indices.get(app.palette_selected) == Some(&oi);
@@ -477,11 +633,20 @@ fn draw_palette(buf: &mut OptimizedBuffer, app: &App, w: u32, h: u32) {
             }
         }
 
-        let name_style = if highlighted { selected_style } else { item_style };
-        let key_style = if highlighted { shortcut_sel } else { shortcut_muted };
+        let name_style = if highlighted {
+            selected_style
+        } else {
+            item_style
+        };
+        let key_style = if highlighted {
+            shortcut_sel
+        } else {
+            shortcut_muted
+        };
 
         buf.draw_text(dialog_x + 4, row_y, item.name, name_style);
-        let shortcut_x = (dialog_x + dialog_w - 4).saturating_sub(item.shortcut.chars().count() as u32);
+        let shortcut_x =
+            (dialog_x + dialog_w - 4).saturating_sub(item.shortcut.chars().count() as u32);
         buf.draw_text(shortcut_x, row_y, item.shortcut, key_style);
     }
 
@@ -491,7 +656,12 @@ fn draw_palette(buf: &mut OptimizedBuffer, app: &App, w: u32, h: u32) {
     for col in (dialog_x + 1)..(dialog_x + dialog_w - 1) {
         buf.set(col, footer_y, Cell::new(' ', footer_bg));
     }
-    buf.draw_text(dialog_x + 4, footer_y, "\u{2191}\u{2193} navigate  \u{00B7}  enter select  \u{00B7}  esc close", footer_style);
+    buf.draw_text(
+        dialog_x + 4,
+        footer_y,
+        "\u{2191}\u{2193} navigate  \u{00B7}  enter select  \u{00B7}  esc close",
+        footer_style,
+    );
 }
 
 fn read_with_timeout(stdin: &io::Stdin, buf: &mut [u8], timeout: Duration) -> io::Result<usize> {
@@ -507,7 +677,13 @@ fn read_with_timeout(stdin: &io::Stdin, buf: &mut [u8], timeout: Duration) -> io
         tv_usec: timeout.subsec_micros() as libc::suseconds_t,
     };
     let result = unsafe {
-        libc::select(fd + 1, read_fds.as_mut_ptr(), std::ptr::null_mut(), std::ptr::null_mut(), &mut tv)
+        libc::select(
+            fd + 1,
+            read_fds.as_mut_ptr(),
+            std::ptr::null_mut(),
+            std::ptr::null_mut(),
+            &mut tv,
+        )
     };
     if result > 0 {
         stdin.lock().read(buf)
@@ -547,7 +723,11 @@ fn main() -> io::Result<()> {
             let buffer = renderer.buffer();
             buffer.clear(Rgba::TRANSPARENT);
 
-            let sidebar_w = if app_borrowed.sidebar_visible { SIDEBAR_WIDTH as u32 } else { 0 };
+            let sidebar_w = if app_borrowed.sidebar_visible {
+                SIDEBAR_WIDTH as u32
+            } else {
+                0
+            };
             let main_w = w.saturating_sub(sidebar_w);
 
             let mut tree = WidgetTree::new();
@@ -573,16 +753,21 @@ fn main() -> io::Result<()> {
 
             tree.add_child(
                 main_id,
-                BoxWidget::new(msg_id, LayoutStyle::column().flex_grow(1.0).padding(0.0, 2.0, 0.0, 2.0).gap(1.0))
-                    .background(BG)
-                    .overflow_hidden(),
+                BoxWidget::new(
+                    msg_id,
+                    LayoutStyle::column()
+                        .flex_grow(1.0)
+                        .padding(0.0, 2.0, 0.0, 2.0)
+                        .gap(1.0),
+                )
+                .background(BG)
+                .overflow_hidden(),
             );
             build_messages(&mut tree, msg_id, &app_borrowed);
 
             let prompt_box = tree.add_child(
                 main_id,
-                BoxWidget::new(prompt_id, LayoutStyle::column().flex_shrink(0.0))
-                    .background(BG),
+                BoxWidget::new(prompt_id, LayoutStyle::column().flex_shrink(0.0)).background(BG),
             );
             build_prompt_rows(&mut tree, prompt_box, &app_borrowed);
 
@@ -590,7 +775,10 @@ fn main() -> io::Result<()> {
                 main_id,
                 StyledTextWidget::from_segments(
                     hint_id,
-                    LayoutStyle::column().height(1.0).flex_shrink(0.0).padding(0.0, 0.0, 0.0, 2.0),
+                    LayoutStyle::column()
+                        .height(1.0)
+                        .flex_shrink(0.0)
+                        .padding(0.0, 0.0, 0.0, 2.0),
                     vec![
                         StyledSegment::new("tab ", TEXT),
                         StyledSegment::new("agents", TEXT_MUTED),
@@ -604,8 +792,13 @@ fn main() -> io::Result<()> {
                 let sb_id = tree.allocate_id();
                 let sb = tree.add_child(
                     root_id,
-                    BoxWidget::new(sb_id, LayoutStyle::column().width(SIDEBAR_WIDTH).padding(0.0, 0.0, 0.0, 2.0))
-                        .background(BG_PANEL),
+                    BoxWidget::new(
+                        sb_id,
+                        LayoutStyle::column()
+                            .width(SIDEBAR_WIDTH)
+                            .padding(0.0, 0.0, 0.0, 2.0),
+                    )
+                    .background(BG_PANEL),
                 );
                 build_sidebar(&mut tree, sb);
             }
@@ -677,7 +870,10 @@ fn main() -> io::Result<()> {
                                             let dialog_x = w.saturating_sub(dialog_w) / 2;
                                             let dialog_y = h / 4;
                                             let list_y = dialog_y + 4;
-                                            if mouse.x > dialog_x && mouse.x < dialog_x + dialog_w && mouse.y >= list_y {
+                                            if mouse.x > dialog_x
+                                                && mouse.x < dialog_x + dialog_w
+                                                && mouse.y >= list_y
+                                            {
                                                 let row = (mouse.y - list_y) as usize;
                                                 let indices = app_mut.filtered_indices();
                                                 let idx = app_mut.palette_scroll + row;
@@ -688,14 +884,23 @@ fn main() -> io::Result<()> {
                                         }
                                         MouseEventKind::Press => {
                                             let indices = app_mut.filtered_indices();
-                                            if let Some(&oi) = indices.get(app_mut.palette_selected) {
+                                            if let Some(&oi) = indices.get(app_mut.palette_selected)
+                                            {
                                                 let name = App::commands()[oi].name;
                                                 app_mut.palette_open = false;
                                                 app_mut.palette_filter.clear();
                                                 match name {
-                                                    "Toggle Sidebar" => app_mut.sidebar_visible = !app_mut.sidebar_visible,
-                                                    "New Session" => { app_mut.messages.clear(); app_mut.input_text.clear(); }
-                                                    "Quit" => running.store(false, Ordering::SeqCst),
+                                                    "Toggle Sidebar" => {
+                                                        app_mut.sidebar_visible =
+                                                            !app_mut.sidebar_visible
+                                                    }
+                                                    "New Session" => {
+                                                        app_mut.messages.clear();
+                                                        app_mut.input_text.clear();
+                                                    }
+                                                    "Quit" => {
+                                                        running.store(false, Ordering::SeqCst)
+                                                    }
                                                     _ => {}
                                                 }
                                             }
@@ -711,18 +916,27 @@ fn main() -> io::Result<()> {
                         pending = data[offset..].to_vec();
                         offset = data.len();
                     }
-                    Err(_) => { offset += 1; }
+                    Err(_) => {
+                        offset += 1;
+                    }
                 }
             }
 
-            if offset >= data.len() { pending.clear(); }
+            if offset >= data.len() {
+                pending.clear();
+            }
         }
     }
 
     Ok(())
 }
 
-fn handle_key_event(code: KeyCode, modifiers: KeyModifiers, app: &mut App, running: &Arc<AtomicBool>) {
+fn handle_key_event(
+    code: KeyCode,
+    modifiers: KeyModifiers,
+    app: &mut App,
+    running: &Arc<AtomicBool>,
+) {
     if app.palette_open {
         match code {
             KeyCode::Esc | KeyCode::Char('c') if modifiers.contains(KeyModifiers::CTRL) => {
@@ -735,8 +949,14 @@ fn handle_key_event(code: KeyCode, modifiers: KeyModifiers, app: &mut App, runni
                 app.palette_mouse_mode = false;
                 let indices = app.filtered_indices();
                 if !indices.is_empty() {
-                    app.palette_selected = if app.palette_selected == 0 { indices.len() - 1 } else { app.palette_selected - 1 };
-                    if app.palette_selected < app.palette_scroll { app.palette_scroll = app.palette_selected; }
+                    app.palette_selected = if app.palette_selected == 0 {
+                        indices.len() - 1
+                    } else {
+                        app.palette_selected - 1
+                    };
+                    if app.palette_selected < app.palette_scroll {
+                        app.palette_scroll = app.palette_selected;
+                    }
                 }
             }
             KeyCode::Down => {
@@ -758,14 +978,25 @@ fn handle_key_event(code: KeyCode, modifiers: KeyModifiers, app: &mut App, runni
                     app.palette_filter.clear();
                     match name {
                         "Toggle Sidebar" => app.sidebar_visible = !app.sidebar_visible,
-                        "New Session" => { app.messages.clear(); app.input_text.clear(); }
+                        "New Session" => {
+                            app.messages.clear();
+                            app.input_text.clear();
+                        }
                         "Quit" => running.store(false, Ordering::SeqCst),
                         _ => {}
                     }
                 }
             }
-            KeyCode::Backspace => { app.palette_filter.pop(); app.palette_selected = 0; app.palette_scroll = 0; }
-            KeyCode::Char(c) => { app.palette_filter.push(c); app.palette_selected = 0; app.palette_scroll = 0; }
+            KeyCode::Backspace => {
+                app.palette_filter.pop();
+                app.palette_selected = 0;
+                app.palette_scroll = 0;
+            }
+            KeyCode::Char(c) => {
+                app.palette_filter.push(c);
+                app.palette_selected = 0;
+                app.palette_scroll = 0;
+            }
             _ => {}
         }
         return;
@@ -776,7 +1007,10 @@ fn handle_key_event(code: KeyCode, modifiers: KeyModifiers, app: &mut App, runni
         match code {
             KeyCode::Char('b') => app.sidebar_visible = !app.sidebar_visible,
             KeyCode::Char('q') => running.store(false, Ordering::SeqCst),
-            KeyCode::Char('n') => { app.messages.clear(); app.input_text.clear(); }
+            KeyCode::Char('n') => {
+                app.messages.clear();
+                app.input_text.clear();
+            }
             KeyCode::Char('l') | KeyCode::Char('p') => {
                 app.palette_open = true;
                 app.palette_filter.clear();
@@ -806,11 +1040,21 @@ fn handle_key_event(code: KeyCode, modifiers: KeyModifiers, app: &mut App, runni
 
     match code {
         KeyCode::Esc => {
-            if app.input_text.is_empty() { running.store(false, Ordering::SeqCst); } else { app.input_text.clear(); }
+            if app.input_text.is_empty() {
+                running.store(false, Ordering::SeqCst);
+            } else {
+                app.input_text.clear();
+            }
         }
         KeyCode::Enter => app.send_message(),
-        KeyCode::Backspace => { app.input_text.pop(); }
-        KeyCode::Char(c) => { if app.input_text.len() < 200 { app.input_text.push(c); } }
+        KeyCode::Backspace => {
+            app.input_text.pop();
+        }
+        KeyCode::Char(c) => {
+            if app.input_text.len() < 200 {
+                app.input_text.push(c);
+            }
+        }
         _ => {}
     }
 }
