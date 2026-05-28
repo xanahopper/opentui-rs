@@ -332,6 +332,22 @@ impl WidgetTree {
 
     pub fn layout(&mut self, width: f32, height: f32) {
         self.layout_with_offset(width, height, 0.0, 0.0);
+        self.layout_overlays();
+    }
+
+    fn layout_overlays(&mut self) {
+        let overlay_data: Vec<(WidgetId, f32, f32, f32, f32)> = self
+            .overlays
+            .iter()
+            .map(|o| (o.widget_id, o.x, o.y, o.width, o.height))
+            .collect();
+        for (widget_id, ox, oy, ow, oh) in overlay_data {
+            let Some(taffy_id) = self.taffy_nodes.get(&widget_id).copied() else {
+                continue;
+            };
+            self.layout_engine.compute_with_size(taffy_id, ow, oh);
+            self.compute_layout_recursive(widget_id, ox, oy);
+        }
     }
 
     pub fn layout_with_offset(&mut self, width: f32, height: f32, offset_x: f32, offset_y: f32) {
@@ -529,19 +545,49 @@ impl WidgetTree {
                 node.computed_layout = Some(layout);
             }
 
-            if let Some(node) = self.nodes.get_mut(&widget_id) {
-                if let Some(ref layout) = node.computed_layout {
-                    ctx.buffer.push_scissor(ot::buffer::ClipRect::new(
-                        layout.x as i32,
-                        layout.y as i32,
-                        layout.width as u32,
-                        layout.height as u32,
-                    ));
-                    let layout_copy = *layout;
-                    node.widget.render(ctx, &layout_copy);
-                    ctx.buffer.pop_scissor();
-                }
+            self.render_subtree(ctx, widget_id);
+        }
+    }
+
+    fn render_subtree(&mut self, ctx: &mut RenderContext<'_>, id: WidgetId) {
+        let (layout, child_ids, overflow) = {
+            let Some(node) = self.nodes.get(&id) else {
+                return;
+            };
+            if !node.widget.visible() {
+                return;
             }
+            let Some(ref layout) = node.computed_layout else {
+                return;
+            };
+            let child_ids = node.children.clone();
+            let overflow = node.widget.overflow();
+            (*layout, child_ids, overflow)
+        };
+
+        let pushed_scissor =
+            overflow == Overflow::Hidden && layout.width > 0.0 && layout.height > 0.0;
+
+        if pushed_scissor {
+            ctx.buffer.push_scissor(ot::buffer::ClipRect::new(
+                layout.x as i32,
+                layout.y as i32,
+                layout.width as u32,
+                layout.height as u32,
+            ));
+        }
+
+        let layout_copy = layout;
+        if let Some(node) = self.nodes.get_mut(&id) {
+            node.widget.render(ctx, &layout_copy);
+        }
+
+        for child_id in child_ids {
+            self.render_subtree(ctx, child_id);
+        }
+
+        if pushed_scissor {
+            ctx.buffer.pop_scissor();
         }
     }
 
