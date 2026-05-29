@@ -1,6 +1,6 @@
 use opentui_core::view::{
-    Element, ElementKind, Key, Node, Props, empty, fragment, input, list, overlay, panel,
-    rich_text, span, text, view, when,
+    Element, ElementKind, Key, Node, Props, empty, fragment, input, overlay, panel, rich_text,
+    span, text, view, when,
 };
 
 fn unwrap_element(node: &Node) -> &Element {
@@ -185,14 +185,14 @@ fn test_input_builder() {
     let node = input()
         .placeholder("Enter text...")
         .password()
-        .value("secret")
+        .default_value("secret")
         .build();
     let elem = unwrap_element(&node);
     assert_eq!(elem.kind, ElementKind::Input);
     if let Props::Input(ref ip) = elem.props {
         assert_eq!(ip.placeholder.as_deref(), Some("Enter text..."));
         assert!(ip.password);
-        assert_eq!(ip.initial_value.as_deref(), Some("secret"));
+        assert_eq!(ip.default_value.as_deref(), Some("secret"));
     } else {
         panic!("expected InputProps");
     }
@@ -222,6 +222,7 @@ fn test_overlay_builder() {
 
 #[test]
 fn test_list_builder() {
+    use opentui_core::view::builder::list;
     let node = list(100).build();
     let elem = unwrap_element(&node);
     assert_eq!(elem.kind, ElementKind::List);

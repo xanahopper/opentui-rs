@@ -41,6 +41,12 @@ pub fn input() -> ElementBuilder {
     builder
 }
 
+/// **Experimental:** Creates a list element wrapping `ListWidget`.
+///
+/// Item rendering is not yet wired — `ListWidget::render()` is a no-op
+/// without `render_with_renderer()`. Use `view().children(items.map(...))`
+/// for static lists until `virtual_list()` is implemented.
+#[doc(hidden)]
 pub fn list(item_count: usize) -> ElementBuilder {
     let mut builder = ElementBuilder::new(ElementKind::List);
     builder.props = Props::List(ListProps {
@@ -409,9 +415,9 @@ impl ElementBuilder {
         self
     }
 
-    pub fn value(mut self, text: impl Into<String>) -> Self {
+    pub fn default_value(mut self, text: impl Into<String>) -> Self {
         if let Props::Input(ip) = &mut self.props {
-            ip.initial_value = Some(text.into());
+            ip.default_value = Some(text.into());
         }
         self
     }

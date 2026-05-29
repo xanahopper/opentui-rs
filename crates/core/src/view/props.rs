@@ -77,7 +77,7 @@ pub struct StyledTextProps {
 pub struct InputProps {
     pub placeholder: Option<String>,
     pub password: bool,
-    pub initial_value: Option<String>,
+    pub default_value: Option<String>,
 }
 
 #[derive(Debug, Clone, Default)]

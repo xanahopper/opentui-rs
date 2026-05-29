@@ -7,7 +7,7 @@ pub mod rebuild;
 pub mod runtime;
 
 pub use builder::{
-    ElementBuilder, OverlayBuilder, empty, fill, fragment, input, list, overlay, panel, rich_text,
+    ElementBuilder, OverlayBuilder, empty, fill, fragment, input, overlay, panel, rich_text,
     separator, span, text, view, when,
 };
 pub use element::{Element, ElementKind};
@@ -16,4 +16,4 @@ pub use node::{Node, OverlayNode};
 pub use props::{
     FillProps, InputProps, ListProps, Props, SeparatorProps, StyledTextProps, TextProps, ViewProps,
 };
-pub use runtime::ViewRuntime;
+pub use runtime::{ViewMouseDispatchResult, ViewRuntime};
