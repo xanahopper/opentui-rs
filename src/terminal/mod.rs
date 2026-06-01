@@ -106,11 +106,9 @@ impl<W: Write> Terminal<W> {
             TerminalResponse::DeviceAttributes {
                 primary: true,
                 params,
-            } => {
+            } if params.contains(&4) => {
                 // DA1 param 4 indicates sixel support
-                if params.contains(&4) {
-                    self.capabilities.sixel = true;
-                }
+                self.capabilities.sixel = true;
             }
             TerminalResponse::XtVersion { name, .. } => {
                 let name_lower = name.to_lowercase();
@@ -125,11 +123,9 @@ impl<W: Write> Terminal<W> {
                     self.capabilities.sync_output = true;
                 }
             }
-            TerminalResponse::PixelSize { width, height } => {
-                if *width > 0 && *height > 0 {
-                    self.capabilities.explicit_width = true;
-                    self.capabilities.sgr_pixels = true;
-                }
+            TerminalResponse::PixelSize { width, height } if *width > 0 && *height > 0 => {
+                self.capabilities.explicit_width = true;
+                self.capabilities.sgr_pixels = true;
             }
             TerminalResponse::KittyKeyboard { flags: _ } => {
                 self.capabilities.kitty_keyboard = true;

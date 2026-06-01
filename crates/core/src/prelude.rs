@@ -12,8 +12,9 @@ pub use crate::render_command::{RenderCommand, RenderCommandList};
 pub use crate::scroll::{ScrollBarRenderer, ScrollState, ScrollView};
 pub use crate::theme::{UiTheme, UiThemeRegistry};
 pub use crate::view::{
-    ElementBuilder, ElementKind, Key, Node, Props, TextProps, ViewProps, ViewRuntime, empty,
-    fragment, panel, text, view, when,
+    ElementBuilder, ElementKind, Key, Node, Props, TextProps, ViewMouseDispatchResult, ViewProps,
+    ViewRuntime, empty, fill, fragment, input, overlay, panel, rich_text, separator, span, text,
+    view, when,
 };
 pub use crate::widget::{
     KeyAction, KeyDispatchResult, MouseDispatchResult, Overflow, Overlay, OverlayZOrder,

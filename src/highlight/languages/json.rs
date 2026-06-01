@@ -299,34 +299,22 @@ impl Tokenizer for JsonTokenizer {
                     tokens.push(Token::new(TokenKind::Delimiter, idx, idx + 1));
                 }
 
-                't' => {
-                    if line[idx..].starts_with("true") {
-                        tokens.push(Token::new(TokenKind::Boolean, idx, idx + 4));
-                        for _ in 0..3 {
-                            chars.next();
-                        }
-                    } else {
-                        tokens.push(Token::new(TokenKind::Error, idx, idx + 1));
+                't' if line[idx..].starts_with("true") => {
+                    tokens.push(Token::new(TokenKind::Boolean, idx, idx + 4));
+                    for _ in 0..3 {
+                        chars.next();
                     }
                 }
-                'f' => {
-                    if line[idx..].starts_with("false") {
-                        tokens.push(Token::new(TokenKind::Boolean, idx, idx + 5));
-                        for _ in 0..4 {
-                            chars.next();
-                        }
-                    } else {
-                        tokens.push(Token::new(TokenKind::Error, idx, idx + 1));
+                'f' if line[idx..].starts_with("false") => {
+                    tokens.push(Token::new(TokenKind::Boolean, idx, idx + 5));
+                    for _ in 0..4 {
+                        chars.next();
                     }
                 }
-                'n' => {
-                    if line[idx..].starts_with("null") {
-                        tokens.push(Token::new(TokenKind::Constant, idx, idx + 4));
-                        for _ in 0..3 {
-                            chars.next();
-                        }
-                    } else {
-                        tokens.push(Token::new(TokenKind::Error, idx, idx + 1));
+                'n' if line[idx..].starts_with("null") => {
+                    tokens.push(Token::new(TokenKind::Constant, idx, idx + 4));
+                    for _ in 0..3 {
+                        chars.next();
                     }
                 }
 

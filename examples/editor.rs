@@ -318,17 +318,15 @@ fn handle_event(
                 }
             }
         }
-        Event::Mouse(mouse) => {
-            if mouse.kind == MouseEventKind::Press {
-                // Click to position cursor (rough approximation)
-                // In a real editor, you'd compute the exact text position
-                let text_x = mouse.x.saturating_sub(editor.gutter_width() + 1);
-                let text_y = mouse.y.saturating_sub(2);
-                let eb = editor.edit_buffer_mut();
-                eb.goto_line(text_y as usize);
-                for _ in 0..text_x {
-                    eb.move_right();
-                }
+        Event::Mouse(mouse) if mouse.kind == MouseEventKind::Press => {
+            // Click to position cursor (rough approximation)
+            // In a real editor, you'd compute the exact text position
+            let text_x = mouse.x.saturating_sub(editor.gutter_width() + 1);
+            let text_y = mouse.y.saturating_sub(2);
+            let eb = editor.edit_buffer_mut();
+            eb.goto_line(text_y as usize);
+            for _ in 0..text_x {
+                eb.move_right();
             }
         }
         Event::Resize(resize) => {

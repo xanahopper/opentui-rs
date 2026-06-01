@@ -223,15 +223,13 @@ impl Dashboard {
                     0 => {
                         // Sidebar
                         match key.code {
-                            KeyCode::Up => {
-                                if self.sidebar_selection > 0 {
-                                    self.sidebar_selection -= 1;
-                                }
+                            KeyCode::Up if self.sidebar_selection > 0 => {
+                                self.sidebar_selection -= 1;
                             }
-                            KeyCode::Down => {
-                                if self.sidebar_selection < self.sidebar_items.len() - 1 {
-                                    self.sidebar_selection += 1;
-                                }
+                            KeyCode::Down
+                                if self.sidebar_selection < self.sidebar_items.len() - 1 =>
+                            {
+                                self.sidebar_selection += 1;
                             }
                             _ => {}
                         }

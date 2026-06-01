@@ -311,7 +311,7 @@ pub fn spawn_pty(config: &PtyConfig) -> io::Result<PtyResult> {
             libc::setsid();
 
             // Set controlling terminal
-            libc::ioctl(slave_fd, libc::TIOCSCTTY, 0);
+            libc::ioctl(slave_fd, libc::TIOCSCTTY as u64, 0);
 
             // Redirect stdin/stdout/stderr to slave
             libc::dup2(slave_fd, 0);

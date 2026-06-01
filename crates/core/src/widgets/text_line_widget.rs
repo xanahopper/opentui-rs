@@ -187,28 +187,33 @@ impl Widget for TextLineWidget {
         }
         let style = builder.build();
 
-        let max_col = x + w;
-        let mut col = start_x;
-
-        for (grapheme, dw) in ot::unicode::split_graphemes_with_widths(&self.text) {
-            if col >= max_col {
-                break;
-            }
-            let dw = dw as u32;
-            if dw == 0 {
-                continue;
-            }
-            let cell_bg = self.bg.unwrap_or(ot::Rgba::TRANSPARENT);
-            if let Some(ch) = grapheme.chars().next() {
-                ctx.buffer.set_blended(col, y, ot::Cell::new(ch, style));
-            }
-            for i in 1..dw {
-                if col + i < max_col {
-                    ctx.buffer
-                        .set_blended(col + i, y, ot::Cell::continuation(cell_bg));
+        if let Some(pool) = ctx.grapheme_pool.take() {
+            ctx.buffer
+                .draw_text_with_pool(pool, start_x, y, &self.text, style);
+            ctx.grapheme_pool = Some(pool);
+        } else {
+            let max_col = x + w;
+            let mut col = start_x;
+            for (grapheme, dw) in ot::unicode::split_graphemes_with_widths(&self.text) {
+                if col >= max_col {
+                    break;
                 }
+                let dw = dw as u32;
+                if dw == 0 {
+                    continue;
+                }
+                let cell_bg = self.bg.unwrap_or(ot::Rgba::TRANSPARENT);
+                if let Some(ch) = grapheme.chars().next() {
+                    ctx.buffer.set_blended(col, y, ot::Cell::new(ch, style));
+                }
+                for i in 1..dw {
+                    if col + i < max_col {
+                        ctx.buffer
+                            .set_blended(col + i, y, ot::Cell::continuation(cell_bg));
+                    }
+                }
+                col += dw;
             }
-            col += dw;
         }
     }
 

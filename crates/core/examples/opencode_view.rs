@@ -35,10 +35,12 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use opentui_core::prelude::*;
-use opentui_core::view::{ViewRuntime, fill, rich_text, separator, span, text, view};
+use opentui_core::view::{
+    ViewRuntime, fill, overlay, panel, rich_text, separator, span, text, view,
+};
 use opentui_rust::input::{Event, InputParser, KeyCode, KeyModifiers, MouseEventKind, ParseError};
 use opentui_rust::terminal::{enable_raw_mode, terminal_size};
-use opentui_rust::{Cell, OptimizedBuffer, Renderer, RendererOptions, Rgba, Style};
+use opentui_rust::{Renderer, RendererOptions, Rgba};
 
 use opentui_core::widgets::{BorderChars, BorderSides};
 
@@ -482,6 +484,9 @@ fn ui(app: &App, w: u32, h: u32) -> opentui_core::view::Node {
     if app.sidebar_visible {
         root_children.push(ui_sidebar());
     }
+    if app.palette_open {
+        root_children.push(ui_palette(app, w, h));
+    }
 
     view()
         .row()
@@ -493,122 +498,141 @@ fn ui(app: &App, w: u32, h: u32) -> opentui_core::view::Node {
         .build()
 }
 
-fn draw_palette(buf: &mut OptimizedBuffer, app: &App, w: u32, h: u32) {
-    let backdrop = Style::builder().bg(Rgba::new(0.0, 0.0, 0.0, 0.586)).build();
-    for row in 0..h {
-        for col in 0..w {
-            buf.set(col, row, Cell::new(' ', backdrop));
-        }
-    }
-
+fn ui_palette(app: &App, w: u32, h: u32) -> opentui_core::view::Node {
     let dialog_w = 60_u32.min(w.saturating_sub(4));
     let dialog_h = 14_u32.min(h.saturating_sub(4));
     let dialog_x = w.saturating_sub(dialog_w) / 2;
     let dialog_y = h / 4;
 
-    let filter_style = Style::builder().fg(TEXT).bg(BG_PANEL).build();
-    let filter_placeholder = Style::builder().fg(TEXT_MUTED).bg(BG_PANEL).build();
-    let item_style = Style::builder().fg(TEXT).bg(BG_PANEL).build();
-    let selected_style = Style::builder().fg(TEXT).bg(PRIMARY).bold().build();
-    let shortcut_muted = Style::builder().fg(TEXT_MUTED).bg(BG_PANEL).build();
-    let shortcut_sel = Style::builder().fg(TEXT).bg(PRIMARY).build();
+    let indices = app.filtered_indices();
+    let cmds = App::commands();
+    let list_h = dialog_h.saturating_sub(6);
+    let scroll = app.palette_scroll.min(indices.len().saturating_sub(1));
 
-    let panel_bg = Style::builder().bg(BG_PANEL).build();
-    for row in dialog_y..(dialog_y + dialog_h) {
-        for col in dialog_x..(dialog_x + dialog_w) {
-            buf.set(col, row, Cell::new(' ', panel_bg));
-        }
-    }
+    let mut rows: Vec<opentui_core::view::Node> = indices
+        .iter()
+        .enumerate()
+        .skip(scroll)
+        .take(list_h as usize)
+        .map(|(idx, &oi)| {
+            let item = &cmds[oi];
+            let is_selected = indices.get(app.palette_selected) == Some(&oi);
+            let row_bg = if is_selected { PRIMARY } else { BG_PANEL };
+            let name_fg = TEXT;
+            let shortcut_fg = if is_selected { TEXT } else { TEXT_MUTED };
+            let shortcut_width = 14.0_f32;
 
-    let inner_x = dialog_x + 4;
-    let inner_right = dialog_x + dialog_w - 4;
+            view()
+                .row()
+                .height(1.0)
+                .shrink(0.0)
+                .bg(row_bg)
+                .on_action(format!("palette:select:{idx}"))
+                .children([
+                    text(item.name)
+                        .fg(name_fg)
+                        .bg(row_bg)
+                        .grow(1.0)
+                        .shrink(1.0)
+                        .height(1.0)
+                        .build(),
+                    text(item.shortcut)
+                        .fg(shortcut_fg)
+                        .bg(row_bg)
+                        .width(shortcut_width)
+                        .height(1.0)
+                        .align_right()
+                        .build(),
+                ])
+                .build()
+        })
+        .collect();
 
-    let title_style = Style::builder().fg(TEXT).bg(BG_PANEL).bold().build();
-    let esc_style = Style::builder().fg(TEXT_MUTED).bg(BG_PANEL).build();
-    buf.draw_text(inner_x, dialog_y + 1, "Commands", title_style);
-    buf.draw_text(inner_right - 3, dialog_y + 1, "esc", esc_style);
-
-    if app.palette_filter.is_empty() {
-        buf.draw_text(inner_x, dialog_y + 2, "Search...", filter_placeholder);
-    } else {
-        buf.draw_text(inner_x, dialog_y + 2, &app.palette_filter, filter_style);
-        let cx = inner_x + app.palette_filter.chars().count() as u32;
-        let cursor_style = Style::builder().fg(PRIMARY).bg(BG_PANEL).build();
-        if cx < inner_right {
-            buf.set(cx, dialog_y + 2, Cell::new('\u{2588}', cursor_style));
-        }
-    }
-
-    let sep_style = Style::builder()
-        .fg(Rgba::new(0.176, 0.176, 0.216, 1.0))
-        .bg(BG_PANEL)
-        .build();
-    for col in 4..(dialog_w - 4) {
-        buf.set(
-            dialog_x + col,
-            dialog_y + 3,
-            Cell::new('\u{2500}', sep_style),
+    if rows.is_empty() {
+        rows.push(
+            text("No commands found")
+                .fg(TEXT_MUTED)
+                .bg(BG_PANEL)
+                .height(1.0)
+                .shrink(0.0)
+                .build(),
         );
     }
 
-    let indices = app.filtered_indices();
-    let cmds = App::commands();
-    let list_y = dialog_y + 4;
-    let list_h = dialog_h.saturating_sub(6);
+    let filter_text = if app.palette_filter.is_empty() {
+        "Search...".to_string()
+    } else {
+        format!("{}\u{2588}", app.palette_filter)
+    };
+    let filter_fg = if app.palette_filter.is_empty() {
+        TEXT_MUTED
+    } else {
+        TEXT
+    };
 
-    let scroll = app.palette_scroll.min(indices.len().saturating_sub(1));
-    let visible = indices.iter().skip(scroll).take(list_h as usize);
+    let content = panel()
+        .column()
+        .size(dialog_w as f32, dialog_h as f32)
+        .padding(1.0, 4.0, 1.0, 4.0)
+        .bg(BG_PANEL)
+        .children([
+            view()
+                .row()
+                .height(1.0)
+                .shrink(0.0)
+                .bg(BG_PANEL)
+                .children([
+                    text("Commands")
+                        .fg(TEXT)
+                        .bg(BG_PANEL)
+                        .bold()
+                        .grow(1.0)
+                        .height(1.0)
+                        .build(),
+                    text("esc")
+                        .fg(TEXT_MUTED)
+                        .bg(BG_PANEL)
+                        .width(3.0)
+                        .height(1.0)
+                        .align_right()
+                        .build(),
+                ])
+                .build(),
+            text(filter_text)
+                .fg(filter_fg)
+                .bg(BG_PANEL)
+                .height(1.0)
+                .shrink(0.0)
+                .build(),
+            separator()
+                .height(1.0)
+                .shrink(0.0)
+                .fg(Rgba::new(0.176, 0.176, 0.216, 1.0))
+                .bg(BG_PANEL)
+                .build(),
+            view()
+                .column()
+                .height(list_h as f32)
+                .shrink(0.0)
+                .bg(BG_PANEL)
+                .overflow_hidden()
+                .children(rows)
+                .build(),
+            text("\u{2191}\u{2193} navigate  \u{00B7}  enter select  \u{00B7}  esc close")
+                .fg(TEXT_MUTED)
+                .bg(BG_PANEL)
+                .height(1.0)
+                .shrink(0.0)
+                .build(),
+        ])
+        .build();
 
-    for (vi, &oi) in visible.enumerate() {
-        let row_y = list_y + vi as u32;
-        if row_y >= dialog_y + dialog_h - 1 {
-            break;
-        }
-
-        let item = &cmds[oi];
-        let is_selected = indices.get(app.palette_selected) == Some(&oi);
-        let is_hovered = app.palette_mouse_mode
-            && row_y == app.mouse_y
-            && app.mouse_x > dialog_x
-            && app.mouse_x < dialog_x + dialog_w;
-        let highlighted = is_selected || is_hovered;
-
-        if highlighted {
-            let hl_bg = Style::builder().bg(PRIMARY).build();
-            for col in 0..dialog_w {
-                buf.set(dialog_x + col, row_y, Cell::new(' ', hl_bg));
-            }
-        }
-
-        let name_style = if highlighted {
-            selected_style
-        } else {
-            item_style
-        };
-        let key_style = if highlighted {
-            shortcut_sel
-        } else {
-            shortcut_muted
-        };
-
-        buf.draw_text(dialog_x + 4, row_y, item.name, name_style);
-        let shortcut_x =
-            (dialog_x + dialog_w - 4).saturating_sub(item.shortcut.chars().count() as u32);
-        buf.draw_text(shortcut_x, row_y, item.shortcut, key_style);
-    }
-
-    let footer_y = dialog_y + dialog_h - 2;
-    let footer_style = Style::builder().fg(TEXT_MUTED).bg(BG_PANEL).build();
-    let footer_bg = Style::builder().bg(BG_PANEL).build();
-    for col in (dialog_x + 1)..(dialog_x + dialog_w - 1) {
-        buf.set(col, footer_y, Cell::new(' ', footer_bg));
-    }
-    buf.draw_text(
-        dialog_x + 4,
-        footer_y,
-        "\u{2191}\u{2193} navigate  \u{00B7}  enter select  \u{00B7}  esc close",
-        footer_style,
-    );
+    overlay(content)
+        .position(dialog_x, dialog_y)
+        .size(dialog_w, dialog_h)
+        .backdrop()
+        .z_order(400)
+        .build()
 }
 
 fn read_with_timeout(stdin: &io::Stdin, buf: &mut [u8], timeout: Duration) -> io::Result<usize> {
@@ -639,7 +663,35 @@ fn read_with_timeout(stdin: &io::Stdin, buf: &mut [u8], timeout: Duration) -> io
     }
 }
 
-fn main() -> io::Result<()> {
+fn parse_palette_select_action(action: &str) -> Option<usize> {
+    action.strip_prefix("palette:select:")?.parse().ok()
+}
+
+fn activate_selected_palette_command(app: &mut App, running: &Arc<AtomicBool>) {
+    let indices = app.filtered_indices();
+    let Some(&oi) = indices.get(app.palette_selected) else {
+        return;
+    };
+
+    let name = App::commands()[oi].name;
+    app.palette_open = false;
+    app.palette_filter.clear();
+    app.palette_selected = 0;
+    app.palette_scroll = 0;
+
+    match name {
+        "Toggle Sidebar" => app.sidebar_visible = !app.sidebar_visible,
+        "New Session" => {
+            app.messages.clear();
+            app.input_text.clear();
+        }
+        "Quit" => running.store(false, Ordering::SeqCst),
+        _ => {}
+    }
+}
+
+#[allow(clippy::missing_errors_doc)]
+pub fn run() -> io::Result<()> {
     let (width, height) = terminal_size().unwrap_or((100, 30));
     let w = u32::from(width);
     let h = u32::from(height);
@@ -672,9 +724,6 @@ fn main() -> io::Result<()> {
             buffer.clear(Rgba::TRANSPARENT);
 
             let node = ui(&app_borrowed, w, h);
-            runtime.rebuild(&node);
-            runtime.layout(w as f32, h as f32);
-
             let mut ctx = RenderContext {
                 buffer,
                 grapheme_pool: None,
@@ -682,11 +731,7 @@ fn main() -> io::Result<()> {
                 hit_grid: None,
                 theme: None,
             };
-            runtime.render(&mut ctx);
-
-            if app_borrowed.palette_open {
-                draw_palette(buffer, &app_borrowed, w, h);
-            }
+            runtime.render_to_buffer(&mut ctx, &node, w as f32, h as f32);
         }
 
         drop(app_ref);
@@ -733,49 +778,21 @@ fn main() -> io::Result<()> {
                                 app_mut.mouse_x = mouse.x;
                                 app_mut.mouse_y = mouse.y;
                                 if app_mut.palette_open {
-                                    match mouse.kind {
-                                        MouseEventKind::Move => {
-                                            app_mut.palette_mouse_mode = true;
-                                            let dialog_w = 60_u32.min(w.saturating_sub(4));
-                                            let dialog_x = w.saturating_sub(dialog_w) / 2;
-                                            let dialog_y = h / 4;
-                                            let list_y = dialog_y + 4;
-                                            if mouse.x > dialog_x
-                                                && mouse.x < dialog_x + dialog_w
-                                                && mouse.y >= list_y
-                                            {
-                                                let row = (mouse.y - list_y) as usize;
-                                                let indices = app_mut.filtered_indices();
-                                                let idx = app_mut.palette_scroll + row;
-                                                if idx < indices.len() {
-                                                    app_mut.palette_selected = idx;
-                                                }
-                                            }
-                                        }
-                                        MouseEventKind::Press => {
+                                    let dispatch = runtime.dispatch_mouse(&mouse);
+                                    if let Some(action) = dispatch.action {
+                                        if let Some(idx) = parse_palette_select_action(&action) {
                                             let indices = app_mut.filtered_indices();
-                                            if let Some(&oi) = indices.get(app_mut.palette_selected)
-                                            {
-                                                let name = App::commands()[oi].name;
-                                                app_mut.palette_open = false;
-                                                app_mut.palette_filter.clear();
-                                                match name {
-                                                    "Toggle Sidebar" => {
-                                                        app_mut.sidebar_visible =
-                                                            !app_mut.sidebar_visible;
-                                                    }
-                                                    "New Session" => {
-                                                        app_mut.messages.clear();
-                                                        app_mut.input_text.clear();
-                                                    }
-                                                    "Quit" => {
-                                                        running.store(false, Ordering::SeqCst);
-                                                    }
-                                                    _ => {}
-                                                }
+                                            app_mut.palette_mouse_mode = true;
+                                            if idx < indices.len() {
+                                                app_mut.palette_selected = idx;
+                                            }
+                                            if mouse.kind == MouseEventKind::Press {
+                                                activate_selected_palette_command(
+                                                    &mut app_mut,
+                                                    &running,
+                                                );
                                             }
                                         }
-                                        _ => {}
                                     }
                                 }
                             }
@@ -799,6 +816,10 @@ fn main() -> io::Result<()> {
     }
 
     Ok(())
+}
+
+fn main() -> io::Result<()> {
+    run()
 }
 
 fn handle_key_event(
@@ -841,21 +862,7 @@ fn handle_key_event(
                 }
             }
             KeyCode::Enter => {
-                let indices = app.filtered_indices();
-                if let Some(&oi) = indices.get(app.palette_selected) {
-                    let name = App::commands()[oi].name;
-                    app.palette_open = false;
-                    app.palette_filter.clear();
-                    match name {
-                        "Toggle Sidebar" => app.sidebar_visible = !app.sidebar_visible,
-                        "New Session" => {
-                            app.messages.clear();
-                            app.input_text.clear();
-                        }
-                        "Quit" => running.store(false, Ordering::SeqCst),
-                        _ => {}
-                    }
-                }
+                activate_selected_palette_command(app, running);
             }
             KeyCode::Backspace => {
                 app.palette_filter.pop();

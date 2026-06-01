@@ -400,8 +400,8 @@ pub fn draw_box_with_options(
 
     let inner_x = if has_left { x + 1 } else { x };
     let inner_y = if has_top { y + 1 } else { y };
-    let inner_right = if has_right { x + w } else { x + w };
-    let inner_bottom = if has_bottom { y + h } else { y + h };
+    let inner_right = x + w;
+    let inner_bottom = y + h;
     let inner_w = inner_right.saturating_sub(inner_x);
     let inner_h = inner_bottom.saturating_sub(inner_y);
 

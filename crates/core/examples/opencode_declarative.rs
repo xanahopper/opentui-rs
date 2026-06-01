@@ -1,4 +1,5 @@
-//! OpenCode-style TUI — fully declarative layout using WidgetTree.
+/*
+//! Legacy OpenCode-style TUI — low-level WidgetTree construction.
 //!
 //! This version uses only BoxWidget, TextLineWidget, FillWidget, SeparatorWidget,
 //! and StyledTextWidget — zero custom Widget implementations. All layout is
@@ -220,7 +221,23 @@ impl App {
         });
     }
 }
+*/
 
+//! Compatibility entry for the `OpenCode` declarative example.
+//!
+//! The executable implementation lives in `opencode_view.rs`, which builds the
+//! UI through the View DSL (`view()`, `text()`, `overlay()`, actions, and
+//! `ViewRuntime`). Keeping this entry point preserves the old example command
+//! while avoiding a second, lower-level `WidgetTree` version.
+
+#[path = "opencode_view.rs"]
+mod opencode_view;
+
+fn main() -> std::io::Result<()> {
+    opencode_view::run()
+}
+
+/*
 fn build_sidebar(tree: &mut WidgetTree, parent: WidgetId) {
     let spacer1 = tree.allocate_id();
     let title = tree.allocate_id();
@@ -1058,3 +1075,4 @@ fn handle_key_event(
         _ => {}
     }
 }
+*/

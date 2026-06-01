@@ -9,6 +9,7 @@ use crate::widget::{KeyDispatchResult, MouseDispatchResult, RenderContext, Widge
 pub struct ViewRuntime {
     tree: WidgetTree,
     actions: HashMap<WidgetId, String>,
+    hit_grid: HitGrid,
 }
 
 pub struct ViewMouseDispatchResult {
@@ -21,6 +22,7 @@ impl ViewRuntime {
         Self {
             tree: WidgetTree::new(),
             actions: HashMap::new(),
+            hit_grid: HitGrid::default(),
         }
     }
 
@@ -48,14 +50,37 @@ impl ViewRuntime {
     ) {
         self.rebuild(node);
         self.layout(width, height);
+        self.register_hit_areas(width as u32, height as u32);
         self.render(ctx);
+    }
+
+    pub fn register_hit_areas(&mut self, width: u32, height: u32) {
+        self.hit_grid.resize(width, height);
+        let actions = &self.actions;
+        for (id, layout, focusable) in self.tree.hit_registration_order() {
+            let has_action = actions.contains_key(&id);
+            if has_action || focusable {
+                let x = layout.x as u32;
+                let y = layout.y as u32;
+                let w = layout.width as u32;
+                let h = layout.height as u32;
+                let hit_id = id as u32;
+                self.hit_grid.register(x, y, w, h, hit_id);
+            }
+        }
     }
 
     pub fn dispatch_key(&mut self, key: &opentui_rust::KeyEvent) -> KeyDispatchResult {
         self.tree.dispatch_key(key)
     }
 
-    pub fn dispatch_mouse(
+    pub fn dispatch_mouse(&mut self, mouse: &opentui_rust::MouseEvent) -> ViewMouseDispatchResult {
+        let inner = self.tree.dispatch_mouse(mouse, Some(&self.hit_grid));
+        let action = inner.target.and_then(|id| self.actions.get(&id).cloned());
+        ViewMouseDispatchResult { inner, action }
+    }
+
+    pub fn dispatch_mouse_with_grid(
         &mut self,
         mouse: &opentui_rust::MouseEvent,
         hit_grid: Option<&HitGrid>,
@@ -67,6 +92,10 @@ impl ViewRuntime {
 
     pub fn action_for_widget(&self, id: WidgetId) -> Option<&str> {
         self.actions.get(&id).map(String::as_str)
+    }
+
+    pub fn hit_grid(&self) -> &HitGrid {
+        &self.hit_grid
     }
 
     pub fn tree(&self) -> &WidgetTree {

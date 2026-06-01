@@ -606,6 +606,53 @@ impl WidgetTree {
         self.nodes.get(&id).and_then(|n| n.computed_layout.as_ref())
     }
 
+    pub fn iter_widgets(&self) -> impl Iterator<Item = (WidgetId, &ComputedLayout, bool)> {
+        self.nodes.iter().filter_map(|(&id, node)| {
+            let layout = node.computed_layout.as_ref()?;
+            Some((id, layout, node.widget.focusable()))
+        })
+    }
+
+    pub fn hit_registration_order(&self) -> Vec<(WidgetId, ComputedLayout, bool)> {
+        let mut result = Vec::new();
+        if let Some(root_id) = self.root {
+            self.collect_hit_widgets(root_id, &mut result);
+        }
+
+        let mut overlays: Vec<(usize, OverlayZOrder)> = self
+            .overlays
+            .iter()
+            .enumerate()
+            .map(|(idx, overlay)| (idx, overlay.z_order))
+            .collect();
+        overlays.sort_by_key(|(_, z_order)| z_order.value());
+
+        for (idx, _) in overlays {
+            self.collect_hit_widgets(self.overlays[idx].widget_id, &mut result);
+        }
+
+        result
+    }
+
+    fn collect_hit_widgets(
+        &self,
+        id: WidgetId,
+        result: &mut Vec<(WidgetId, ComputedLayout, bool)>,
+    ) {
+        let Some(node) = self.nodes.get(&id) else {
+            return;
+        };
+        if !node.widget.visible() {
+            return;
+        }
+        if let Some(layout) = node.computed_layout {
+            result.push((id, layout, node.widget.focusable()));
+        }
+        for child_id in &node.children {
+            self.collect_hit_widgets(*child_id, result);
+        }
+    }
+
     pub fn root(&self) -> Option<WidgetId> {
         self.root
     }
