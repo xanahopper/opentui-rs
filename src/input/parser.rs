@@ -222,6 +222,9 @@ impl InputParser {
             // Resize (some terminals)
             b't' => self.parse_resize(params, end + 1),
 
+            // Kitty keyboard protocol / CSI-u keys, e.g. Shift+Enter: ESC [ 13 ; 2 u.
+            b'u' => self.parse_csi_u_key(params, end + 1),
+
             _ => Err(ParseError::UnrecognizedSequence(input[..=end].to_vec())),
         }
     }
@@ -318,6 +321,10 @@ impl InputParser {
         let parts: Vec<&str> = s.split(';').collect();
         let num: u8 = parts.first().and_then(|p| p.parse().ok()).unwrap_or(0);
 
+        if num == 27 && parts.len() >= 3 {
+            return self.parse_modify_other_key(&parts, params, consumed);
+        }
+
         let modifiers = if parts.len() >= 2 {
             self.parse_modifiers(params)?
         } else {
@@ -363,6 +370,74 @@ impl InputParser {
                 return Err(ParseError::UnrecognizedSequence(params.to_vec()));
             }
             _ => return Err(ParseError::UnrecognizedSequence(params.to_vec())),
+        };
+
+        Ok((KeyEvent::new(code, modifiers).into(), consumed))
+    }
+
+    /// Parse xterm `modifyOtherKeys` sequences.
+    ///
+    /// Format: `ESC [ 27 ; modifiers ; codepoint ~`, used by terminals such
+    /// as Ghostty for Shift+Enter (`ESC [ 27 ; 2 ; 13 ~`).
+    fn parse_modify_other_key(
+        &self,
+        parts: &[&str],
+        params: &[u8],
+        consumed: usize,
+    ) -> ParseResult {
+        let modifier_value = parts[1]
+            .parse::<u8>()
+            .map_err(|_| ParseError::UnrecognizedSequence(params.to_vec()))?;
+        let codepoint = parts[2]
+            .parse::<u32>()
+            .map_err(|_| ParseError::UnrecognizedSequence(params.to_vec()))?;
+
+        let modifier_params = format!("1;{modifier_value}");
+        let modifiers = self.parse_modifiers(modifier_params.as_bytes())?;
+        let code = match codepoint {
+            9 => KeyCode::Tab,
+            13 => KeyCode::Enter,
+            27 => KeyCode::Esc,
+            127 => KeyCode::Backspace,
+            _ => char::from_u32(codepoint)
+                .map(KeyCode::Char)
+                .ok_or_else(|| ParseError::UnrecognizedSequence(params.to_vec()))?,
+        };
+
+        Ok((KeyEvent::new(code, modifiers).into(), consumed))
+    }
+
+    /// Parse Kitty keyboard protocol / CSI-u key sequences.
+    ///
+    /// Format: `ESC [ codepoint ; modifiers u`, where modifiers use the xterm
+    /// encoding (`1 + shift + 2*alt + 4*ctrl`). This intentionally rejects
+    /// private query responses such as `ESC [ ? flags u`.
+    fn parse_csi_u_key(&self, params: &[u8], consumed: usize) -> ParseResult {
+        if params.first() == Some(&b'?') {
+            return Err(ParseError::UnrecognizedSequence(params.to_vec()));
+        }
+
+        let s = std::str::from_utf8(params).map_err(|_| ParseError::InvalidUtf8)?;
+        let parts: Vec<&str> = s.split(';').collect();
+        let codepoint: u32 = parts
+            .first()
+            .and_then(|part| part.parse().ok())
+            .ok_or_else(|| ParseError::UnrecognizedSequence(params.to_vec()))?;
+
+        let modifiers = if parts.len() >= 2 {
+            self.parse_modifiers(params)?
+        } else {
+            KeyModifiers::empty()
+        };
+
+        let code = match codepoint {
+            9 => KeyCode::Tab,
+            13 => KeyCode::Enter,
+            27 => KeyCode::Esc,
+            127 => KeyCode::Backspace,
+            _ => char::from_u32(codepoint)
+                .map(KeyCode::Char)
+                .ok_or_else(|| ParseError::UnrecognizedSequence(params.to_vec()))?,
         };
 
         Ok((KeyEvent::new(code, modifiers).into(), consumed))
@@ -709,6 +784,44 @@ mod tests {
         let key = event.key().unwrap();
         assert_eq!(key.code, KeyCode::Up);
         assert!(key.shift());
+    }
+
+    #[test]
+    fn test_parse_csi_u_modified_enter() {
+        let mut parser = InputParser::new();
+
+        let (event, consumed) = parser.parse(b"\x1b[13;2u").unwrap();
+        assert_eq!(consumed, 7);
+        let key = event.key().unwrap();
+        assert_eq!(key.code, KeyCode::Enter);
+        assert!(key.shift());
+        assert!(!key.ctrl());
+
+        let (event, consumed) = parser.parse(b"\x1b[13;5u").unwrap();
+        assert_eq!(consumed, 7);
+        let key = event.key().unwrap();
+        assert_eq!(key.code, KeyCode::Enter);
+        assert!(key.ctrl());
+        assert!(!key.shift());
+    }
+
+    #[test]
+    fn test_parse_modify_other_keys_enter() {
+        let mut parser = InputParser::new();
+
+        let (event, consumed) = parser.parse(b"\x1b[27;2;13~").unwrap();
+        assert_eq!(consumed, 10);
+        let key = event.key().unwrap();
+        assert_eq!(key.code, KeyCode::Enter);
+        assert!(key.shift());
+        assert!(!key.ctrl());
+
+        let (event, consumed) = parser.parse(b"\x1b[27;5;13~").unwrap();
+        assert_eq!(consumed, 10);
+        let key = event.key().unwrap();
+        assert_eq!(key.code, KeyCode::Enter);
+        assert!(key.ctrl());
+        assert!(!key.shift());
     }
 
     #[test]

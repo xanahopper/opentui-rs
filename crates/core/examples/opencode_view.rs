@@ -46,14 +46,16 @@ use opentui_core::widgets::{BorderChars, BorderSides};
 
 const SIDEBAR_WIDTH: f32 = 42.0;
 
-const BG: Rgba = Rgba::new(0.059, 0.059, 0.086, 1.0);
-const BG_PANEL: Rgba = Rgba::new(0.078, 0.078, 0.118, 1.0);
-const BG_ELEMENT: Rgba = Rgba::new(0.098, 0.098, 0.137, 1.0);
+const BG: Rgba = Rgba::new(0.039, 0.039, 0.039, 1.0);
+const BG_PANEL: Rgba = Rgba::new(0.078, 0.078, 0.078, 1.0);
+const BG_ELEMENT: Rgba = Rgba::new(0.118, 0.118, 0.118, 1.0);
 const BORDER_ACTIVE: Rgba = Rgba::new(0.294, 0.549, 0.902, 1.0);
 const TEXT: Rgba = Rgba::new(0.878, 0.878, 0.922, 1.0);
 const TEXT_MUTED: Rgba = Rgba::new(0.498, 0.498, 0.549, 1.0);
 const PRIMARY: Rgba = Rgba::new(0.294, 0.549, 0.902, 1.0);
 const SUCCESS: Rgba = Rgba::new(0.349, 0.796, 0.498, 1.0);
+const MAX_INPUT_LINES: usize = 6;
+const MAX_INPUT_CHARS: usize = 1_000;
 
 struct Message {
     role: &'static str,
@@ -278,23 +280,7 @@ fn ui_sidebar() -> opentui_core::view::Node {
 }
 
 fn ui_prompt(app: &App) -> Vec<opentui_core::view::Node> {
-    let input_text = if app.input_text.is_empty() {
-        "Ask anything... \"help me get started\"".to_string()
-    } else {
-        app.input_text.clone()
-    };
-    let input_fg = if app.input_text.is_empty() {
-        TEXT_MUTED
-    } else {
-        TEXT
-    };
-    let cursor = if app.input_text.is_empty() {
-        ""
-    } else {
-        "\u{2588}"
-    };
-
-    vec![
+    let mut rows = vec![
         view()
             .row()
             .height(1.0)
@@ -307,25 +293,66 @@ fn ui_prompt(app: &App) -> Vec<opentui_core::view::Node> {
                 sides: BorderSides::left_only(),
             })
             .build(),
-        view()
-            .row()
-            .height(1.0)
-            .shrink(0.0)
-            .bg(BG_ELEMENT)
-            .padding(0.0, 0.0, 0.0, 2.0)
-            .border(BorderStyle {
-                chars: BorderChars::split_left(),
-                color: BORDER_ACTIVE,
-                focused_color: None,
-                sides: BorderSides::left_only(),
-            })
-            .children([text(format!("{input_text}{cursor}"))
-                .fg(input_fg)
+    ];
+
+    if app.input_text.is_empty() {
+        rows.push(
+            view()
+                .row()
+                .height(1.0)
+                .shrink(0.0)
                 .bg(BG_ELEMENT)
+                .padding(0.0, 0.0, 0.0, 2.0)
+                .border(BorderStyle {
+                    chars: BorderChars::split_left(),
+                    color: BORDER_ACTIVE,
+                    focused_color: None,
+                    sides: BorderSides::left_only(),
+                })
+                .children([rich_text(vec![
+                    span("\u{2588}", TEXT),
+                    span("Ask anything... \"help me get started\"", TEXT_MUTED),
+                ])
                 .grow(1.0)
                 .shrink(0.0)
                 .build()])
-            .build(),
+                .build(),
+        );
+    } else {
+        let input_lines: Vec<&str> = app.input_text.split('\n').collect();
+        let first_visible = input_lines.len().saturating_sub(MAX_INPUT_LINES);
+        for (idx, line) in input_lines.iter().skip(first_visible).enumerate() {
+            let is_last_visible = first_visible + idx + 1 == input_lines.len();
+            let display = if is_last_visible {
+                format!("{line}\u{2588}")
+            } else {
+                (*line).to_string()
+            };
+            rows.push(
+                view()
+                    .row()
+                    .height(1.0)
+                    .shrink(0.0)
+                    .bg(BG_ELEMENT)
+                    .padding(0.0, 0.0, 0.0, 2.0)
+                    .border(BorderStyle {
+                        chars: BorderChars::split_left(),
+                        color: BORDER_ACTIVE,
+                        focused_color: None,
+                        sides: BorderSides::left_only(),
+                    })
+                    .children([text(display)
+                        .fg(TEXT)
+                        .bg(BG_ELEMENT)
+                        .grow(1.0)
+                        .shrink(0.0)
+                        .build()])
+                    .build(),
+            );
+        }
+    }
+
+    rows.extend([
         view()
             .row()
             .height(1.0)
@@ -362,21 +389,40 @@ fn ui_prompt(app: &App) -> Vec<opentui_core::view::Node> {
             .row()
             .height(1.0)
             .shrink(0.0)
+            .bg(BG)
             .border(BorderStyle {
-                chars: BorderChars::split_left_no_bottom(),
+                chars: BorderChars {
+                    vertical: '\u{2579}',
+                    ..BorderChars::empty()
+                },
                 color: BORDER_ACTIVE,
                 focused_color: None,
                 sides: BorderSides::left_only(),
             })
-            .children([separator()
+            .children([view()
+                .row()
+                .height(1.0)
                 .grow(1.0)
                 .shrink(0.0)
-                .char_('\u{2580}')
-                .fg(BG_ELEMENT)
-                .bg(BG)
+                .border(BorderStyle {
+                    chars: BorderChars {
+                        horizontal: '\u{2580}',
+                        ..BorderChars::empty()
+                    },
+                    color: BG_ELEMENT,
+                    focused_color: None,
+                    sides: BorderSides {
+                        top: false,
+                        right: false,
+                        bottom: true,
+                        left: false,
+                    },
+                })
                 .build()])
             .build(),
-    ]
+    ]);
+
+    rows
 }
 
 fn ui_messages(app: &App) -> Vec<opentui_core::view::Node> {
@@ -460,23 +506,39 @@ fn ui(app: &App, w: u32, h: u32) -> opentui_core::view::Node {
         .children(ui_prompt(app))
         .build();
 
-    let hint_bar = rich_text(vec![
-        span("tab ", TEXT),
-        span("agents", TEXT_MUTED),
-        span("  ctrl+p ", TEXT),
-        span("commands", TEXT_MUTED),
-    ])
-    .height(1.0)
-    .shrink(0.0)
-    .padding(0.0, 0.0, 0.0, 2.0)
-    .build();
+    let hint_bar = view()
+        .row()
+        .height(1.0)
+        .shrink(0.0)
+        .children([
+            fill(BG).grow(1.0).build(),
+            rich_text(vec![
+                span("tab ", TEXT),
+                span("agents", TEXT_MUTED),
+                span("  ctrl+p ", TEXT),
+                span("commands", TEXT_MUTED),
+            ])
+            .width(27.0)
+            .height(1.0)
+            .shrink(0.0)
+            .build(),
+        ])
+        .build();
+
+    let bottom_panel = view()
+        .column()
+        .shrink(0.0)
+        .margin(0.0, 2.0, 1.0, 2.0)
+        .bg(BG)
+        .children([prompt_box, hint_bar])
+        .build();
 
     let main_area = view()
         .column()
         .grow(1.0)
         .bg(BG)
         .overflow_hidden()
-        .children([msg_area, prompt_box, hint_bar])
+        .children([msg_area, bottom_panel])
         .build();
 
     let mut root_children: Vec<opentui_core::view::Node> = vec![main_area];
@@ -700,7 +762,9 @@ pub fn run() -> io::Result<()> {
         use_alt_screen: true,
         hide_cursor: true,
         enable_mouse: true,
-        query_capabilities: true,
+        // This example reads stdin directly. Capability query responses also arrive
+        // on stdin, so leave probing off to avoid treating them as prompt text.
+        query_capabilities: false,
     };
     let mut renderer = Renderer::new_with_options(w, h, options)?;
     let _raw_guard = enable_raw_mode()?;
@@ -923,14 +987,20 @@ fn handle_key_event(
                 app.input_text.clear();
             }
         }
+        KeyCode::Enter if modifiers.intersects(KeyModifiers::SHIFT | KeyModifiers::CTRL) => {
+            if app.input_text.chars().count() < MAX_INPUT_CHARS {
+                app.input_text.push('\n');
+            }
+        }
         KeyCode::Enter => app.send_message(),
         KeyCode::Backspace => {
             app.input_text.pop();
         }
-        KeyCode::Char(c) => {
-            if app.input_text.len() < 200 {
-                app.input_text.push(c);
-            }
+        KeyCode::Char(c)
+            if !modifiers.intersects(KeyModifiers::CTRL | KeyModifiers::ALT)
+                && app.input_text.chars().count() < MAX_INPUT_CHARS =>
+        {
+            app.input_text.push(c);
         }
         _ => {}
     }
