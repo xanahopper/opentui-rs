@@ -200,7 +200,7 @@ struct App {
 }
 
 impl App {
-    fn new(w: u32) -> Self {
+    fn new(_w: u32) -> Self {
         Self {
             messages: vec![
                 Message { role: "user", text: "Help me understand the layout of this TUI application".into() },
@@ -443,17 +443,17 @@ fn ui_prompt(app: &App) -> opentui_core::view::Node {
     let input_display = if app.input_text.is_empty() {
         rich_text(vec![
             span("\u{2588}", accent),
-            span(" Ask anything... \"Fix a TODO in the codebase\"", TEXT_MUTED),
+            span(
+                " Ask anything... \"Fix a TODO in the codebase\"",
+                TEXT_MUTED,
+            ),
         ])
         .height(1.0)
         .build()
     } else {
-        rich_text(vec![
-            span(&app.input_text, TEXT),
-            span("\u{2588}", accent),
-        ])
-        .height(1.0)
-        .build()
+        rich_text(vec![span(&app.input_text, TEXT), span("\u{2588}", accent)])
+            .height(1.0)
+            .build()
     };
 
     let mode_row_spacer = view().height(1.0).build();
@@ -506,26 +506,24 @@ fn ui_prompt(app: &App) -> opentui_core::view::Node {
             focused_color: None,
             sides: BorderSides::left_only(),
         })
-        .children([
-            view()
-                .height(1.0)
-                .grow(1.0)
-                .border(BorderStyle {
-                    chars: BorderChars {
-                        horizontal: '\u{2580}',
-                        ..BorderChars::empty()
-                    },
-                    color: BG_ELEMENT,
-                    focused_color: None,
-                    sides: BorderSides {
-                        top: false,
-                        right: false,
-                        bottom: true,
-                        left: false,
-                    },
-                })
-                .build(),
-        ])
+        .children([view()
+            .height(1.0)
+            .grow(1.0)
+            .border(BorderStyle {
+                chars: BorderChars {
+                    horizontal: '\u{2580}',
+                    ..BorderChars::empty()
+                },
+                color: BG_ELEMENT,
+                focused_color: None,
+                sides: BorderSides {
+                    top: false,
+                    right: false,
+                    bottom: true,
+                    left: false,
+                },
+            })
+            .build()])
         .build();
 
     let status_row = view()
@@ -535,37 +533,27 @@ fn ui_prompt(app: &App) -> opentui_core::view::Node {
         .padding_x(1.0)
         .gap(2.0)
         .children([
-            rich_text(vec![
-                span("esc ", TEXT),
-                span("interrupt", TEXT_MUTED),
-            ])
-            .height(1.0)
-            .grow(1.0)
-            .build(),
-            text(format!("{} ", app.mode.label())).fg(mode_fg).height(1.0).build(),
-            rich_text(vec![
-                span("ctrl+x ", TEXT),
-                span("agents", TEXT_MUTED),
-            ])
-            .height(1.0)
-            .build(),
-            rich_text(vec![
-                span("ctrl+x ", TEXT),
-                span("commands", TEXT_MUTED),
-            ])
-            .height(1.0)
-            .build(),
+            rich_text(vec![span("esc ", TEXT), span("interrupt", TEXT_MUTED)])
+                .height(1.0)
+                .grow(1.0)
+                .build(),
+            text(format!("{} ", app.mode.label()))
+                .fg(mode_fg)
+                .height(1.0)
+                .build(),
+            rich_text(vec![span("ctrl+x ", TEXT), span("agents", TEXT_MUTED)])
+                .height(1.0)
+                .build(),
+            rich_text(vec![span("ctrl+x ", TEXT), span("commands", TEXT_MUTED)])
+                .height(1.0)
+                .build(),
         ])
         .build();
 
     view()
         .column()
         .shrink(0.0)
-        .children([
-            bordered_content,
-            separator_row,
-            status_row,
-        ])
+        .children([bordered_content, separator_row, status_row])
         .build()
 }
 
@@ -605,17 +593,9 @@ fn ui_footer() -> opentui_core::view::Node {
         .children([
             text("~/project").fg(TEXT_MUTED).build(),
             view().grow(1.0).build(),
-            rich_text(vec![
-                span("\u{25CF} ", SUCCESS),
-                span("1 LSP", TEXT_MUTED),
-            ])
-            .build(),
+            rich_text(vec![span("\u{25CF} ", SUCCESS), span("1 LSP", TEXT_MUTED)]).build(),
             text("  ").build(),
-            rich_text(vec![
-                span("\u{25CF} ", SUCCESS),
-                span("2 MCP", TEXT_MUTED),
-            ])
-            .build(),
+            rich_text(vec![span("\u{25CF} ", SUCCESS), span("2 MCP", TEXT_MUTED)]).build(),
             text("  /status").fg(TEXT_DIM).build(),
         ])
         .build()

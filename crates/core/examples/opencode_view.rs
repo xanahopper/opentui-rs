@@ -603,7 +603,6 @@ fn ui_palette(app: &App, w: u32, h: u32) -> opentui_core::view::Node {
                         .bg(row_bg)
                         .width(shortcut_width)
                         .height(1.0)
-                        .align_right()
                         .build(),
                 ])
                 .build()
@@ -656,7 +655,6 @@ fn ui_palette(app: &App, w: u32, h: u32) -> opentui_core::view::Node {
                         .bg(BG_PANEL)
                         .width(3.0)
                         .height(1.0)
-                        .align_right()
                         .build(),
                 ])
                 .build(),

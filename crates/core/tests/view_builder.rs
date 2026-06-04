@@ -171,12 +171,17 @@ fn test_rich_text_with_segments() {
     let seg2 = span("World", opentui_rust::Rgba::new(1.0, 0.0, 0.0, 1.0)).bold();
     let node = rich_text(vec![seg1, seg2]).build();
     let elem = unwrap_element(&node);
-    assert_eq!(elem.kind, ElementKind::StyledText);
-    if let Props::StyledText(ref sp) = elem.props {
-        assert_eq!(sp.segments.len(), 2);
-        assert!(sp.segments[1].bold);
+    assert_eq!(elem.kind, ElementKind::Text);
+    if let Props::Text(ref tp) = elem.props {
+        assert_eq!(tp.content, "Hello World");
+        assert_eq!(tp.fg, opentui_rust::Rgba::WHITE);
+        assert!(!tp.bold);
+        assert_eq!(tp.highlights.len(), 1);
+        let hl = &tp.highlights[0];
+        assert_eq!(hl.0, 6);
+        assert_eq!(hl.1, 11);
     } else {
-        panic!("expected StyledTextProps");
+        panic!("expected TextProps");
     }
 }
 

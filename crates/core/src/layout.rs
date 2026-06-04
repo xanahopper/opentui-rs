@@ -24,10 +24,21 @@
 //! ```
 
 use taffy::TaffyTree;
+use taffy::geometry::Size;
 use taffy::prelude::*;
+use taffy::style::AvailableSpace;
 use taffy::tree::Layout;
 
 pub use taffy::style as taffy_style;
+
+#[derive(Debug, Clone, Default)]
+pub enum NodeContext {
+    Text {
+        content: String,
+    },
+    #[default]
+    None,
+}
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct ComputedLayout {
@@ -260,7 +271,7 @@ impl LayoutStyle {
 }
 
 pub struct LayoutEngine {
-    tree: TaffyTree<()>,
+    tree: TaffyTree<NodeContext>,
 }
 
 impl LayoutEngine {
@@ -271,7 +282,19 @@ impl LayoutEngine {
     }
 
     pub fn new_leaf(&mut self, style: LayoutStyle) -> taffy::tree::NodeId {
-        self.tree.new_leaf(style.inner).unwrap()
+        self.tree
+            .new_leaf_with_context(style.inner, NodeContext::None)
+            .unwrap()
+    }
+
+    pub fn new_leaf_with_context(
+        &mut self,
+        style: LayoutStyle,
+        context: NodeContext,
+    ) -> taffy::tree::NodeId {
+        self.tree
+            .new_leaf_with_context(style.inner, context)
+            .unwrap()
     }
 
     pub fn new_node(
@@ -287,7 +310,7 @@ impl LayoutEngine {
     }
 
     pub fn compute(&mut self, root: taffy::tree::NodeId) {
-        self.tree.compute_layout(root, Size::MAX_CONTENT).unwrap();
+        self.compute_with_size(root, f32::MAX, f32::MAX);
     }
 
     pub fn compute_with_size(&mut self, root: taffy::tree::NodeId, width: f32, height: f32) {
@@ -295,7 +318,9 @@ impl LayoutEngine {
             width: AvailableSpace::Definite(width),
             height: AvailableSpace::Definite(height),
         };
-        self.tree.compute_layout(root, available).unwrap();
+        self.tree
+            .compute_layout_with_measure(root, available, measure_function)
+            .unwrap();
     }
 
     pub fn layout(&self, node: taffy::tree::NodeId) -> ComputedLayout {
@@ -319,4 +344,75 @@ impl Default for LayoutEngine {
     fn default() -> Self {
         Self::new()
     }
+}
+
+fn measure_function(
+    known_dimensions: Size<Option<f32>>,
+    available_space: Size<AvailableSpace>,
+    _node_id: taffy::tree::NodeId,
+    node_context: Option<&mut NodeContext>,
+    _style: &taffy::style::Style,
+) -> Size<f32> {
+    let ctx = node_context.map(|c| c.clone());
+    let Some(NodeContext::Text { content }) = ctx else {
+        return known_dimensions.map(|d| d.unwrap_or(0.0));
+    };
+
+    if content.is_empty() {
+        return known_dimensions.map(|d| d.unwrap_or(0.0));
+    }
+
+    let max_line_width = unicode_line_width(&content);
+    let words: Vec<&str> = content.split_whitespace().collect();
+    let min_word_width = words
+        .iter()
+        .map(|w| unicode_word_width(w))
+        .max()
+        .unwrap_or(0);
+
+    let width = known_dimensions
+        .width
+        .unwrap_or_else(|| match available_space.width {
+            AvailableSpace::MinContent => min_word_width as f32,
+            AvailableSpace::MaxContent => max_line_width as f32,
+            AvailableSpace::Definite(available) => {
+                (available as usize).min(max_line_width).max(min_word_width) as f32
+            }
+        });
+
+    let height = known_dimensions.height.unwrap_or_else(|| {
+        if words.is_empty() {
+            return 1.0;
+        }
+        let col_limit = (width as usize).max(1);
+        let line_count = wrap_word_count(&words, col_limit);
+        line_count as f32
+    });
+
+    Size { width, height }
+}
+
+fn unicode_line_width(text: &str) -> usize {
+    opentui_rust::unicode::display_width(text)
+}
+
+fn unicode_word_width(word: &str) -> usize {
+    opentui_rust::unicode::display_width(word)
+}
+
+fn wrap_word_count(words: &[&str], col_limit: usize) -> usize {
+    let mut line_count = 1;
+    let mut current_len = 0;
+    for word in words {
+        let word_w = unicode_word_width(word);
+        if current_len == 0 {
+            current_len = word_w;
+        } else if current_len + 1 + word_w > col_limit {
+            line_count += 1;
+            current_len = word_w;
+        } else {
+            current_len += 1 + word_w;
+        }
+    }
+    line_count
 }

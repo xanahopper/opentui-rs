@@ -11,9 +11,7 @@ mod progress_widget;
 mod scroll_view_widget;
 mod separator_widget;
 mod status_line_widget;
-mod styled_text_widget;
 mod tabs_widget;
-mod text_line_widget;
 mod text_widget;
 mod view_widget;
 
@@ -26,8 +24,6 @@ pub use progress_widget::{ProgressBarStyle, ProgressBarWidget, ProgressChars};
 pub use scroll_view_widget::ScrollViewWidget;
 pub use separator_widget::SeparatorWidget;
 pub use status_line_widget::{StatusLineStyle, StatusLineWidget};
-pub use styled_text_widget::{StyledSegment, StyledTextAlign, StyledTextWidget};
 pub use tabs_widget::{Tab, TabsStyle, TabsWidget};
-pub use text_line_widget::{TextLineAlign, TextLineWidget};
 pub use text_widget::{TextAlign, TextWidget};
 pub use view_widget::ViewWidget;

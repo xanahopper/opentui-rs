@@ -17,7 +17,7 @@ use std::collections::HashMap;
 use opentui_rust as ot;
 use opentui_rust::OptimizedBuffer;
 
-use crate::layout::{ComputedLayout, LayoutEngine, LayoutStyle};
+use crate::layout::{ComputedLayout, LayoutEngine, LayoutStyle, NodeContext};
 use crate::render_command::{RenderCommand, RenderCommandList};
 
 pub type WidgetId = u64;
@@ -45,6 +45,14 @@ pub trait Widget {
     fn style_mut(&mut self) -> &mut LayoutStyle;
 
     fn render(&mut self, ctx: &mut RenderContext<'_>, layout: &ComputedLayout);
+
+    fn intrinsic_size(&self) -> Option<(f32, f32)> {
+        None
+    }
+
+    fn text_content(&self) -> Option<String> {
+        None
+    }
 
     fn children(&self) -> &[WidgetId] {
         &[]
@@ -100,6 +108,14 @@ impl Widget for Box<dyn Widget> {
 
     fn render(&mut self, ctx: &mut RenderContext<'_>, layout: &ComputedLayout) {
         (**self).render(ctx, layout);
+    }
+
+    fn intrinsic_size(&self) -> Option<(f32, f32)> {
+        (**self).intrinsic_size()
+    }
+
+    fn text_content(&self) -> Option<String> {
+        (**self).text_content()
     }
 
     fn children(&self) -> &[WidgetId] {
@@ -255,7 +271,13 @@ impl WidgetTree {
 
     pub fn add<W: Widget + 'static>(&mut self, widget: W) -> WidgetId {
         let id = widget.id();
-        let taffy_node = self.layout_engine.new_leaf(widget.style().clone());
+        let ctx = widget
+            .text_content()
+            .map(|s| NodeContext::Text { content: s })
+            .unwrap_or_default();
+        let taffy_node = self
+            .layout_engine
+            .new_leaf_with_context(widget.style().clone(), ctx);
 
         self.nodes.insert(
             id,
@@ -278,7 +300,13 @@ impl WidgetTree {
 
     pub fn add_child<W: Widget + 'static>(&mut self, parent: WidgetId, widget: W) -> WidgetId {
         let child_id = widget.id();
-        let child_taffy = self.layout_engine.new_leaf(widget.style().clone());
+        let ctx = widget
+            .text_content()
+            .map(|s| NodeContext::Text { content: s })
+            .unwrap_or_default();
+        let child_taffy = self
+            .layout_engine
+            .new_leaf_with_context(widget.style().clone(), ctx);
 
         if let Some(parent_node) = self.nodes.get_mut(&parent) {
             parent_node.children.push(child_id);

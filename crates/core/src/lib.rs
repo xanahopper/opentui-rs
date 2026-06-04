@@ -63,5 +63,5 @@ pub mod view;
 pub mod widget;
 pub mod widgets;
 
-pub use layout::LayoutEngine;
+pub use layout::{LayoutEngine, NodeContext};
 pub use widget::{RenderContext, Widget, WidgetId, WidgetTree};

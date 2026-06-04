@@ -17,7 +17,6 @@ pub struct Element {
 pub enum ElementKind {
     View,
     Text,
-    StyledText,
     Input,
     List,
     Fill,

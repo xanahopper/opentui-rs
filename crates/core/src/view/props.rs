@@ -1,19 +1,28 @@
 use opentui_rust::Rgba;
+use opentui_rust::Style;
+use opentui_rust::WrapMode;
 use opentui_rust::buffer::TitleAlign;
 
 use crate::widget::Overflow;
-use crate::widgets::{BorderStyle, StyledSegment, TextLineAlign};
+use crate::widgets::BorderStyle;
 
 #[derive(Debug, Clone)]
 pub enum Props {
     View(ViewProps),
     Text(TextProps),
-    StyledText(StyledTextProps),
     Input(InputProps),
     List(ListProps),
     Fill(FillProps),
     Separator(SeparatorProps),
     Empty,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum BgFill {
+    #[default]
+    None,
+    Text,
+    Block,
 }
 
 #[derive(Debug, Clone)]
@@ -51,7 +60,9 @@ pub struct TextProps {
     pub bold: bool,
     pub italic: bool,
     pub underline: bool,
-    pub align: TextLineAlign,
+    pub wrap: WrapMode,
+    pub bg_fill: BgFill,
+    pub highlights: Vec<(usize, usize, Style)>,
 }
 
 impl Default for TextProps {
@@ -63,14 +74,11 @@ impl Default for TextProps {
             bold: false,
             italic: false,
             underline: false,
-            align: TextLineAlign::Left,
+            wrap: WrapMode::None,
+            bg_fill: BgFill::None,
+            highlights: Vec::new(),
         }
     }
-}
-
-#[derive(Debug, Clone, Default)]
-pub struct StyledTextProps {
-    pub segments: Vec<StyledSegment>,
 }
 
 #[derive(Debug, Clone, Default)]

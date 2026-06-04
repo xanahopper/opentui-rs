@@ -7,8 +7,7 @@ use crate::view::node::Node;
 use crate::view::props::Props;
 use crate::widget::{Overlay, OverlayZOrder, WidgetId, WidgetTree};
 use crate::widgets::{
-    FillWidget, InputWidget, ListWidget, SeparatorWidget, StyledTextWidget, TextLineWidget,
-    ViewWidget,
+    FillWidget, InputWidget, ListWidget, SeparatorWidget, TextWidget, ViewWidget,
 };
 
 pub fn build_tree(node: &Node) -> WidgetTree {
@@ -94,14 +93,7 @@ fn build_recursive(
 
 fn create_widget(id: u64, elem: &Element) -> Box<dyn crate::widget::Widget> {
     match elem.kind {
-        ElementKind::Text => Box::new(TextLineWidget::from_element(id, elem)),
-        ElementKind::StyledText => {
-            let mut widget = StyledTextWidget::new(id, elem.layout.clone());
-            if let Props::StyledText(ref props) = elem.props {
-                widget.set_segments(props.segments.clone());
-            }
-            Box::new(widget)
-        }
+        ElementKind::Text => Box::new(TextWidget::from_element(id, elem)),
         ElementKind::Input => {
             let mut widget = InputWidget::new(id, elem.layout.clone());
             if let Props::Input(ref props) = elem.props {

@@ -1,9 +1,9 @@
 /*
 //! Legacy OpenCode-style TUI — low-level WidgetTree construction.
 //!
-//! This version uses only BoxWidget, TextLineWidget, FillWidget, SeparatorWidget,
-//! and StyledTextWidget — zero custom Widget implementations. All layout is
-//! driven by Taffy via LayoutStyle declarations.
+//! This version uses only BoxWidget, TextWidget, FillWidget, SeparatorWidget,
+//! — zero custom Widget implementations. All layout is driven by Taffy via
+//! LayoutStyle declarations.
 //!
 //! ```text
 //! root (row, width=w, height=h)
@@ -12,9 +12,9 @@
 //! │   │   └── [per-message BoxWidgets — rebuilt each frame]
 //! │   ├── prompt (column, flex_shrink=0)
 //! │   │   └── [5 rows with border_left=┃]
-//! │   └── hint_bar (StyledTextWidget, height=1)
+//! │   └── hint_bar (TextWidget, height=1)
 //! └── sidebar (column, width=42, bg=BG_PANEL, padding=2)
-//!     └── [TextLineWidget / FillWidget / SeparatorWidget rows]
+//!     └── [TextWidget / FillWidget / SeparatorWidget rows]
 //! ```
 //!
 //! Run: cargo run -p opentui-core --example opencode_declarative
@@ -51,8 +51,7 @@ use opentui_rust::terminal::{enable_raw_mode, terminal_size};
 use opentui_rust::{Cell, OptimizedBuffer, Renderer, RendererOptions, Rgba, Style};
 
 use opentui_core::widgets::{
-    BorderChars, BorderSides, BoxWidget, FillWidget, SeparatorWidget, StyledSegment,
-    StyledTextWidget, TextLineWidget,
+    BorderChars, BorderSides, BoxWidget, FillWidget, SeparatorWidget, TextWidget,
 };
 
 const SIDEBAR_WIDTH: f32 = 42.0;
@@ -264,7 +263,7 @@ fn build_sidebar(tree: &mut WidgetTree, parent: WidgetId) {
     );
     tree.add_child(
         parent,
-        TextLineWidget::with_text(
+        TextWidget::with_text(
             title,
             LayoutStyle::column().height(1.0).flex_shrink(0.0),
             "OpenCode",
@@ -283,7 +282,7 @@ fn build_sidebar(tree: &mut WidgetTree, parent: WidgetId) {
     );
     tree.add_child(
         parent,
-        TextLineWidget::with_text(
+        TextWidget::with_text(
             label_session,
             LayoutStyle::column().height(1.0).flex_shrink(0.0),
             "Session",
@@ -293,7 +292,7 @@ fn build_sidebar(tree: &mut WidgetTree, parent: WidgetId) {
     );
     tree.add_child(
         parent,
-        TextLineWidget::with_text(
+        TextWidget::with_text(
             val_session,
             LayoutStyle::column().height(1.0).flex_shrink(0.0),
             "abc123def456",
@@ -311,7 +310,7 @@ fn build_sidebar(tree: &mut WidgetTree, parent: WidgetId) {
     );
     tree.add_child(
         parent,
-        TextLineWidget::with_text(
+        TextWidget::with_text(
             git_status,
             LayoutStyle::column().height(1.0).flex_shrink(0.0),
             "\u{25CF} git: main",
@@ -343,7 +342,7 @@ fn build_sidebar(tree: &mut WidgetTree, parent: WidgetId) {
     );
     tree.add_child(
         parent,
-        TextLineWidget::with_text(
+        TextWidget::with_text(
             label_share,
             LayoutStyle::column().height(1.0).flex_shrink(0.0),
             "Share URL",
@@ -353,7 +352,7 @@ fn build_sidebar(tree: &mut WidgetTree, parent: WidgetId) {
     );
     tree.add_child(
         parent,
-        TextLineWidget::with_text(
+        TextWidget::with_text(
             val_share,
             LayoutStyle::column().height(1.0).flex_shrink(0.0),
             "Not shared",
@@ -367,7 +366,7 @@ fn build_sidebar(tree: &mut WidgetTree, parent: WidgetId) {
     );
     tree.add_child(
         parent,
-        TextLineWidget::with_text(
+        TextWidget::with_text(
             version,
             LayoutStyle::column().height(1.0).flex_shrink(0.0),
             "\u{25CF} OpenCode v0.1.0",
@@ -429,7 +428,7 @@ fn build_prompt_rows(tree: &mut WidgetTree, parent: WidgetId, app: &App) {
         let id = tree.allocate_id();
         tree.add_child(
             row2,
-            TextLineWidget::with_text(
+            TextWidget::with_text(
                 id,
                 LayoutStyle::row().flex_grow(1.0).flex_shrink(0.0),
                 format!("{input_text}{cursor}"),
@@ -468,13 +467,10 @@ fn build_prompt_rows(tree: &mut WidgetTree, parent: WidgetId, app: &App) {
     let meta_id = tree.allocate_id();
     tree.add_child(
         row4,
-        StyledTextWidget::from_segments(
+        TextWidget::with_text(
             meta_id,
             LayoutStyle::row().flex_grow(1.0).flex_shrink(0.0),
-            vec![
-                StyledSegment::new("Code", BORDER_ACTIVE).bold(),
-                StyledSegment::new(" \u{00B7} claude-sonnet-4-20250514 anthropic", TEXT_MUTED),
-            ],
+            "Code · claude-sonnet-4-20250514 anthropic",
         ),
     );
 
@@ -521,7 +517,7 @@ fn build_messages(tree: &mut WidgetTree, parent: WidgetId, app: &App) {
                 let line_id = tree.allocate_id();
                 tree.add_child(
                     msg_id,
-                    TextLineWidget::with_text(
+                    TextWidget::with_text(
                         line_id,
                         LayoutStyle::column().height(1.0).flex_shrink(0.0),
                         *line,
@@ -550,7 +546,7 @@ fn build_messages(tree: &mut WidgetTree, parent: WidgetId, app: &App) {
                 let is_tool = line.starts_with("  \u{25B8}") || line.starts_with("  \u{25CF}");
                 tree.add_child(
                     msg_id,
-                    TextLineWidget::with_text(
+                    TextWidget::with_text(
                         line_id,
                         LayoutStyle::column().height(1.0).flex_shrink(0.0),
                         *line,
@@ -790,19 +786,14 @@ fn main() -> io::Result<()> {
 
             tree.add_child(
                 main_id,
-                StyledTextWidget::from_segments(
-                    hint_id,
-                    LayoutStyle::column()
-                        .height(1.0)
-                        .flex_shrink(0.0)
-                        .padding(0.0, 0.0, 0.0, 2.0),
-                    vec![
-                        StyledSegment::new("tab ", TEXT),
-                        StyledSegment::new("agents", TEXT_MUTED),
-                        StyledSegment::new("  ctrl+p ", TEXT),
-                        StyledSegment::new("commands", TEXT_MUTED),
-                    ],
-                ),
+            TextWidget::with_text(
+                hint_id,
+                LayoutStyle::column()
+                    .height(1.0)
+                    .flex_shrink(0.0)
+                    .padding(0.0, 0.0, 0.0, 2.0),
+                "tab agents  ctrl+p commands",
+            ),
             );
 
             if app_borrowed.sidebar_visible {

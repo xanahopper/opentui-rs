@@ -1,4 +1,6 @@
 use opentui_rust::Rgba;
+use opentui_rust::Style;
+use opentui_rust::WrapMode;
 use opentui_rust::buffer::TitleAlign;
 
 use crate::layout::LayoutStyle;
@@ -6,10 +8,53 @@ use crate::view::element::{Element, ElementKind};
 use crate::view::key::Key;
 use crate::view::node::{Node, OverlayNode};
 use crate::view::props::{
-    FillProps, InputProps, ListProps, Props, SeparatorProps, StyledTextProps, TextProps, ViewProps,
+    BgFill, FillProps, InputProps, ListProps, Props, SeparatorProps, TextProps, ViewProps,
 };
 use crate::widget::Overflow;
-use crate::widgets::{BorderChars, BorderSides, BorderStyle, StyledSegment};
+use crate::widgets::{BorderChars, BorderSides, BorderStyle};
+
+#[derive(Debug, Clone)]
+pub struct StyledSegment {
+    pub text: String,
+    pub fg: Rgba,
+    pub bg: Option<Rgba>,
+    pub bold: bool,
+    pub italic: bool,
+    pub underline: bool,
+}
+
+impl StyledSegment {
+    pub fn new(text: impl Into<String>, fg: Rgba) -> Self {
+        Self {
+            text: text.into(),
+            fg,
+            bg: None,
+            bold: false,
+            italic: false,
+            underline: false,
+        }
+    }
+
+    pub fn bg(mut self, color: Rgba) -> Self {
+        self.bg = Some(color);
+        self
+    }
+
+    pub fn bold(mut self) -> Self {
+        self.bold = true;
+        self
+    }
+
+    pub fn italic(mut self) -> Self {
+        self.italic = true;
+        self
+    }
+
+    pub fn underline(mut self) -> Self {
+        self.underline = true;
+        self
+    }
+}
 
 pub fn view() -> ElementBuilder {
     ElementBuilder::new(ElementKind::View)
@@ -25,9 +70,63 @@ pub fn text(content: impl Into<String>) -> ElementBuilder {
     builder
 }
 
+#[allow(clippy::needless_pass_by_value)]
 pub fn rich_text(segments: Vec<StyledSegment>) -> ElementBuilder {
-    let mut builder = ElementBuilder::new(ElementKind::StyledText);
-    builder.props = Props::StyledText(StyledTextProps { segments });
+    if segments.is_empty() {
+        return ElementBuilder::new(ElementKind::Text);
+    }
+
+    let mut content = String::new();
+    let mut highlights = Vec::new();
+
+    let default_fg = segments[0].fg;
+    let default_bold = segments[0].bold;
+    let default_italic = segments[0].italic;
+    let default_underline = segments[0].underline;
+
+    for seg in &segments {
+        let start = content.len();
+        content.push_str(&seg.text);
+        let end = content.len();
+
+        let mut builder = Style::builder();
+        let mut diff_count = 0usize;
+
+        if seg.fg != default_fg {
+            builder = builder.fg(seg.fg);
+            diff_count += 1;
+        }
+        if seg.bold && !default_bold {
+            builder = builder.bold();
+            diff_count += 1;
+        }
+        if seg.italic && !default_italic {
+            builder = builder.italic();
+            diff_count += 1;
+        }
+        if seg.underline && !default_underline {
+            builder = builder.underline();
+            diff_count += 1;
+        }
+        if let Some(bg) = seg.bg {
+            builder = builder.bg(bg);
+            diff_count += 1;
+        }
+
+        if diff_count > 0 {
+            highlights.push((start, end, builder.build()));
+        }
+    }
+
+    let mut builder = ElementBuilder::new(ElementKind::Text);
+    builder.text_content = Some(content);
+    if let Props::Text(ref mut tp) = builder.props {
+        tp.fg = default_fg;
+        tp.bold = default_bold;
+        tp.italic = default_italic;
+        tp.underline = default_underline;
+        tp.highlights = highlights;
+    }
     builder
 }
 
@@ -41,11 +140,6 @@ pub fn input() -> ElementBuilder {
     builder
 }
 
-/// **Experimental:** Creates a list element wrapping `ListWidget`.
-///
-/// Item rendering is not yet wired — `ListWidget::render()` is a no-op
-/// without `render_with_renderer()`. Use `view().children(items.map(...))`
-/// for static lists until `virtual_list()` is implemented.
 #[doc(hidden)]
 pub fn list(item_count: usize) -> ElementBuilder {
     let mut builder = ElementBuilder::new(ElementKind::List);
@@ -161,7 +255,6 @@ impl ElementBuilder {
         let props = match kind {
             ElementKind::View => Props::View(ViewProps::default()),
             ElementKind::Text => Props::Text(TextProps::default()),
-            ElementKind::StyledText => Props::StyledText(StyledTextProps::default()),
             ElementKind::Input => Props::Input(InputProps::default()),
             ElementKind::List => Props::List(ListProps::default()),
             ElementKind::Fill => Props::Fill(FillProps::default()),
@@ -330,6 +423,20 @@ impl ElementBuilder {
         self
     }
 
+    pub fn wrap(mut self, mode: WrapMode) -> Self {
+        if let Props::Text(tp) = &mut self.props {
+            tp.wrap = mode;
+        }
+        self
+    }
+
+    pub fn bg_fill(mut self, mode: BgFill) -> Self {
+        if let Props::Text(tp) = &mut self.props {
+            tp.bg_fill = mode;
+        }
+        self
+    }
+
     pub fn border_rounded(mut self, color: Rgba) -> Self {
         if let Props::View(vp) = &mut self.props {
             vp.border = Some(BorderStyle {
@@ -359,27 +466,6 @@ impl ElementBuilder {
     pub fn title_align(mut self, align: TitleAlign) -> Self {
         if let Props::View(vp) = &mut self.props {
             vp.title_align = align;
-        }
-        self
-    }
-
-    pub fn align_left(mut self) -> Self {
-        if let Props::Text(tp) = &mut self.props {
-            tp.align = crate::widgets::TextLineAlign::Left;
-        }
-        self
-    }
-
-    pub fn align_center(mut self) -> Self {
-        if let Props::Text(tp) = &mut self.props {
-            tp.align = crate::widgets::TextLineAlign::Center;
-        }
-        self
-    }
-
-    pub fn align_right(mut self) -> Self {
-        if let Props::Text(tp) = &mut self.props {
-            tp.align = crate::widgets::TextLineAlign::Right;
         }
         self
     }
@@ -455,30 +541,7 @@ impl ElementBuilder {
             }
             Props::Text(tp) => {
                 let mut layout = self.layout;
-                let text_w = opentui_rust::unicode::display_width(&tp.content) as f32;
-                if text_w > 0.0 && layout.inner.min_size.width.is_auto() {
-                    layout = layout.min_width(text_w);
-                }
-                if text_w > 0.0
-                    && layout.inner.size.height.is_auto()
-                    && layout.inner.min_size.height.is_auto()
-                {
-                    layout = layout.min_height(1.0);
-                }
-                layout
-            }
-            Props::StyledText(stp) => {
-                let mut layout = self.layout;
-                let text_w: usize = stp
-                    .segments
-                    .iter()
-                    .map(|s| opentui_rust::unicode::display_width(&s.text))
-                    .sum();
-                let text_w = text_w as f32;
-                if text_w > 0.0 && layout.inner.min_size.width.is_auto() {
-                    layout = layout.min_width(text_w);
-                }
-                if text_w > 0.0
+                if !tp.content.is_empty()
                     && layout.inner.size.height.is_auto()
                     && layout.inner.min_size.height.is_auto()
                 {
