@@ -143,10 +143,16 @@ fn e2e_render_highlighted_buffer() {
     let expected_style = theme
         .default_style()
         .merge(*theme.style_for(TokenKind::Keyword));
-    let expected_cell = Cell::new('f', expected_style);
+    let expected_cell = Cell::new(
+        'f',
+        expected_style.with_bg(Rgba::from_hex("#1a1a2e").expect("valid color")),
+    );
 
     let cell = *output.get(0, 0).expect("rendered cell");
-    assert_eq!(cell, expected_cell, "Keyword cell should be highlighted");
+    assert_eq!(
+        cell, expected_cell,
+        "Keyword cell should be highlighted with preserved bg"
+    );
 
     let non_empty_cells = output.cells().iter().filter(|c| !c.is_empty()).count();
     info!(non_empty_cells, "Rendered buffer populated");

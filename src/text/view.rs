@@ -787,14 +787,25 @@ impl<'a> TextBufferView<'a> {
                     if screen_col >= 0 {
                         if space_idx == 0 {
                             if let Some(indicator) = self.tab_indicator {
-                                // Tab indicator gets special foreground but preserves background
                                 let style = base_style.with_fg(self.tab_indicator_color);
-                                output.set(screen_col as u32, dest_y, Cell::new(indicator, style));
+                                output.set_blended(
+                                    screen_col as u32,
+                                    dest_y,
+                                    Cell::new(indicator, style),
+                                );
                             } else {
-                                output.set(screen_col as u32, dest_y, Cell::new(' ', base_style));
+                                output.set_blended(
+                                    screen_col as u32,
+                                    dest_y,
+                                    Cell::new(' ', base_style),
+                                );
                             }
                         } else {
-                            output.set(screen_col as u32, dest_y, Cell::new(' ', base_style));
+                            output.set_blended(
+                                screen_col as u32,
+                                dest_y,
+                                Cell::new(' ', base_style),
+                            );
                         }
 
                         if let Some(sel) = selection {
@@ -892,7 +903,7 @@ impl<'a> TextBufferView<'a> {
                         }
                     }
 
-                    output.set(screen_col as u32, dest_y, cell);
+                    output.set_blended(screen_col as u32, dest_y, cell);
                 }
             }
 
@@ -905,7 +916,7 @@ impl<'a> TextBufferView<'a> {
             if vline.width as i32 > max_cols && max_cols > 0 {
                 let ellipsis_col = dest_x + (max_cols - 1);
                 if ellipsis_col >= 0 {
-                    output.set(
+                    output.set_blended(
                         ellipsis_col as u32,
                         dest_y,
                         Cell::new('…', self.buffer.default_style()),

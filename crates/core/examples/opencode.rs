@@ -41,7 +41,7 @@ use opentui_core::view::{overlay, panel, rich_text, separator, span, text, view}
 use opentui_core::widgets::{BorderChars, BorderSides, BorderStyle};
 use opentui_rust::input::{Event, InputParser, KeyCode, KeyModifiers, ParseError};
 use opentui_rust::terminal::{MouseEventKind, enable_raw_mode, terminal_size};
-use opentui_rust::{Renderer, RendererOptions, Rgba};
+use opentui_rust::{Renderer, RendererOptions, Rgba, WrapMode};
 
 // ── Colour palette (opencode.json dark theme) ───────────────────────────
 
@@ -569,9 +569,12 @@ fn ui_messages(app: &App) -> opentui_core::view::Node {
 
         nodes.push(rich_text(vec![span(label, label_fg).bold()]).build());
 
-        for line in msg.text.lines() {
-            nodes.push(text(format!("  {line}")).fg(msg.fg()).build());
-        }
+        nodes.push(
+            text(format!("  {}", msg.text))
+                .fg(msg.fg())
+                .wrap(WrapMode::Word)
+                .build(),
+        );
 
         nodes.push(view().height(1.0).build());
     }
