@@ -230,7 +230,7 @@ impl App {
             ],
             input_text: String::new(),
             mode: Mode::Build,
-            sidebar_visible: w > 100,
+            sidebar_visible: true,
             palette_open: false,
             palette_filter: String::new(),
             palette_selected: 0,
