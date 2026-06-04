@@ -5,6 +5,7 @@
 //! - Moving a character across the screen
 //! - Frame pacing with sleep
 
+use opentui::input::{Event, InputParser};
 use opentui::terminal::{enable_raw_mode, terminal_size};
 use opentui::{OptimizedBuffer, Renderer, Rgba, Style};
 use opentui_rust as opentui;
@@ -54,7 +55,11 @@ fn main() -> io::Result<()> {
     let mut last = Instant::now();
     let start = Instant::now();
 
-    // Run for ~6 seconds or until Ctrl+C (depends on terminal sending).
+    let mut parser = InputParser::new();
+    let mut buf = [0u8; 64];
+    let mut stdin = io::stdin();
+
+    // Run for ~6 seconds or until Ctrl+C/Esc/q.
     while start.elapsed() < Duration::from_secs(6) {
         let now = Instant::now();
         let dt = now.saturating_duration_since(last);
@@ -97,7 +102,7 @@ fn main() -> io::Result<()> {
                 height,
                 2,
                 3,
-                "Rendering a moving sprite at ~25 cells/sec",
+                "Rendering a moving sprite at ~25 cells/sec. Press q/Ctrl+C to exit.",
                 Style::fg(Rgba::WHITE),
             );
 
@@ -107,16 +112,37 @@ fn main() -> io::Result<()> {
                 height,
                 x,
                 baseline,
-                "●",
+                "\u{25cf}",
                 Style::fg(Rgba::from_hex("#fbc531").expect("valid")).with_bold(),
             );
         }
 
         renderer.present()?;
+
+        // Check for exit keys (non-blocking)
+        match stdin.read(&mut buf) {
+            Ok(n) if n > 0 => {
+                let mut offset = 0;
+                while offset < n {
+                    let Ok((event, used)) = parser.parse(&buf[offset..n]) else {
+                        break;
+                    };
+                    offset += used;
+                    if let Event::Key(key) = event {
+                        if key.is_ctrl_c()
+                            || key.is_esc()
+                            || key.code == opentui::input::KeyCode::Char('q')
+                        {
+                            return Ok(());
+                        }
+                    }
+                }
+            }
+            _ => {}
+        }
+
         std::thread::sleep(Duration::from_millis(16));
     }
 
-    // Wait for a key before exiting to show final frame.
-    let _ = io::stdin().read(&mut [0u8; 1])?;
     Ok(())
 }

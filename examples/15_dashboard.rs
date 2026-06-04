@@ -200,8 +200,12 @@ impl Dashboard {
     fn handle_input(&mut self, event: &Event) -> bool {
         match event {
             Event::Key(key) => {
-                if key.code == KeyCode::Char('q') || key.is_ctrl_c() {
-                    return false; // Exit
+                if key.code == KeyCode::Char('q')
+                    || key.is_ctrl_c()
+                    || key.is_ctrl_d()
+                    || key.is_esc()
+                {
+                    return false;
                 }
 
                 if key.code == KeyCode::Tab {

@@ -208,8 +208,11 @@ fn handle_event(
 ) -> EventResult {
     match event {
         Event::Key(key) => {
-            // Check for quit (Ctrl+Q or Ctrl+C)
-            if key.is_ctrl_c() || (key.ctrl() && key.code == KeyCode::Char('q')) {
+            if key.is_ctrl_c()
+                || key.is_ctrl_d()
+                || key.is_esc()
+                || (key.ctrl() && key.code == KeyCode::Char('q'))
+            {
                 return EventResult::Quit;
             }
 

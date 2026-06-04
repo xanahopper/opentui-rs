@@ -102,7 +102,11 @@ fn main() -> io::Result<()> {
             match event {
                 Event::Key(key) => {
                     last_event = format!("Key: {:?} (mods: {:?})", key.code, key.modifiers);
-                    if key.code == KeyCode::Char('q') || key.is_ctrl_c() {
+                    if key.code == KeyCode::Char('q')
+                        || key.is_ctrl_c()
+                        || key.is_ctrl_d()
+                        || key.is_esc()
+                    {
                         return Ok(());
                     }
                 }

@@ -453,6 +453,39 @@ impl ElementBuilder {
                 }
                 layout
             }
+            Props::Text(tp) => {
+                let mut layout = self.layout;
+                let text_w = opentui_rust::unicode::display_width(&tp.content) as f32;
+                if text_w > 0.0 && layout.inner.min_size.width.is_auto() {
+                    layout = layout.min_width(text_w);
+                }
+                if text_w > 0.0
+                    && layout.inner.size.height.is_auto()
+                    && layout.inner.min_size.height.is_auto()
+                {
+                    layout = layout.min_height(1.0);
+                }
+                layout
+            }
+            Props::StyledText(stp) => {
+                let mut layout = self.layout;
+                let text_w: usize = stp
+                    .segments
+                    .iter()
+                    .map(|s| opentui_rust::unicode::display_width(&s.text))
+                    .sum();
+                let text_w = text_w as f32;
+                if text_w > 0.0 && layout.inner.min_size.width.is_auto() {
+                    layout = layout.min_width(text_w);
+                }
+                if text_w > 0.0
+                    && layout.inner.size.height.is_auto()
+                    && layout.inner.min_size.height.is_auto()
+                {
+                    layout = layout.min_height(1.0);
+                }
+                layout
+            }
             _ => self.layout,
         };
         Node::Element(Box::new(Element {

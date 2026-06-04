@@ -125,6 +125,8 @@ fn run_loop(
                     match event {
                         Event::Key(key) => {
                             if key.is_ctrl_c()
+                                || key.is_ctrl_d()
+                                || key.is_esc()
                                 || key.matches(KeyCode::Char('q'), KeyModifiers::empty())
                             {
                                 running = false;

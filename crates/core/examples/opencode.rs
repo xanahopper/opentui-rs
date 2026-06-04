@@ -2,12 +2,14 @@
 //!
 //! Replicates OpenCode's terminal session view:
 //!   - Full-screen row layout
-//!   - Main area (left): scrollable conversation + input prompt
-//!   - Sidebar (right): session info panel
+//!   - Main area (left): scrollable conversation + input prompt + footer
+//!   - Sidebar (right): session info, workspace status, version
 //!   - Command palette overlay (Ctrl+P)
+//!   - Footer: CWD, LSP/MCP status indicators
 //!
 //! Mouse interactions: hover highlights, click selection, scroll.
-//! Keyboard: Ctrl+Q/Ctrl+C quit, Ctrl+B toggle sidebar, Ctrl+P palette.
+//! Keyboard: Ctrl+Q/Ctrl+C/Ctrl+D quit, Ctrl+B toggle sidebar, Ctrl+P palette,
+//!           Tab cycle Build/Plan mode, Esc clear input.
 //!
 //! Run: cargo run -p opentui-core --example opencode
 
@@ -36,32 +38,35 @@ use std::time::Duration;
 
 use opentui_core::prelude::*;
 use opentui_core::view::{overlay, panel, rich_text, separator, span, text, view};
+use opentui_core::widgets::{BorderChars, BorderSides, BorderStyle};
 use opentui_rust::input::{Event, InputParser, KeyCode, KeyModifiers, ParseError};
 use opentui_rust::terminal::{MouseEventKind, enable_raw_mode, terminal_size};
 use opentui_rust::{Renderer, RendererOptions, Rgba};
 
-// ── Colour palette ──────────────────────────────────────────────────────
+// ── Colour palette (opencode.json dark theme) ───────────────────────────
 
 const BG: Rgba = Rgba::new(0.039, 0.039, 0.039, 1.0);
-const BG_PANEL: Rgba = Rgba::new(0.067, 0.067, 0.067, 1.0);
-const BG_ELEMENT: Rgba = Rgba::new(0.098, 0.098, 0.098, 1.0);
-const BG_HOVER: Rgba = Rgba::new(0.137, 0.137, 0.137, 1.0);
-const BG_SELECTED: Rgba = Rgba::new(0.157, 0.157, 0.176, 1.0);
+const BG_PANEL: Rgba = Rgba::new(0.078, 0.078, 0.078, 1.0);
+const BG_ELEMENT: Rgba = Rgba::new(0.118, 0.118, 0.118, 1.0);
+const BG_HOVER: Rgba = Rgba::new(0.157, 0.157, 0.157, 1.0);
 
-const TEXT: Rgba = Rgba::new(0.878, 0.878, 0.922, 1.0);
-const TEXT_BRIGHT: Rgba = Rgba::new(0.937, 0.937, 0.957, 1.0);
-const TEXT_MUTED: Rgba = Rgba::new(0.498, 0.498, 0.549, 1.0);
-const TEXT_DIM: Rgba = Rgba::new(0.349, 0.349, 0.388, 1.0);
+const TEXT: Rgba = Rgba::new(0.933, 0.933, 0.933, 1.0);
+const TEXT_BRIGHT: Rgba = Rgba::WHITE;
+const TEXT_MUTED: Rgba = Rgba::new(0.502, 0.502, 0.502, 1.0);
+const TEXT_DIM: Rgba = Rgba::new(0.376, 0.376, 0.376, 1.0);
 
 const PRIMARY: Rgba = Rgba::new(0.980, 0.698, 0.514, 1.0);
+const SECONDARY: Rgba = Rgba::new(0.361, 0.612, 0.961, 1.0);
 const ACCENT: Rgba = Rgba::new(0.616, 0.486, 0.847, 1.0);
 const SUCCESS: Rgba = Rgba::new(0.498, 0.847, 0.561, 1.0);
+const ERROR: Rgba = Rgba::new(0.878, 0.424, 0.459, 1.0);
+const WARNING: Rgba = Rgba::new(0.961, 0.655, 0.259, 1.0);
 
-const BORDER: Rgba = Rgba::new(0.176, 0.176, 0.216, 1.0);
-const BORDER_SUBTLE: Rgba = Rgba::new(0.118, 0.118, 0.137, 1.0);
-const BORDER_ACTIVE: Rgba = Rgba::new(0.294, 0.549, 0.902, 1.0);
+const BORDER: Rgba = Rgba::new(0.282, 0.282, 0.282, 1.0);
+const BORDER_SUBTLE: Rgba = Rgba::new(0.235, 0.235, 0.235, 1.0);
+const BORDER_ACTIVE: Rgba = Rgba::new(0.376, 0.376, 0.376, 1.0);
 
-const SIDEBAR_WIDTH: f32 = 36.0;
+const SIDEBAR_WIDTH: f32 = 42.0;
 
 // ── Domain model ────────────────────────────────────────────────────────
 
@@ -79,7 +84,7 @@ struct CommandItem {
 }
 
 impl CommandItem {
-    fn all() -> &'static [Self] {
+    const fn all() -> &'static [Self] {
         &[
             Self {
                 name: "New Session",
@@ -157,9 +162,32 @@ impl Message {
 
 // ── App state ───────────────────────────────────────────────────────────
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Mode {
+    Build,
+    Plan,
+}
+
+impl Mode {
+    const fn label(self) -> &'static str {
+        match self {
+            Self::Build => "Build",
+            Self::Plan => "Plan",
+        }
+    }
+
+    const fn toggle(self) -> Self {
+        match self {
+            Self::Build => Self::Plan,
+            Self::Plan => Self::Build,
+        }
+    }
+}
+
 struct App {
     messages: Vec<Message>,
     input_text: String,
+    mode: Mode,
     sidebar_visible: bool,
     palette_open: bool,
     palette_filter: String,
@@ -201,6 +229,7 @@ impl App {
                 },
             ],
             input_text: String::new(),
+            mode: Mode::Build,
             sidebar_visible: w > 100,
             palette_open: false,
             palette_filter: String::new(),
@@ -256,7 +285,11 @@ impl App {
 
 // ── Read with timeout ───────────────────────────────────────────────────
 
-fn read_with_timeout(stdin: &io::Stdin, buf: &mut [u8], timeout: Duration) -> io::Result<usize> {
+fn read_with_timeout(
+    mut stdin: &io::Stdin,
+    buf: &mut [u8],
+    timeout: Duration,
+) -> io::Result<usize> {
     use std::os::fd::AsRawFd;
 
     let fd = stdin.as_raw_fd();
@@ -266,7 +299,7 @@ fn read_with_timeout(stdin: &io::Stdin, buf: &mut [u8], timeout: Duration) -> io
         revents: 0,
     };
     let timeout_ms = timeout.as_millis() as libc::c_int;
-    let ret = unsafe { libc::poll(&mut pollfd, 1, timeout_ms) };
+    let ret = unsafe { libc::poll(&raw mut pollfd, 1, timeout_ms) };
     if ret < 0 {
         return Err(io::Error::last_os_error());
     }
@@ -282,26 +315,31 @@ fn ui_sidebar() -> opentui_core::view::Node {
     view()
         .column()
         .width(SIDEBAR_WIDTH)
-        .padding(0.0, 2.0, 0.0, 2.0)
+        .padding(1.0, 2.0, 1.0, 2.0)
         .bg(BG_PANEL)
         .children([
+            text("Session").fg(TEXT).bold().height(1.0).build(),
+            text("abc123def456").fg(TEXT_DIM).height(1.0).build(),
             view().height(1.0).build(),
-            text("OpenCode").fg(TEXT).bold().height(1.0).build(),
-            view().height(1.0).build(),
-            text("Session").fg(TEXT_MUTED).height(1.0).build(),
-            text("abc123def456").fg(TEXT_MUTED).height(1.0).build(),
-            view().height(1.0).build(),
-            text("\u{25CF} git: main").fg(SUCCESS).height(1.0).build(),
+            rich_text(vec![
+                span("\u{25CF} ", SUCCESS),
+                span("git: main", TEXT_MUTED),
+            ])
+            .height(1.0)
+            .build(),
             view().grow(1.0).build(),
-            separator().fg(BORDER).height(1.0).build(),
+            separator().fg(BORDER_SUBTLE).height(1.0).build(),
             view().height(1.0).build(),
-            text("Share URL").fg(TEXT_MUTED).height(1.0).build(),
-            text("Not shared").fg(TEXT_MUTED).height(1.0).build(),
+            text("Not shared").fg(TEXT_DIM).height(1.0).build(),
             view().height(1.0).build(),
-            text("\u{25CF} opentui-core v0.1")
-                .fg(TEXT_MUTED)
-                .height(1.0)
-                .build(),
+            rich_text(vec![
+                span("\u{25CF} ", SUCCESS),
+                span("Open", TEXT_MUTED),
+                span("Code", TEXT),
+                span(" v1.0", TEXT_MUTED),
+            ])
+            .height(1.0)
+            .build(),
         ])
         .build()
 }
@@ -309,8 +347,8 @@ fn ui_sidebar() -> opentui_core::view::Node {
 fn ui_palette(app: &App, w: u32, h: u32) -> opentui_core::view::Node {
     let dialog_w = 60_u32.min(w.saturating_sub(4));
     let dialog_h = 14_u32.min(h.saturating_sub(4));
-    let x = (w.saturating_sub(dialog_w) / 2) as u32;
-    let y = (h / 4) as u32;
+    let x = w.saturating_sub(dialog_w) / 2;
+    let y = h / 4;
 
     let indices = app.filtered_indices();
     let cmds = CommandItem::all();
@@ -390,37 +428,143 @@ fn ui_palette(app: &App, w: u32, h: u32) -> opentui_core::view::Node {
 }
 
 fn ui_prompt(app: &App) -> opentui_core::view::Node {
-    let text = if app.input_text.is_empty() {
-        "Type a message...".to_string()
+    let accent = if app.mode == Mode::Plan {
+        WARNING
     } else {
-        app.input_text.clone()
-    };
-    let fg = if app.input_text.is_empty() {
-        TEXT_MUTED
-    } else {
-        TEXT
+        PRIMARY
     };
 
-    view()
+    let mode_fg = if app.mode == Mode::Plan {
+        WARNING
+    } else {
+        SUCCESS
+    };
+
+    let input_display = if app.input_text.is_empty() {
+        rich_text(vec![
+            span("\u{2588}", accent),
+            span(" Ask anything... \"Fix a TODO in the codebase\"", TEXT_MUTED),
+        ])
+        .height(1.0)
+        .build()
+    } else {
+        rich_text(vec![
+            span(&app.input_text, TEXT),
+            span("\u{2588}", accent),
+        ])
+        .height(1.0)
+        .build()
+    };
+
+    let mode_row_spacer = view().height(1.0).build();
+
+    let mode_row = view()
         .row()
-        .height(3.0)
-        .bg(BG_ELEMENT)
-        .border_rounded(if app.input_text.is_empty() {
-            BORDER
-        } else {
-            BORDER_ACTIVE
-        })
-        .on_action("click:prompt")
+        .height(1.0)
+        .shrink(0.0)
+        .gap(1.0)
         .children([
-            text(format!("  {text}")).fg(fg).grow(1.0).build(),
-            text("\u{23CE} Send  ")
-                .fg(if app.input_text.is_empty() {
-                    TEXT_DIM
-                } else {
-                    PRIMARY
+            text(app.mode.label()).fg(accent).build(),
+            text("\u{00B7}").fg(TEXT_MUTED).build(),
+            text("claude-sonnet-4").fg(TEXT).build(),
+            text("anthropic").fg(TEXT_MUTED).build(),
+        ])
+        .build();
+
+    let bordered_content = view()
+        .column()
+        .shrink(0.0)
+        .border(BorderStyle {
+            chars: BorderChars {
+                vertical: '\u{2503}',
+                ..BorderChars::empty()
+            },
+            color: accent,
+            focused_color: None,
+            sides: BorderSides::left_only(),
+        })
+        .bg(BG_ELEMENT)
+        .padding(0.0, 2.0, 0.0, 2.0)
+        .children([
+            view().height(1.0).build(),
+            input_display,
+            mode_row_spacer,
+            mode_row,
+        ])
+        .build();
+
+    let separator_row = view()
+        .row()
+        .height(1.0)
+        .shrink(0.0)
+        .border(BorderStyle {
+            chars: BorderChars {
+                vertical: '\u{2579}',
+                ..BorderChars::empty()
+            },
+            color: accent,
+            focused_color: None,
+            sides: BorderSides::left_only(),
+        })
+        .children([
+            view()
+                .height(1.0)
+                .grow(1.0)
+                .border(BorderStyle {
+                    chars: BorderChars {
+                        horizontal: '\u{2580}',
+                        ..BorderChars::empty()
+                    },
+                    color: BG_ELEMENT,
+                    focused_color: None,
+                    sides: BorderSides {
+                        top: false,
+                        right: false,
+                        bottom: true,
+                        left: false,
+                    },
                 })
-                .on_action("click:send")
                 .build(),
+        ])
+        .build();
+
+    let status_row = view()
+        .row()
+        .height(1.0)
+        .shrink(0.0)
+        .padding_x(1.0)
+        .gap(2.0)
+        .children([
+            rich_text(vec![
+                span("esc ", TEXT),
+                span("interrupt", TEXT_MUTED),
+            ])
+            .height(1.0)
+            .grow(1.0)
+            .build(),
+            text(format!("{} ", app.mode.label())).fg(mode_fg).height(1.0).build(),
+            rich_text(vec![
+                span("ctrl+x ", TEXT),
+                span("agents", TEXT_MUTED),
+            ])
+            .height(1.0)
+            .build(),
+            rich_text(vec![
+                span("ctrl+x ", TEXT),
+                span("commands", TEXT_MUTED),
+            ])
+            .height(1.0)
+            .build(),
+        ])
+        .build();
+
+    view()
+        .column()
+        .shrink(0.0)
+        .children([
+            bordered_content,
+            separator_row,
+            status_row,
         ])
         .build()
 }
@@ -453,26 +597,63 @@ fn ui_messages(app: &App) -> opentui_core::view::Node {
         .build()
 }
 
+fn ui_footer() -> opentui_core::view::Node {
+    view()
+        .row()
+        .height(1.0)
+        .padding_x(2.0)
+        .children([
+            text("~/project").fg(TEXT_MUTED).build(),
+            view().grow(1.0).build(),
+            rich_text(vec![
+                span("\u{25CF} ", SUCCESS),
+                span("1 LSP", TEXT_MUTED),
+            ])
+            .build(),
+            text("  ").build(),
+            rich_text(vec![
+                span("\u{25CF} ", SUCCESS),
+                span("2 MCP", TEXT_MUTED),
+            ])
+            .build(),
+            text("  /status").fg(TEXT_DIM).build(),
+        ])
+        .build()
+}
+
 fn ui(app: &App, w: u32, h: u32) -> opentui_core::view::Node {
     let main_area = view()
         .column()
         .grow(1.0)
+        .padding(0.0, 2.0, 1.0, 2.0)
+        .gap(1.0)
         .bg(BG)
-        .padding(0.0, 1.0, 1.0, 1.0)
         .children([ui_messages(app), ui_prompt(app)])
         .build();
 
-    let mut root_children: Vec<opentui_core::view::Node> = vec![main_area];
+    let mut row_children: Vec<opentui_core::view::Node> = vec![main_area];
 
     if app.sidebar_visible {
-        root_children.push(ui_sidebar());
+        row_children.push(ui_sidebar());
     }
+
+    let mut root_children: Vec<opentui_core::view::Node> = vec![
+        view()
+            .row()
+            .grow(1.0)
+            .bg(BG)
+            .overflow_hidden()
+            .children(row_children)
+            .build(),
+        ui_footer(),
+    ];
+
     if app.palette_open {
         root_children.push(ui_palette(app, w, h));
     }
 
     view()
-        .row()
+        .column()
         .size(w as f32, h as f32)
         .bg(BG)
         .overflow_hidden()
@@ -493,14 +674,12 @@ fn detect_palette_hover(app: &mut App, runtime: &ViewRuntime) {
         return;
     }
 
-    let hit_id = match runtime.hit_grid().test(app.mouse_x, app.mouse_y) {
-        Some(id) => id,
-        None => return,
+    let Some(hit_id) = runtime.hit_grid().test(app.mouse_x, app.mouse_y) else {
+        return;
     };
 
-    let action = match runtime.action_for_widget(hit_id as u64) {
-        Some(a) => a,
-        None => return,
+    let Some(action) = runtime.action_for_widget(hit_id as u64) else {
+        return;
     };
 
     if let Some(idx) = parse_palette_select(action) {
@@ -513,7 +692,7 @@ fn detect_palette_hover(app: &mut App, runtime: &ViewRuntime) {
 fn handle_key(code: KeyCode, modifiers: KeyModifiers, app: &mut App, running: &AtomicBool) {
     if modifiers.contains(KeyModifiers::CTRL) {
         match code {
-            KeyCode::Char('q') | KeyCode::Char('c') => {
+            KeyCode::Char('q' | 'c') => {
                 if app.palette_open {
                     app.palette_open = false;
                     app.palette_filter.clear();
@@ -522,6 +701,9 @@ fn handle_key(code: KeyCode, modifiers: KeyModifiers, app: &mut App, running: &A
                 } else {
                     running.store(false, Ordering::SeqCst);
                 }
+            }
+            KeyCode::Char('d') => {
+                running.store(false, Ordering::SeqCst);
             }
             KeyCode::Char('b') => app.sidebar_visible = !app.sidebar_visible,
             KeyCode::Char('p') => {
@@ -588,6 +770,9 @@ fn handle_key(code: KeyCode, modifiers: KeyModifiers, app: &mut App, running: &A
     }
 
     match code {
+        KeyCode::Tab => {
+            app.mode = app.mode.toggle();
+        }
         KeyCode::Enter => app.send_message(),
         KeyCode::Escape => app.input_text.clear(),
         KeyCode::Backspace => {
@@ -678,35 +863,28 @@ fn run() -> io::Result<()> {
                             app_mut.mouse_x = mouse.x;
                             app_mut.mouse_y = mouse.y;
 
-                            match mouse.kind {
-                                MouseEventKind::Press => {
-                                    let dispatch = runtime.dispatch_mouse(&mouse);
-                                    if let Some(action) = dispatch.action {
-                                        if let Some(idx) = parse_palette_select(&action) {
-                                            app_mut.palette_mouse_mode = true;
-                                            let indices = app_mut.filtered_indices();
-                                            let cmd_indices: Vec<usize> = indices
-                                                .iter()
-                                                .enumerate()
-                                                .filter(|(di, _)| {
-                                                    *di >= app_mut.palette_scroll
-                                                        && *di < app_mut.palette_scroll + 10
-                                                })
-                                                .map(|(_, ci)| *ci)
-                                                .collect();
-                                            app_mut.palette_selected =
-                                                *cmd_indices.get(idx).unwrap_or(&0);
-                                            app_mut.activate_selected_palette(&running);
-                                        } else if action == "click:send" {
-                                            app_mut.send_message();
-                                        }
+                            if mouse.kind == MouseEventKind::Press {
+                                let dispatch = runtime.dispatch_mouse(&mouse);
+                                if let Some(action) = dispatch.action {
+                                    if let Some(idx) = parse_palette_select(&action) {
+                                        app_mut.palette_mouse_mode = true;
+                                        let indices = app_mut.filtered_indices();
+                                        let cmd_indices: Vec<usize> = indices
+                                            .iter()
+                                            .enumerate()
+                                            .filter(|(di, _)| {
+                                                *di >= app_mut.palette_scroll
+                                                    && *di < app_mut.palette_scroll + 10
+                                            })
+                                            .map(|(_, ci)| *ci)
+                                            .collect();
+                                        app_mut.palette_selected =
+                                            *cmd_indices.get(idx).unwrap_or(&0);
+                                        app_mut.activate_selected_palette(&running);
+                                    } else if action == "click:send" {
+                                        app_mut.send_message();
                                     }
                                 }
-                                MouseEventKind::ScrollUp => {
-                                    // Scrolling handled by overflow_hidden + render_offset would need ScrollState integration
-                                }
-                                MouseEventKind::ScrollDown => {}
-                                _ => {}
                             }
                         }
                         Ok((Event::Resize(resize), used)) => {

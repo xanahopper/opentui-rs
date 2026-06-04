@@ -7,6 +7,7 @@
 //! - Simple composite layouts built from primitives
 
 use opentui::buffer::{BoxOptions, BoxStyle, TitleAlign};
+use opentui::input::{Event, InputParser};
 use opentui::terminal::{enable_raw_mode, terminal_size};
 use opentui::{Cell, OptimizedBuffer, Renderer, Rgba, Style};
 use opentui_rust as opentui;
@@ -287,6 +288,26 @@ fn main() -> io::Result<()> {
     }
 
     renderer.present()?;
-    let _ = io::stdin().read(&mut [0u8; 1])?;
-    Ok(())
+
+    let mut parser = InputParser::new();
+    let mut buf = [0u8; 64];
+    let mut stdin = io::stdin();
+    loop {
+        let n = stdin.read(&mut buf)?;
+        if n == 0 {
+            return Ok(());
+        }
+        let mut offset = 0;
+        while offset < n {
+            let Ok((event, used)) = parser.parse(&buf[offset..n]) else {
+                break;
+            };
+            offset += used;
+            if let Event::Key(key) = event {
+                if key.is_press() {
+                    return Ok(());
+                }
+            }
+        }
+    }
 }
