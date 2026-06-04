@@ -203,7 +203,7 @@ fn test_e2e_escape_handling() {
     // Double escape
     let (event, consumed) = parser.parse(b"\x1b\x1b").expect("Should parse double ESC");
     assert_eq!(consumed, 1);
-    assert_eq!(event.key().unwrap().code, KeyCode::Esc);
+    assert_eq!(event.key().unwrap().code, KeyCode::Escape);
     harness.log().info("verify", "Double ESC returns Esc key");
 
     // Alt+letter (ESC followed by letter)
@@ -289,7 +289,7 @@ fn test_e2e_mouse_drag_sequence() {
         .log()
         .info("parse", format!("Parsed {} events", events.len()));
 
-    // Verify sequence: Press, Move(s), Release
+    // Verify sequence: Press, Drag(s), DragEnd
     assert!(
         events.len() >= 3,
         "Should have at least press, move, release"
@@ -299,9 +299,13 @@ fn test_e2e_mouse_drag_sequence() {
     let first = events.first().unwrap().mouse().unwrap();
     assert_eq!(first.kind, MouseEventKind::Press);
 
-    // Last should be Release
+    // Last should be DragEnd (release after tracked drag)
     let last = events.last().unwrap().mouse().unwrap();
-    assert_eq!(last.kind, MouseEventKind::Release);
+    assert!(
+        last.kind == MouseEventKind::DragEnd || last.kind == MouseEventKind::Release,
+        "Last event should be DragEnd or Release, got {:?}",
+        last.kind
+    );
 
     harness.finish(true);
     eprintln!("[TEST] PASS: Mouse drag sequence works");

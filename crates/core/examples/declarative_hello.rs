@@ -144,7 +144,7 @@ fn main() -> io::Result<()> {
                         KeyCode::Char('+') => state.counter = state.counter.saturating_add(1),
                         KeyCode::Char('-') => state.counter = state.counter.saturating_sub(1),
                         KeyCode::Char('t') => state.show_extra = !state.show_extra,
-                        KeyCode::Char('q') | KeyCode::Esc => state.quit = true,
+                        KeyCode::Char('q') | KeyCode::Escape => state.quit = true,
                         _ => {}
                     }
                 }

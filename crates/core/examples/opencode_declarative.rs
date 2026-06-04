@@ -843,7 +843,7 @@ fn main() -> io::Result<()> {
             if n == 0 {
                 if pending.len() == 1 && pending[0] == 0x1b {
                     let mut app_mut = app.borrow_mut();
-                    handle_key_event(KeyCode::Esc, KeyModifiers::empty(), &mut app_mut, &running);
+                    handle_key_event(KeyCode::Escape, KeyModifiers::empty(), &mut app_mut, &running);
                 }
                 pending.clear();
                 continue;
@@ -956,7 +956,7 @@ fn handle_key_event(
 ) {
     if app.palette_open {
         match code {
-            KeyCode::Esc | KeyCode::Char('c') if modifiers.contains(KeyModifiers::CTRL) => {
+            KeyCode::Escape | KeyCode::Char('c') if modifiers.contains(KeyModifiers::CTRL) => {
                 app.palette_open = false;
                 app.palette_filter.clear();
                 app.palette_selected = 0;
@@ -1056,7 +1056,7 @@ fn handle_key_event(
     }
 
     match code {
-        KeyCode::Esc => {
+        KeyCode::Escape => {
             if app.input_text.is_empty() {
                 running.store(false, Ordering::SeqCst);
             } else {

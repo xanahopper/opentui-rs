@@ -18,7 +18,7 @@
 #![allow(clippy::needless_pass_by_ref_mut)]
 
 use crate::input::event::{Event, PasteEvent, ResizeEvent};
-use crate::input::keyboard::{KeyCode, KeyEvent, KeyModifiers};
+use crate::input::keyboard::{KeyCode, KeyEvent, KeyEventType, KeyModifiers, KeySource};
 use crate::terminal::{MouseButton, MouseEvent, MouseEventKind};
 
 /// Error type for input parsing.
@@ -77,6 +77,8 @@ pub struct InputParser {
     in_paste: bool,
     /// Accumulated paste content.
     paste_buffer: Vec<u8>,
+    /// Bitmask of currently held mouse buttons (for Drag vs Move distinction).
+    mouse_buttons: u8,
 }
 
 impl InputParser {
@@ -149,8 +151,8 @@ impl InputParser {
                 Ok((KeyEvent::new(KeyCode::Char(c), KeyModifiers::ALT).into(), 2))
             }
             // Double escape
-            0x1b => Ok((KeyEvent::key(KeyCode::Esc).into(), 1)),
-            _ => Ok((KeyEvent::key(KeyCode::Esc).into(), 1)),
+            0x1b => Ok((KeyEvent::key(KeyCode::Escape).into(), 1)),
+            _ => Ok((KeyEvent::key(KeyCode::Escape).into(), 1)),
         }
     }
 
@@ -288,26 +290,48 @@ impl InputParser {
 
     /// Parse modifiers from CSI parameter bytes.
     ///
+    /// Supports the full Kitty keyboard protocol modifier bitfield:
+    ///   shift(1) alt(2) ctrl(4) super(8) hyper(16) meta(32)
+    ///   caps_lock(64) num_lock(128)
+    ///
+    /// The wire format is `1 + actual_modifiers`, so we subtract 1
+    /// and decode all 8 bits.
+    ///
     /// # Errors
     ///
     /// Returns [`ParseError::InvalidUtf8`] if the parameter bytes are not valid UTF-8.
     fn parse_modifiers(&self, params: &[u8]) -> Result<KeyModifiers, ParseError> {
-        // Format: 1;N where N encodes modifiers
-        // N = 1 + (shift ? 1 : 0) + (alt ? 2 : 0) + (ctrl ? 4 : 0)
+        // Format: first_param;modifier_value where modifier_value = 1 + actual_modifiers
         let s = std::str::from_utf8(params).map_err(|_| ParseError::InvalidUtf8)?;
         let parts: Vec<&str> = s.split(';').collect();
         if parts.len() >= 2 {
             if let Ok(n) = parts[1].parse::<u8>() {
                 let n = n.saturating_sub(1);
+                // Decode all 8 modifier bits per Kitty keyboard protocol
                 let mut mods = KeyModifiers::empty();
-                if n & 1 != 0 {
+                if n & 0b0000_0001 != 0 {
                     mods |= KeyModifiers::SHIFT;
                 }
-                if n & 2 != 0 {
+                if n & 0b0000_0010 != 0 {
                     mods |= KeyModifiers::ALT;
                 }
-                if n & 4 != 0 {
+                if n & 0b0000_0100 != 0 {
                     mods |= KeyModifiers::CTRL;
+                }
+                if n & 0b0000_1000 != 0 {
+                    mods |= KeyModifiers::SUPER;
+                }
+                if n & 0b0001_0000 != 0 {
+                    mods |= KeyModifiers::HYPER;
+                }
+                if n & 0b0010_0000 != 0 {
+                    mods |= KeyModifiers::META;
+                }
+                if n & 0b0100_0000 != 0 {
+                    mods |= KeyModifiers::CAPS_LOCK;
+                }
+                if n & 0b1000_0000 != 0 {
+                    mods |= KeyModifiers::NUM_LOCK;
                 }
                 return Ok(mods);
             }
@@ -397,7 +421,7 @@ impl InputParser {
         let code = match codepoint {
             9 => KeyCode::Tab,
             13 => KeyCode::Enter,
-            27 => KeyCode::Esc,
+            27 => KeyCode::Escape,
             127 => KeyCode::Backspace,
             _ => char::from_u32(codepoint)
                 .map(KeyCode::Char)
@@ -409,9 +433,15 @@ impl InputParser {
 
     /// Parse Kitty keyboard protocol / CSI-u key sequences.
     ///
-    /// Format: `ESC [ codepoint ; modifiers u`, where modifiers use the xterm
-    /// encoding (`1 + shift + 2*alt + 4*ctrl`). This intentionally rejects
-    /// private query responses such as `ESC [ ? flags u`.
+    /// Full format: `ESC [ codepoint[:shifted[:base]] ; modifiers[:event_type] ; text u`
+    /// where modifiers use the full Kitty 8-bit encoding
+    /// (`1 + shift*1 + alt*2 + ctrl*4 + super*8 + hyper*16 + meta*32
+    ///   + caps_lock*64 + num_lock*128`).
+    ///
+    /// Colon-separated sub-fields are used for alternate keys (shifted/base layout
+    /// codepoints) and event types (1=press, 2=repeat, 3=release).
+    ///
+    /// This intentionally rejects private query responses such as `ESC [ ? flags u`.
     fn parse_csi_u_key(&self, params: &[u8], consumed: usize) -> ParseResult {
         if params.first() == Some(&b'?') {
             return Err(ParseError::UnrecognizedSequence(params.to_vec()));
@@ -419,28 +449,78 @@ impl InputParser {
 
         let s = std::str::from_utf8(params).map_err(|_| ParseError::InvalidUtf8)?;
         let parts: Vec<&str> = s.split(';').collect();
-        let codepoint: u32 = parts
+
+        // First part: codepoint (with optional colon-separated alternate keys)
+        let codepoint_str = parts.first().unwrap_or(&"");
+        let codepoint_parts: Vec<&str> = codepoint_str.split(':').collect();
+        let codepoint: u32 = codepoint_parts
             .first()
             .and_then(|part| part.parse().ok())
             .ok_or_else(|| ParseError::UnrecognizedSequence(params.to_vec()))?;
 
-        let modifiers = if parts.len() >= 2 {
-            self.parse_modifiers(params)?
-        } else {
-            KeyModifiers::empty()
-        };
+        // Parse modifiers (second semicolon field, with optional colon-separated event type)
+        let mut modifiers = KeyModifiers::empty();
+        let mut event_type = KeyEventType::Press;
+
+        if parts.len() >= 2 {
+            let mod_str = parts[1];
+            let mod_parts: Vec<&str> = mod_str.split(':').collect();
+
+            // Parse the modifier value (wire format: 1 + actual_modifiers)
+            if let Ok(mod_val) = mod_parts.first().unwrap_or(&"1").parse::<u8>() {
+                let n = mod_val.saturating_sub(1);
+                if n & 0b0000_0001 != 0 {
+                    modifiers |= KeyModifiers::SHIFT;
+                }
+                if n & 0b0000_0010 != 0 {
+                    modifiers |= KeyModifiers::ALT;
+                }
+                if n & 0b0000_0100 != 0 {
+                    modifiers |= KeyModifiers::CTRL;
+                }
+                if n & 0b0000_1000 != 0 {
+                    modifiers |= KeyModifiers::SUPER;
+                }
+                if n & 0b0001_0000 != 0 {
+                    modifiers |= KeyModifiers::HYPER;
+                }
+                if n & 0b0010_0000 != 0 {
+                    modifiers |= KeyModifiers::META;
+                }
+                if n & 0b0100_0000 != 0 {
+                    modifiers |= KeyModifiers::CAPS_LOCK;
+                }
+                if n & 0b1000_0000 != 0 {
+                    modifiers |= KeyModifiers::NUM_LOCK;
+                }
+            }
+
+            // Parse event type sub-field (3rd colon-separated value in modifier field)
+            if mod_parts.len() >= 2 {
+                if let Ok(et) = mod_parts[1].parse::<u8>() {
+                    event_type = match et {
+                        2 => KeyEventType::Repeat,
+                        3 => KeyEventType::Release,
+                        _ => KeyEventType::Press,
+                    };
+                }
+            }
+        }
 
         let code = match codepoint {
             9 => KeyCode::Tab,
             13 => KeyCode::Enter,
-            27 => KeyCode::Esc,
+            27 => KeyCode::Escape,
             127 => KeyCode::Backspace,
             _ => char::from_u32(codepoint)
                 .map(KeyCode::Char)
                 .ok_or_else(|| ParseError::UnrecognizedSequence(params.to_vec()))?,
         };
 
-        Ok((KeyEvent::new(code, modifiers).into(), consumed))
+        Ok((
+            KeyEvent::with_event(code, modifiers, event_type, KeySource::Kitty).into(),
+            consumed,
+        ))
     }
 
     /// Parse SS3 sequences (ESC O ...).
@@ -471,7 +551,7 @@ impl InputParser {
     ///
     /// X11 encoding adds 32 to avoid control characters, and coordinates are 1-indexed.
     /// So we subtract 33 (32 + 1) to get 0-indexed coordinates matching SGR output.
-    fn parse_x11_mouse(&self, input: &[u8], start: usize) -> ParseResult {
+    fn parse_x11_mouse(&mut self, input: &[u8], start: usize) -> ParseResult {
         if input.len() < start + 3 {
             return Err(ParseError::Incomplete);
         }
@@ -480,8 +560,24 @@ impl InputParser {
         let cx = input[start + 1].saturating_sub(33);
         let cy = input[start + 2].saturating_sub(33);
 
-        let (button, kind) = decode_x11_button(cb);
+        let (button, mut kind) = decode_x11_button(cb);
         let (shift, alt, ctrl) = decode_x11_modifiers(cb);
+
+        // Track button state and emit DragEnd when the last button is released
+        // after a drag was in progress
+        match kind {
+            MouseEventKind::Press => {
+                self.mouse_buttons |= Self::button_mask(button);
+            }
+            MouseEventKind::Release => {
+                let had_buttons = self.mouse_buttons != 0;
+                self.mouse_buttons &= !Self::button_mask(button);
+                if had_buttons && self.mouse_buttons == 0 {
+                    kind = MouseEventKind::DragEnd;
+                }
+            }
+            _ => {}
+        }
 
         let event = MouseEvent::new(u32::from(cx), u32::from(cy), button, kind)
             .with_modifiers(shift, ctrl, alt);
@@ -490,7 +586,7 @@ impl InputParser {
     }
 
     /// Parse SGR mouse encoding (ESC [ < Pb ; Px ; Py M/m).
-    fn parse_sgr_mouse(&self, input: &[u8]) -> ParseResult {
+    fn parse_sgr_mouse(&mut self, input: &[u8]) -> ParseResult {
         // Find 'M' or 'm' terminator
         let term_pos = input.iter().position(|&b| b == b'M' || b == b'm');
         let Some(term_pos) = term_pos else {
@@ -523,7 +619,15 @@ impl InputParser {
 
         let (button, mut kind) = decode_sgr_button(cb);
         if is_release {
-            kind = MouseEventKind::Release;
+            let had_buttons = self.mouse_buttons != 0;
+            self.mouse_buttons &= !Self::button_mask(button);
+            kind = if had_buttons && self.mouse_buttons == 0 {
+                MouseEventKind::DragEnd
+            } else {
+                MouseEventKind::Release
+            };
+        } else if kind == MouseEventKind::Press {
+            self.mouse_buttons |= Self::button_mask(button);
         }
         let (shift, alt, ctrl) = decode_sgr_modifiers(cb);
 
@@ -643,6 +747,17 @@ impl InputParser {
     pub fn clear(&mut self) {
         self.in_paste = false;
         self.paste_buffer.clear();
+        self.mouse_buttons = 0;
+    }
+
+    /// Convert a [`MouseButton`] to a bitmask bit for button state tracking.
+    const fn button_mask(button: MouseButton) -> u8 {
+        match button {
+            MouseButton::Left => 0b001,
+            MouseButton::Middle => 0b010,
+            MouseButton::Right => 0b100,
+            MouseButton::None => 0,
+        }
     }
 }
 
@@ -668,7 +783,13 @@ fn decode_x11_button(cb: u8) -> (MouseButton, MouseEventKind) {
             2 => MouseButton::Right,
             _ => MouseButton::None,
         };
-        (button, MouseEventKind::Move)
+        // Motion with a button held → Drag; motion without any button → Move
+        let kind = if button == MouseButton::None {
+            MouseEventKind::Move
+        } else {
+            MouseEventKind::Drag
+        };
+        (button, kind)
     } else {
         let button = match low {
             0 => MouseButton::Left,
@@ -711,7 +832,13 @@ fn decode_sgr_button(cb: u8) -> (MouseButton, MouseEventKind) {
             2 => MouseButton::Right,
             _ => MouseButton::None,
         };
-        (button, MouseEventKind::Move)
+        // Motion with a button held → Drag; motion without any button → Move
+        let kind = if button == MouseButton::None {
+            MouseEventKind::Move
+        } else {
+            MouseEventKind::Drag
+        };
+        (button, kind)
     } else {
         let button = match low {
             0 => MouseButton::Left,
@@ -1343,10 +1470,14 @@ mod tests {
             "[TEST] Kind: {:?}, Button: {:?}, Position: ({}, {})",
             mouse.kind, mouse.button, mouse.x, mouse.y
         );
-        assert_eq!(mouse.kind, MouseEventKind::Move);
+        assert_eq!(
+            mouse.kind,
+            MouseEventKind::Drag,
+            "motion with button held should be Drag"
+        );
         assert_eq!(mouse.x, 49);
         assert_eq!(mouse.y, 24);
-        eprintln!("[TEST] PASS: Motion event detected");
+        eprintln!("[TEST] PASS: Drag event detected");
     }
 
     #[test]
@@ -1744,7 +1875,7 @@ mod tests {
         let mut parser = InputParser::new();
         let (event, consumed) = parser.parse(b"\x1b\x1b").unwrap();
         assert_eq!(consumed, 1);
-        assert_eq!(event.key().unwrap().code, KeyCode::Esc);
+        assert_eq!(event.key().unwrap().code, KeyCode::Escape);
     }
 
     #[test]

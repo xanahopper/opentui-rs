@@ -3036,20 +3036,20 @@ impl App {
         // Mode-specific handling
         match self.mode {
             AppMode::Normal => {
-                if key.code == KeyCode::Esc {
+                if key.code == KeyCode::Escape {
                     return Action::Quit;
                 }
                 Action::None
             }
             AppMode::Help => {
-                if key.code == KeyCode::Esc {
+                if key.code == KeyCode::Escape {
                     return Action::CloseOverlay;
                 }
                 Action::None
             }
             AppMode::CommandPalette => {
                 match key.code {
-                    KeyCode::Esc => return Action::CloseOverlay,
+                    KeyCode::Escape => return Action::CloseOverlay,
                     KeyCode::Up => return Action::PaletteUp,
                     KeyCode::Down => return Action::PaletteDown,
                     KeyCode::Enter => return Action::PaletteExecute,
@@ -3061,7 +3061,7 @@ impl App {
             }
             AppMode::Tour => {
                 // Only Esc has a special action in Tour mode; other keys are handled by the tour driver
-                if key.code == KeyCode::Esc {
+                if key.code == KeyCode::Escape {
                     Action::ToggleTour
                 } else {
                     Action::None
@@ -8772,10 +8772,10 @@ mod tests {
     #[test]
     fn test_input_pump_inject_synthetic() {
         let mut pump = InputPump::new();
-        let event = Event::Key(opentui::input::KeyEvent {
-            code: KeyCode::Char('a'),
-            modifiers: KeyModifiers::empty(),
-        });
+        let event = Event::Key(opentui::input::KeyEvent::new(
+            KeyCode::Char('a'),
+            KeyModifiers::empty(),
+        ));
         pump.inject_synthetic(event);
         assert_eq!(pump.synthetic_queue.len(), 1);
     }
@@ -8790,20 +8790,20 @@ mod tests {
 
     #[test]
     fn test_tagged_event_real() {
-        let event = Event::Key(opentui::input::KeyEvent {
-            code: KeyCode::Char('x'),
-            modifiers: KeyModifiers::empty(),
-        });
+        let event = Event::Key(opentui::input::KeyEvent::new(
+            KeyCode::Char('x'),
+            KeyModifiers::empty(),
+        ));
         let tagged = TaggedEvent::real(event);
         assert_eq!(tagged.source, InputSource::Real);
     }
 
     #[test]
     fn test_tagged_event_synthetic() {
-        let event = Event::Key(opentui::input::KeyEvent {
-            code: KeyCode::Char('y'),
-            modifiers: KeyModifiers::empty(),
-        });
+        let event = Event::Key(opentui::input::KeyEvent::new(
+            KeyCode::Char('y'),
+            KeyModifiers::empty(),
+        ));
         let tagged = TaggedEvent::synthetic(event);
         assert_eq!(tagged.source, InputSource::Synthetic);
     }

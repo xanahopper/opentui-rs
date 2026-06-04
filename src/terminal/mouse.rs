@@ -20,8 +20,12 @@ pub enum MouseEventKind {
     Press,
     /// Button released.
     Release,
-    /// Mouse moved.
+    /// Mouse moved (no buttons held).
     Move,
+    /// Mouse dragged (motion with button held).
+    Drag,
+    /// Drag operation ended (last button released after a drag).
+    DragEnd,
     /// Scroll wheel up.
     ScrollUp,
     /// Scroll wheel down.
@@ -33,7 +37,7 @@ pub enum MouseEventKind {
 }
 
 /// A mouse event.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct MouseEvent {
     /// X position (column).
     pub x: u32,
@@ -49,6 +53,8 @@ pub struct MouseEvent {
     pub ctrl: bool,
     /// Alt key held.
     pub alt: bool,
+    /// Scroll delta (defaults to 1.0 for scroll events, 0.0 otherwise).
+    pub scroll_delta: f64,
 }
 
 impl MouseEvent {
@@ -63,6 +69,7 @@ impl MouseEvent {
             shift: false,
             ctrl: false,
             alt: false,
+            scroll_delta: 0.0,
         }
     }
 
@@ -121,6 +128,31 @@ impl MouseEvent {
                 | MouseEventKind::ScrollLeft
                 | MouseEventKind::ScrollRight
         )
+    }
+
+    /// Check if this is a drag event.
+    #[must_use]
+    pub fn is_drag(&self) -> bool {
+        self.kind == MouseEventKind::Drag
+    }
+
+    /// Check if this is a release event.
+    #[must_use]
+    pub fn is_release(&self) -> bool {
+        self.kind == MouseEventKind::Release
+    }
+
+    /// Check if this is a move event (no buttons held).
+    #[must_use]
+    pub fn is_move(&self) -> bool {
+        self.kind == MouseEventKind::Move
+    }
+
+    /// Set scroll delta (builder pattern).
+    #[must_use]
+    pub fn with_scroll_delta(mut self, delta: f64) -> Self {
+        self.scroll_delta = delta;
+        self
     }
 }
 

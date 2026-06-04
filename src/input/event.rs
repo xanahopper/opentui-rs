@@ -4,7 +4,7 @@ use crate::input::keyboard::KeyEvent;
 use crate::terminal::MouseEvent;
 
 /// A terminal event.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Event {
     /// Keyboard event.
     Key(KeyEvent),

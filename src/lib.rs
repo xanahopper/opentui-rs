@@ -90,7 +90,9 @@ pub use link::LinkPool;
 pub use style::{Style, TextAttributes};
 
 // Re-export input types
-pub use input::{Event, InputParser, KeyCode, KeyEvent, KeyModifiers, MouseEvent};
+pub use input::{
+    Event, InputParser, KeyCode, KeyEvent, KeyEventType, KeyModifiers, KeySource, MouseEvent,
+};
 
 // Re-export ANSI types
 pub use ansi::ColorMode;

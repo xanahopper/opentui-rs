@@ -326,17 +326,11 @@ mod tests {
 
         tree.build_focus_chain();
 
-        let result = tree.dispatch_key(&KeyEvent {
-            code: KeyCode::Tab,
-            modifiers: KeyModifiers::empty(),
-        });
+        let result = tree.dispatch_key(&KeyEvent::new(KeyCode::Tab, KeyModifiers::empty()));
         assert!(result.consumed);
         assert_eq!(result.target, Some(a));
 
-        let result = tree.dispatch_key(&KeyEvent {
-            code: KeyCode::Tab,
-            modifiers: KeyModifiers::empty(),
-        });
+        let result = tree.dispatch_key(&KeyEvent::new(KeyCode::Tab, KeyModifiers::empty()));
         assert_eq!(result.target, Some(b));
     }
 
@@ -351,10 +345,7 @@ mod tests {
 
         tree.build_focus_chain();
 
-        let result = tree.dispatch_key(&KeyEvent {
-            code: KeyCode::Tab,
-            modifiers: KeyModifiers::SHIFT,
-        });
+        let result = tree.dispatch_key(&KeyEvent::new(KeyCode::Tab, KeyModifiers::SHIFT));
         assert!(result.consumed);
         assert_eq!(result.target, Some(b));
     }

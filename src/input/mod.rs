@@ -9,7 +9,7 @@ mod keyboard;
 mod parser;
 
 pub use event::{Event, FocusEvent, PasteEvent, ResizeEvent};
-pub use keyboard::{KeyCode, KeyEvent, KeyModifiers};
+pub use keyboard::{KeyCode, KeyEvent, KeyEventType, KeyModifiers, KeySource};
 pub use parser::{InputParser, ParseError, ParseResult};
 
 // Re-export mouse types from terminal module (they're re-exported there)

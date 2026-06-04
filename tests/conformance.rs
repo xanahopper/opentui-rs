@@ -699,7 +699,9 @@ fn verify_input_event(case: &FixtureCase, event: &Event, logger: &ArtifactLogger
             let kind_matches = match mouse_event.kind {
                 MouseEventKind::Press => expected_kind == "Press",
                 MouseEventKind::Release => expected_kind == "Release",
-                MouseEventKind::Move => expected_kind == "Move" || expected_kind == "Drag",
+                MouseEventKind::Move => expected_kind == "Move",
+                MouseEventKind::Drag => expected_kind == "Drag" || expected_kind == "Move",
+                MouseEventKind::DragEnd => expected_kind == "DragEnd" || expected_kind == "Release",
                 MouseEventKind::ScrollUp => expected_kind == "ScrollUp",
                 MouseEventKind::ScrollDown => expected_kind == "ScrollDown",
                 MouseEventKind::ScrollLeft => expected_kind == "ScrollLeft",

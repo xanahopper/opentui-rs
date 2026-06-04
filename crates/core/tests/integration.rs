@@ -310,21 +310,12 @@ fn test_keybinding_in_render_loop() {
     reg.bind(KeyModifiers::empty(), KeyCode::Char('q'), "quit");
     reg.bind(KeyModifiers::CTRL, KeyCode::Char('s'), "save");
 
-    let quit_key = KeyEvent {
-        code: KeyCode::Char('q'),
-        modifiers: KeyModifiers::empty(),
-    };
+    let quit_key = KeyEvent::new(KeyCode::Char('q'), KeyModifiers::empty());
     assert_eq!(reg.resolve(&quit_key), Some("quit"));
 
-    let save_key = KeyEvent {
-        code: KeyCode::Char('s'),
-        modifiers: KeyModifiers::CTRL,
-    };
+    let save_key = KeyEvent::new(KeyCode::Char('s'), KeyModifiers::CTRL);
     assert_eq!(reg.resolve(&save_key), Some("save"));
 
-    let unknown_key = KeyEvent {
-        code: KeyCode::Char('z'),
-        modifiers: KeyModifiers::empty(),
-    };
+    let unknown_key = KeyEvent::new(KeyCode::Char('z'), KeyModifiers::empty());
     assert_eq!(reg.resolve(&unknown_key), None);
 }

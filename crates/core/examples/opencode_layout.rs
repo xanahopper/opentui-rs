@@ -628,7 +628,12 @@ fn main() -> io::Result<()> {
             if n == 0 {
                 // No data — if we have a pending escape byte, treat as Esc key
                 if pending.len() == 1 && pending[0] == 0x1b {
-                    handle_key_event(KeyCode::Esc, KeyModifiers::empty(), &mut app, &mut running);
+                    handle_key_event(
+                        KeyCode::Escape,
+                        KeyModifiers::empty(),
+                        &mut app,
+                        &mut running,
+                    );
                 }
                 pending.clear();
                 continue;
@@ -733,7 +738,7 @@ fn main() -> io::Result<()> {
 fn handle_key_event(code: KeyCode, modifiers: KeyModifiers, app: &mut App, running: &mut bool) {
     if app.palette_open {
         match code {
-            KeyCode::Esc | KeyCode::Char('c') if modifiers.contains(KeyModifiers::CTRL) => {
+            KeyCode::Escape | KeyCode::Char('c') if modifiers.contains(KeyModifiers::CTRL) => {
                 app.palette_open = false;
                 app.palette_filter.clear();
                 app.palette_selected = 0;
@@ -838,7 +843,7 @@ fn handle_key_event(code: KeyCode, modifiers: KeyModifiers, app: &mut App, runni
 
     match code {
         // Esc quits only when input is empty (matching opencode behavior)
-        KeyCode::Esc => {
+        KeyCode::Escape => {
             if app.input_text.is_empty() {
                 *running = false;
             } else {

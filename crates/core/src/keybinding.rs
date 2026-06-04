@@ -103,17 +103,11 @@ mod tests {
         reg.bind(KeyModifiers::CTRL, KeyCode::Char('q'), "quit");
 
         assert_eq!(
-            reg.resolve(&KeyEvent {
-                code: KeyCode::Char('s'),
-                modifiers: KeyModifiers::CTRL,
-            }),
+            reg.resolve(&KeyEvent::new(KeyCode::Char('s'), KeyModifiers::CTRL)),
             Some("save"),
         );
         assert_eq!(
-            reg.resolve(&KeyEvent {
-                code: KeyCode::Char('q'),
-                modifiers: KeyModifiers::CTRL,
-            }),
+            reg.resolve(&KeyEvent::new(KeyCode::Char('q'), KeyModifiers::CTRL)),
             Some("quit"),
         );
     }
@@ -122,26 +116,17 @@ mod tests {
     fn test_unbind() {
         let mut reg = KeyBindingRegistry::new();
         reg.bind(KeyModifiers::empty(), KeyCode::Char('q'), "quit");
-        assert!(reg.has_binding(&KeyEvent {
-            code: KeyCode::Char('q'),
-            modifiers: KeyModifiers::empty(),
-        }));
+        assert!(reg.has_binding(&KeyEvent::new(KeyCode::Char('q'), KeyModifiers::empty())));
 
         reg.unbind(KeyModifiers::empty(), KeyCode::Char('q'));
-        assert!(!reg.has_binding(&KeyEvent {
-            code: KeyCode::Char('q'),
-            modifiers: KeyModifiers::empty(),
-        }));
+        assert!(!reg.has_binding(&KeyEvent::new(KeyCode::Char('q'), KeyModifiers::empty())));
     }
 
     #[test]
     fn test_no_binding() {
         let reg = KeyBindingRegistry::new();
         assert_eq!(
-            reg.resolve(&KeyEvent {
-                code: KeyCode::Char('x'),
-                modifiers: KeyModifiers::empty(),
-            }),
+            reg.resolve(&KeyEvent::new(KeyCode::Char('x'), KeyModifiers::empty())),
             None,
         );
     }
@@ -151,10 +136,7 @@ mod tests {
         let mut reg = KeyBindingRegistry::new();
         let id = reg.bind(KeyModifiers::empty(), KeyCode::Enter, "confirm");
         assert_eq!(
-            reg.resolve_id(&KeyEvent {
-                code: KeyCode::Enter,
-                modifiers: KeyModifiers::empty(),
-            }),
+            reg.resolve_id(&KeyEvent::new(KeyCode::Enter, KeyModifiers::empty())),
             Some(id)
         );
         assert_eq!(reg.action_name(id), Some("confirm"));

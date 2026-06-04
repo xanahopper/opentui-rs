@@ -458,7 +458,7 @@ pub fn key_to_ansi(key: &KeyEvent) -> Vec<u8> {
             result.extend_from_slice(b"\x1b[Z");
         }
         KeyCode::Backspace => result.push(0x7f),
-        KeyCode::Esc => result.push(0x1b),
+        KeyCode::Escape => result.push(0x1b),
         KeyCode::Up => {
             result.extend_from_slice(format!("\x1b[1{mod_suffix}A").as_bytes());
         }
@@ -524,7 +524,7 @@ pub fn mouse_to_sgr(event: &MouseEvent) -> Vec<u8> {
     };
 
     match event.kind {
-        MouseEventKind::Move => cb |= 32,
+        MouseEventKind::Move | MouseEventKind::Drag => cb |= 32,
         MouseEventKind::ScrollUp => cb = 64,
         MouseEventKind::ScrollDown => cb = 65,
         MouseEventKind::ScrollLeft => cb = 66,
@@ -542,7 +542,10 @@ pub fn mouse_to_sgr(event: &MouseEvent) -> Vec<u8> {
         cb |= 16;
     }
 
-    let term = if event.kind == MouseEventKind::Release {
+    let term = if matches!(
+        event.kind,
+        MouseEventKind::Release | MouseEventKind::DragEnd
+    ) {
         'm'
     } else {
         'M'

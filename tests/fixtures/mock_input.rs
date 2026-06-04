@@ -81,41 +81,32 @@ impl MockInput {
 
     /// Queue a mouse click event.
     pub fn queue_mouse_click(&mut self, x: u32, y: u32, button: MouseButton) {
-        self.events.push_back(Event::Mouse(MouseEvent {
+        self.events.push_back(Event::Mouse(MouseEvent::new(
             x,
             y,
             button,
-            kind: MouseEventKind::Press,
-            shift: false,
-            ctrl: false,
-            alt: false,
-        }));
+            MouseEventKind::Press,
+        )));
     }
 
     /// Queue a mouse release event.
     pub fn queue_mouse_release(&mut self, x: u32, y: u32, button: MouseButton) {
-        self.events.push_back(Event::Mouse(MouseEvent {
+        self.events.push_back(Event::Mouse(MouseEvent::new(
             x,
             y,
             button,
-            kind: MouseEventKind::Release,
-            shift: false,
-            ctrl: false,
-            alt: false,
-        }));
+            MouseEventKind::Release,
+        )));
     }
 
     /// Queue a mouse move event.
     pub fn queue_mouse_move(&mut self, x: u32, y: u32) {
-        self.events.push_back(Event::Mouse(MouseEvent {
+        self.events.push_back(Event::Mouse(MouseEvent::new(
             x,
             y,
-            button: MouseButton::None,
-            kind: MouseEventKind::Move,
-            shift: false,
-            ctrl: false,
-            alt: false,
-        }));
+            MouseButton::None,
+            MouseEventKind::Move,
+        )));
     }
 
     /// Queue a mouse scroll event.
@@ -124,15 +115,8 @@ impl MockInput {
             ScrollDirection::Up => MouseEventKind::ScrollUp,
             ScrollDirection::Down => MouseEventKind::ScrollDown,
         };
-        self.events.push_back(Event::Mouse(MouseEvent {
-            x,
-            y,
-            button: MouseButton::None,
-            kind,
-            shift: false,
-            ctrl: false,
-            alt: false,
-        }));
+        self.events
+            .push_back(Event::Mouse(MouseEvent::new(x, y, MouseButton::None, kind)));
     }
 
     /// Queue a focus gained event.
@@ -281,7 +265,7 @@ impl InputSequenceBuilder {
 
     /// Add Escape key.
     pub fn escape(mut self) -> Self {
-        self.input.queue_special_key(KeyCode::Esc);
+        self.input.queue_special_key(KeyCode::Escape);
         self
     }
 
