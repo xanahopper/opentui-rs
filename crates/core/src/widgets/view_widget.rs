@@ -22,6 +22,9 @@ pub struct ViewWidget {
     focusable: bool,
     focused: bool,
     border_padding: (f32, f32, f32, f32),
+    interactive: bool,
+    hover_bg: Option<Rgba>,
+    hover_fg: Option<Rgba>,
 }
 
 impl ViewWidget {
@@ -39,10 +42,13 @@ impl ViewWidget {
             focusable: false,
             focused: false,
             border_padding: (0.0, 0.0, 0.0, 0.0),
+            interactive: false,
+            hover_bg: None,
+            hover_fg: None,
         }
     }
 
-    pub fn from_element(id: WidgetId, elem: &Element) -> Self {
+    pub fn from_element<M>(id: WidgetId, elem: &Element<M>) -> Self {
         let mut widget = Self::new(id, elem.layout.clone());
         if let Props::View(ref props) = elem.props {
             widget.apply_view_props(props);
@@ -59,6 +65,9 @@ impl ViewWidget {
         self.opacity = props.opacity;
         self.focusable = props.focusable;
         self.visible = props.visible;
+        self.interactive = props.interactive;
+        self.hover_bg = props.hover_bg;
+        self.hover_fg = props.hover_fg;
         self.compute_border_padding();
     }
 
@@ -125,6 +134,22 @@ impl ViewWidget {
         self
     }
 
+    pub fn interactive(&self) -> bool {
+        self.interactive
+    }
+
+    fn is_hovered(&self, ctx: &RenderContext<'_>) -> bool {
+        ctx.hovered_id == Some(self.id)
+    }
+
+    fn effective_bg(&self, ctx: &RenderContext<'_>) -> Option<Rgba> {
+        if self.is_hovered(ctx) {
+            self.hover_bg.or(self.bg)
+        } else {
+            self.bg
+        }
+    }
+
     fn border_color(&self) -> Rgba {
         if let Some(ref b) = self.border {
             if self.focused {
@@ -162,6 +187,8 @@ impl Widget for ViewWidget {
             return;
         }
 
+        let bg = self.effective_bg(ctx);
+
         if let Some(ref border) = self.border {
             let border_color = self.border_color();
             let style = Style::builder().fg(border_color).build();
@@ -176,7 +203,7 @@ impl Widget for ViewWidget {
                 style,
             };
 
-            let fill = self.bg.filter(|bg| bg.a > 0.0);
+            let fill = bg.filter(|c| c.a > 0.0);
 
             let options = BoxOptions {
                 style: bs,
@@ -192,7 +219,7 @@ impl Widget for ViewWidget {
             };
 
             ctx.buffer.draw_box_with_options(x, y, w, h, options);
-        } else if let Some(bg) = self.bg {
+        } else if let Some(bg) = bg {
             if bg.a > 0.0 {
                 ctx.buffer.fill_rect(x, y, w, h, bg);
             }

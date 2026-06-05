@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use opentui_rust::Rgba;
 
 use crate::view::element::{Element, ElementKind};
+use crate::view::event::EventBinding;
 use crate::view::node::Node;
 use crate::view::props::Props;
 use crate::widget::{Overlay, OverlayZOrder, WidgetId, WidgetTree};
@@ -10,16 +11,32 @@ use crate::widgets::{
     FillWidget, InputWidget, ListWidget, SeparatorWidget, TextWidget, ViewWidget,
 };
 
-pub fn build_tree(node: &Node) -> WidgetTree {
-    build_tree_with_actions(node).0
+pub fn build_tree<M: Clone>(node: &Node<M>) -> WidgetTree {
+    build_tree_with_events(node).0
 }
 
-pub fn build_tree_with_actions(node: &Node) -> (WidgetTree, HashMap<WidgetId, String>) {
+pub fn build_tree_with_events<M: Clone>(
+    node: &Node<M>,
+) -> (WidgetTree, HashMap<WidgetId, Vec<EventBinding<M>>>) {
     let mut ctx = BuildContext { next_id: 1 };
     let mut tree = WidgetTree::new();
-    let mut actions = HashMap::new();
-    build_recursive(node, &mut tree, None, &mut ctx, &mut actions);
+    let mut events = HashMap::new();
+    build_recursive(node, &mut tree, None, &mut ctx, &mut events);
     tree.build_focus_chain();
+    (tree, events)
+}
+
+pub fn build_tree_with_actions(node: &Node<String>) -> (WidgetTree, HashMap<WidgetId, String>) {
+    let (tree, events) = build_tree_with_events(node);
+    let actions = events
+        .into_iter()
+        .filter_map(|(id, bindings)| {
+            bindings
+                .into_iter()
+                .find(|b| b.kind == crate::view::event::EventKind::Click)
+                .map(|b| (id, b.message))
+        })
+        .collect();
     (tree, actions)
 }
 
@@ -35,18 +52,18 @@ impl BuildContext {
     }
 }
 
-fn build_recursive(
-    node: &Node,
+fn build_recursive<M: Clone>(
+    node: &Node<M>,
     tree: &mut WidgetTree,
     parent: Option<u64>,
     ctx: &mut BuildContext,
-    actions: &mut HashMap<WidgetId, String>,
+    events: &mut HashMap<WidgetId, Vec<EventBinding<M>>>,
 ) {
     match node {
         Node::Element(elem) => {
             let id = ctx.alloc_id();
-            if let Some(ref action) = elem.action {
-                actions.insert(id, action.clone());
+            if !elem.events.is_empty() {
+                events.insert(id, elem.events.clone());
             }
             let widget = create_widget(id, elem);
             if let Some(p) = parent {
@@ -55,14 +72,14 @@ fn build_recursive(
                 tree.add(widget);
             }
             for child in &elem.children {
-                build_recursive(child, tree, Some(id), ctx, actions);
+                build_recursive(child, tree, Some(id), ctx, events);
             }
         }
         Node::Overlay(overlay) => {
             let id = ctx.alloc_id();
             if let Node::Element(ref elem) = *overlay.content {
-                if let Some(ref action) = elem.action {
-                    actions.insert(id, action.clone());
+                if !elem.events.is_empty() {
+                    events.insert(id, elem.events.clone());
                 }
                 let widget = create_widget(id, elem);
                 tree.add(widget);
@@ -78,20 +95,20 @@ fn build_recursive(
                     .backdrop(overlay.backdrop),
                 );
                 for child in &elem.children {
-                    build_recursive(child, tree, Some(id), ctx, actions);
+                    build_recursive(child, tree, Some(id), ctx, events);
                 }
             }
         }
         Node::Fragment(children) => {
             for child in children {
-                build_recursive(child, tree, parent, ctx, actions);
+                build_recursive(child, tree, parent, ctx, events);
             }
         }
         Node::Empty => {}
     }
 }
 
-fn create_widget(id: u64, elem: &Element) -> Box<dyn crate::widget::Widget> {
+fn create_widget<M>(id: u64, elem: &Element<M>) -> Box<dyn crate::widget::Widget> {
     match elem.kind {
         ElementKind::Text => Box::new(TextWidget::from_element(id, elem)),
         ElementKind::Input => {

@@ -19,6 +19,7 @@ fn make_ctx<'a>(buf: &'a mut OptimizedBuffer, theme: &'a UiTheme) -> RenderConte
         link_pool: None,
         hit_grid: None,
         theme: Some(theme),
+        hovered_id: None,
     }
 }
 

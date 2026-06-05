@@ -1,12 +1,12 @@
 use opentui_core::view::{
-    Element, ElementKind, Key, Node, Props, empty, fragment, input, overlay, panel, rich_text,
-    span, text, view, when,
+    Element, ElementKind, EventKind, Key, Node, Props, empty, fragment, input, overlay, panel,
+    rich_text, span, text, view, when,
 };
 
-fn unwrap_element(node: &Node) -> &Element {
+fn unwrap_element<M>(node: &Node<M>) -> &Element<M> {
     match node {
         Node::Element(e) => e,
-        _ => panic!("expected Element, got {node:?}"),
+        _ => panic!("expected Element, got a non-element node"),
     }
 }
 
@@ -85,7 +85,7 @@ fn test_fragment_preserves_children() {
 
 #[test]
 fn test_empty_returns_empty() {
-    assert!(matches!(empty(), Node::Empty));
+    assert!(matches!(empty::<()>(), Node::Empty));
 }
 
 #[test]
@@ -221,7 +221,7 @@ fn test_overlay_builder() {
             assert!(ov.backdrop);
             assert_eq!(ov.z_order, 400);
         }
-        _ => panic!("expected Overlay, got {node:?}"),
+        _ => panic!("expected Overlay"),
     }
 }
 
@@ -243,5 +243,24 @@ fn test_list_builder() {
 fn test_on_action() {
     let node = view().on_action("submit").focusable().build();
     let elem = unwrap_element(&node);
-    assert_eq!(elem.action.as_deref(), Some("submit"));
+    assert_eq!(elem.events.len(), 1);
+    assert_eq!(elem.events[0].kind, EventKind::Click);
+    assert_eq!(elem.events[0].message, "submit");
+}
+
+#[test]
+fn test_on_click_generic() {
+    let node = view().on_click(42u32).focusable().build();
+    let elem = unwrap_element(&node);
+    assert_eq!(elem.events.len(), 1);
+    assert_eq!(elem.events[0].kind, EventKind::Click);
+    assert_eq!(elem.events[0].message, 42);
+}
+
+#[test]
+fn test_map_msg() {
+    let node = view().on_click(42u32).build();
+    let mapped = node.map_msg(|n| n.to_string());
+    let elem = unwrap_element(&mapped);
+    assert_eq!(elem.events[0].message, "42");
 }

@@ -213,7 +213,7 @@ impl App {
     }
 }
 
-fn ui_sidebar() -> opentui_core::view::Node {
+fn ui_sidebar() -> opentui_core::view::Node<()> {
     view()
         .column()
         .width(SIDEBAR_WIDTH)
@@ -279,7 +279,7 @@ fn ui_sidebar() -> opentui_core::view::Node {
         .build()
 }
 
-fn ui_prompt(app: &App) -> Vec<opentui_core::view::Node> {
+fn ui_prompt(app: &App) -> Vec<opentui_core::view::Node<()>> {
     let mut rows = vec![
         view()
             .row()
@@ -425,7 +425,7 @@ fn ui_prompt(app: &App) -> Vec<opentui_core::view::Node> {
     rows
 }
 
-fn ui_messages(app: &App) -> Vec<opentui_core::view::Node> {
+fn ui_messages(app: &App) -> Vec<opentui_core::view::Node<()>> {
     app.messages
         .iter()
         .enumerate()
@@ -433,7 +433,7 @@ fn ui_messages(app: &App) -> Vec<opentui_core::view::Node> {
             let lines: Vec<&str> = msg.text.split('\n').collect();
             let margin_top = if idx == 0 { 0.0 } else { 1.0 };
 
-            let msg_children: Vec<opentui_core::view::Node> = lines
+            let msg_children: Vec<opentui_core::view::Node<()>> = lines
                 .iter()
                 .map(|line| {
                     let is_tool = line.starts_with("  \u{25B8}") || line.starts_with("  \u{25CF}");
@@ -488,7 +488,9 @@ fn ui_messages(app: &App) -> Vec<opentui_core::view::Node> {
         .collect()
 }
 
-fn ui(app: &App, w: u32, h: u32) -> opentui_core::view::Node {
+fn ui(app: &App, w: u32, h: u32) -> opentui_core::view::Node<String> {
+    let to_s = |n: opentui_core::view::Node<()>| n.map_msg(|()| String::new());
+
     let msg_area = view()
         .column()
         .grow(1.0)
@@ -498,6 +500,7 @@ fn ui(app: &App, w: u32, h: u32) -> opentui_core::view::Node {
         .overflow_hidden()
         .children(ui_messages(app))
         .build();
+    let msg_area = to_s(msg_area);
 
     let prompt_box = view()
         .column()
@@ -505,6 +508,7 @@ fn ui(app: &App, w: u32, h: u32) -> opentui_core::view::Node {
         .bg(BG)
         .children(ui_prompt(app))
         .build();
+    let prompt_box = to_s(prompt_box);
 
     let hint_bar = view()
         .row()
@@ -524,12 +528,14 @@ fn ui(app: &App, w: u32, h: u32) -> opentui_core::view::Node {
             .build(),
         ])
         .build();
+    let hint_bar = to_s(hint_bar);
 
     let bottom_panel = view()
         .column()
         .shrink(0.0)
         .margin(0.0, 2.0, 1.0, 2.0)
         .bg(BG)
+        .on_action("")
         .children([prompt_box, hint_bar])
         .build();
 
@@ -538,13 +544,14 @@ fn ui(app: &App, w: u32, h: u32) -> opentui_core::view::Node {
         .grow(1.0)
         .bg(BG)
         .overflow_hidden()
+        .on_action("")
         .children([msg_area, bottom_panel])
         .build();
 
-    let mut root_children: Vec<opentui_core::view::Node> = vec![main_area];
+    let mut root_children: Vec<opentui_core::view::Node<String>> = vec![main_area];
 
     if app.sidebar_visible {
-        root_children.push(ui_sidebar());
+        root_children.push(to_s(ui_sidebar()));
     }
     if app.palette_open {
         root_children.push(ui_palette(app, w, h));
@@ -556,11 +563,12 @@ fn ui(app: &App, w: u32, h: u32) -> opentui_core::view::Node {
         .height(h as f32)
         .bg(BG)
         .overflow_hidden()
+        .on_action("")
         .children(root_children)
         .build()
 }
 
-fn ui_palette(app: &App, w: u32, h: u32) -> opentui_core::view::Node {
+fn ui_palette(app: &App, w: u32, h: u32) -> opentui_core::view::Node<String> {
     let dialog_w = 60_u32.min(w.saturating_sub(4));
     let dialog_h = 14_u32.min(h.saturating_sub(4));
     let dialog_x = w.saturating_sub(dialog_w) / 2;
@@ -571,7 +579,7 @@ fn ui_palette(app: &App, w: u32, h: u32) -> opentui_core::view::Node {
     let list_h = dialog_h.saturating_sub(6);
     let scroll = app.palette_scroll.min(indices.len().saturating_sub(1));
 
-    let mut rows: Vec<opentui_core::view::Node> = indices
+    let mut rows: Vec<opentui_core::view::Node<String>> = indices
         .iter()
         .enumerate()
         .skip(scroll)
@@ -589,7 +597,6 @@ fn ui_palette(app: &App, w: u32, h: u32) -> opentui_core::view::Node {
                 .height(1.0)
                 .shrink(0.0)
                 .bg(row_bg)
-                .on_action(format!("palette:select:{idx}"))
                 .children([
                     text(item.name)
                         .fg(name_fg)
@@ -605,6 +612,7 @@ fn ui_palette(app: &App, w: u32, h: u32) -> opentui_core::view::Node {
                         .height(1.0)
                         .build(),
                 ])
+                .on_action(format!("palette:select:{idx}"))
                 .build()
         })
         .collect();
@@ -616,7 +624,8 @@ fn ui_palette(app: &App, w: u32, h: u32) -> opentui_core::view::Node {
                 .bg(BG_PANEL)
                 .height(1.0)
                 .shrink(0.0)
-                .build(),
+                .build()
+                .map_msg(|()| String::new()),
         );
     }
 
@@ -631,59 +640,71 @@ fn ui_palette(app: &App, w: u32, h: u32) -> opentui_core::view::Node {
         TEXT
     };
 
+    let to_s = |n: opentui_core::view::Node<()>| n.map_msg(|()| String::new());
+
     let content = panel()
         .column()
         .size(dialog_w as f32, dialog_h as f32)
         .padding(1.0, 4.0, 1.0, 4.0)
         .bg(BG_PANEL)
+        .on_action("")
         .children([
-            view()
-                .row()
-                .height(1.0)
-                .shrink(0.0)
-                .bg(BG_PANEL)
-                .children([
-                    text("Commands")
-                        .fg(TEXT)
-                        .bg(BG_PANEL)
-                        .bold()
-                        .grow(1.0)
-                        .height(1.0)
-                        .build(),
-                    text("esc")
-                        .fg(TEXT_MUTED)
-                        .bg(BG_PANEL)
-                        .width(3.0)
-                        .height(1.0)
-                        .build(),
-                ])
-                .build(),
-            text(filter_text)
-                .fg(filter_fg)
-                .bg(BG_PANEL)
-                .height(1.0)
-                .shrink(0.0)
-                .build(),
-            separator()
-                .height(1.0)
-                .shrink(0.0)
-                .fg(Rgba::new(0.176, 0.176, 0.216, 1.0))
-                .bg(BG_PANEL)
-                .build(),
+            to_s(
+                view()
+                    .row()
+                    .height(1.0)
+                    .shrink(0.0)
+                    .bg(BG_PANEL)
+                    .children([
+                        text("Commands")
+                            .fg(TEXT)
+                            .bg(BG_PANEL)
+                            .bold()
+                            .grow(1.0)
+                            .height(1.0)
+                            .build(),
+                        text("esc")
+                            .fg(TEXT_MUTED)
+                            .bg(BG_PANEL)
+                            .width(3.0)
+                            .height(1.0)
+                            .build(),
+                    ])
+                    .build(),
+            ),
+            to_s(
+                text(filter_text)
+                    .fg(filter_fg)
+                    .bg(BG_PANEL)
+                    .height(1.0)
+                    .shrink(0.0)
+                    .build(),
+            ),
+            to_s(
+                separator()
+                    .height(1.0)
+                    .shrink(0.0)
+                    .fg(Rgba::new(0.176, 0.176, 0.216, 1.0))
+                    .bg(BG_PANEL)
+                    .build(),
+            ),
             view()
                 .column()
                 .height(list_h as f32)
                 .shrink(0.0)
                 .bg(BG_PANEL)
                 .overflow_hidden()
+                .on_action("")
                 .children(rows)
                 .build(),
-            text("\u{2191}\u{2193} navigate  \u{00B7}  enter select  \u{00B7}  esc close")
-                .fg(TEXT_MUTED)
-                .bg(BG_PANEL)
-                .height(1.0)
-                .shrink(0.0)
-                .build(),
+            to_s(
+                text("\u{2191}\u{2193} navigate  \u{00B7}  enter select  \u{00B7}  esc close")
+                    .fg(TEXT_MUTED)
+                    .bg(BG_PANEL)
+                    .height(1.0)
+                    .shrink(0.0)
+                    .build(),
+            ),
         ])
         .build();
 
@@ -775,7 +796,7 @@ pub fn run() -> io::Result<()> {
     let stdin = io::stdin();
     let mut read_buf = [0u8; 1024];
     let mut pending: Vec<u8> = Vec::new();
-    let mut runtime = ViewRuntime::new();
+    let mut runtime: ViewRuntime<String> = ViewRuntime::new();
 
     while running.load(Ordering::SeqCst) {
         let app_ref = app.clone();
@@ -792,6 +813,7 @@ pub fn run() -> io::Result<()> {
                 link_pool: None,
                 hit_grid: None,
                 theme: None,
+                hovered_id: None,
             };
             runtime.render_to_buffer(&mut ctx, &node, w as f32, h as f32);
         }

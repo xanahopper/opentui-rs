@@ -26,6 +26,12 @@ pub enum MouseEventKind {
     Drag,
     /// Drag operation ended (last button released after a drag).
     DragEnd,
+    /// Mouse entered a widget's area (synthesized by runtime).
+    Over,
+    /// Mouse left a widget's area (synthesized by runtime).
+    Out,
+    /// Drop on a widget after drag from another widget (synthesized by runtime).
+    Drop,
     /// Scroll wheel up.
     ScrollUp,
     /// Scroll wheel down.
@@ -34,6 +40,15 @@ pub enum MouseEventKind {
     ScrollLeft,
     /// Scroll wheel right (horizontal).
     ScrollRight,
+}
+
+/// Scroll direction.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ScrollDirection {
+    Up,
+    Down,
+    Left,
+    Right,
 }
 
 /// A mouse event.
@@ -55,6 +70,16 @@ pub struct MouseEvent {
     pub alt: bool,
     /// Scroll delta (defaults to 1.0 for scroll events, 0.0 otherwise).
     pub scroll_delta: f64,
+    /// Hit widget ID (set by ViewRuntime during dispatch).
+    pub target_id: Option<u64>,
+    /// Drag source widget ID (set for Drop events).
+    pub source_id: Option<u64>,
+    /// Whether propagation to parent widgets is stopped.
+    pub propagation_stopped: bool,
+    /// Whether default behavior (e.g. auto-focus) is prevented.
+    pub default_prevented: bool,
+    /// Whether a selection drag is in progress.
+    pub is_dragging: bool,
 }
 
 impl MouseEvent {
@@ -70,6 +95,11 @@ impl MouseEvent {
             ctrl: false,
             alt: false,
             scroll_delta: 0.0,
+            target_id: None,
+            source_id: None,
+            propagation_stopped: false,
+            default_prevented: false,
+            is_dragging: false,
         }
     }
 
@@ -146,6 +176,46 @@ impl MouseEvent {
     #[must_use]
     pub fn is_move(&self) -> bool {
         self.kind == MouseEventKind::Move
+    }
+
+    /// Check if this is a hover enter (over) event.
+    #[must_use]
+    pub fn is_over(&self) -> bool {
+        self.kind == MouseEventKind::Over
+    }
+
+    /// Check if this is a hover leave (out) event.
+    #[must_use]
+    pub fn is_out(&self) -> bool {
+        self.kind == MouseEventKind::Out
+    }
+
+    /// Check if this is a drop event.
+    #[must_use]
+    pub fn is_drop(&self) -> bool {
+        self.kind == MouseEventKind::Drop
+    }
+
+    /// Get scroll direction if this is a scroll event.
+    #[must_use]
+    pub fn scroll_direction(&self) -> Option<ScrollDirection> {
+        match self.kind {
+            MouseEventKind::ScrollUp => Some(ScrollDirection::Up),
+            MouseEventKind::ScrollDown => Some(ScrollDirection::Down),
+            MouseEventKind::ScrollLeft => Some(ScrollDirection::Left),
+            MouseEventKind::ScrollRight => Some(ScrollDirection::Right),
+            _ => None,
+        }
+    }
+
+    /// Stop this event from propagating to parent widgets.
+    pub fn stop_propagation(&mut self) {
+        self.propagation_stopped = true;
+    }
+
+    /// Prevent default behavior (e.g. auto-focus on click).
+    pub fn prevent_default(&mut self) {
+        self.default_prevented = true;
     }
 
     /// Set scroll delta (builder pattern).

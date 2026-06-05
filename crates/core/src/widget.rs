@@ -35,6 +35,7 @@ pub struct RenderContext<'a> {
     pub link_pool: Option<&'a mut ot::LinkPool>,
     pub hit_grid: Option<&'a mut ot::renderer::HitGrid>,
     pub theme: Option<&'a crate::theme::UiTheme>,
+    pub hovered_id: Option<WidgetId>,
 }
 
 pub trait Widget {
@@ -913,6 +914,14 @@ impl WidgetTree {
             Some(id)
         } else {
             None
+        }
+    }
+
+    pub fn dispatch_scroll_to_widget(&mut self, id: WidgetId, mouse: &ot::MouseEvent) -> bool {
+        if let Some(node) = self.nodes.get_mut(&id) {
+            node.widget.handle_mouse(mouse)
+        } else {
+            false
         }
     }
 }

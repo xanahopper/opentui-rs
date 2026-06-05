@@ -57,7 +57,7 @@ impl TextWidget {
         }
     }
 
-    pub fn from_element(id: WidgetId, elem: &Element) -> Self {
+    pub fn from_element<M>(id: WidgetId, elem: &Element<M>) -> Self {
         let Props::Text(ref props) = elem.props else {
             return Self::new(id, elem.layout.clone());
         };

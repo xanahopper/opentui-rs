@@ -1,3 +1,5 @@
+use std::fmt;
+
 use opentui_rust::Rgba;
 use opentui_rust::Style;
 use opentui_rust::WrapMode;
@@ -5,6 +7,7 @@ use opentui_rust::buffer::TitleAlign;
 
 use crate::layout::LayoutStyle;
 use crate::view::element::{Element, ElementKind};
+use crate::view::event::{EventBinding, EventKind};
 use crate::view::key::Key;
 use crate::view::node::{Node, OverlayNode};
 use crate::view::props::{
@@ -56,22 +59,22 @@ impl StyledSegment {
     }
 }
 
-pub fn view() -> ElementBuilder {
+pub fn view() -> ElementBuilder<()> {
     ElementBuilder::new(ElementKind::View)
 }
 
-pub fn panel() -> ElementBuilder {
+pub fn panel() -> ElementBuilder<()> {
     ElementBuilder::new(ElementKind::View).border_rounded(Rgba::new(0.3, 0.3, 0.35, 1.0))
 }
 
-pub fn text(content: impl Into<String>) -> ElementBuilder {
+pub fn text(content: impl Into<String>) -> ElementBuilder<()> {
     let mut builder = ElementBuilder::new(ElementKind::Text);
     builder.text_content = Some(content.into());
     builder
 }
 
 #[allow(clippy::needless_pass_by_value)]
-pub fn rich_text(segments: Vec<StyledSegment>) -> ElementBuilder {
+pub fn rich_text(segments: Vec<StyledSegment>) -> ElementBuilder<()> {
     if segments.is_empty() {
         return ElementBuilder::new(ElementKind::Text);
     }
@@ -134,14 +137,14 @@ pub fn span(text: impl Into<String>, fg: Rgba) -> StyledSegment {
     StyledSegment::new(text, fg)
 }
 
-pub fn input() -> ElementBuilder {
+pub fn input() -> ElementBuilder<()> {
     let mut builder = ElementBuilder::new(ElementKind::Input);
     builder.props = Props::Input(InputProps::default());
     builder
 }
 
 #[doc(hidden)]
-pub fn list(item_count: usize) -> ElementBuilder {
+pub fn list(item_count: usize) -> ElementBuilder<()> {
     let mut builder = ElementBuilder::new(ElementKind::List);
     builder.props = Props::List(ListProps {
         item_count,
@@ -150,31 +153,31 @@ pub fn list(item_count: usize) -> ElementBuilder {
     builder
 }
 
-pub fn fill(color: Rgba) -> ElementBuilder {
+pub fn fill(color: Rgba) -> ElementBuilder<()> {
     let mut builder = ElementBuilder::new(ElementKind::Fill);
     builder.props = Props::Fill(FillProps { color });
     builder
 }
 
-pub fn separator() -> ElementBuilder {
+pub fn separator() -> ElementBuilder<()> {
     let mut builder = ElementBuilder::new(ElementKind::Separator);
     builder.props = Props::Separator(SeparatorProps::default());
     builder
 }
 
-pub fn fragment(children: Vec<Node>) -> Node {
+pub fn fragment<M>(children: Vec<Node<M>>) -> Node<M> {
     Node::Fragment(children)
 }
 
-pub fn when(condition: bool, f: impl FnOnce() -> Node) -> Node {
+pub fn when<M>(condition: bool, f: impl FnOnce() -> Node<M>) -> Node<M> {
     if condition { f() } else { Node::Empty }
 }
 
-pub fn empty() -> Node {
+pub fn empty<M>() -> Node<M> {
     Node::Empty
 }
 
-pub fn overlay(content: Node) -> OverlayBuilder {
+pub fn overlay<M>(content: Node<M>) -> OverlayBuilder<M> {
     OverlayBuilder {
         content: Box::new(content),
         x: 0,
@@ -186,9 +189,9 @@ pub fn overlay(content: Node) -> OverlayBuilder {
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct OverlayBuilder {
-    content: Box<Node>,
+#[derive(Debug)]
+pub struct OverlayBuilder<M> {
+    content: Box<Node<M>>,
     x: u32,
     y: u32,
     width: u32,
@@ -197,7 +200,7 @@ pub struct OverlayBuilder {
     z_order: u16,
 }
 
-impl OverlayBuilder {
+impl<M> OverlayBuilder<M> {
     pub fn position(mut self, x: u32, y: u32) -> Self {
         self.x = x;
         self.y = y;
@@ -220,7 +223,7 @@ impl OverlayBuilder {
         self
     }
 
-    pub fn build(self) -> Node {
+    pub fn build(self) -> Node<M> {
         Node::Overlay(Box::new(OverlayNode {
             content: self.content,
             x: self.x,
@@ -233,24 +236,32 @@ impl OverlayBuilder {
     }
 }
 
-impl From<OverlayBuilder> for Node {
-    fn from(builder: OverlayBuilder) -> Self {
+impl<M> From<OverlayBuilder<M>> for Node<M> {
+    fn from(builder: OverlayBuilder<M>) -> Self {
         builder.build()
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct ElementBuilder {
+pub struct ElementBuilder<M> {
     kind: ElementKind,
     key: Option<Key>,
     layout: LayoutStyle,
     props: Props,
-    children: Vec<Node>,
+    children: Vec<Node<M>>,
     text_content: Option<String>,
-    action: Option<String>,
+    events: Vec<EventBinding<M>>,
 }
 
-impl ElementBuilder {
+impl<M> fmt::Debug for ElementBuilder<M> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("ElementBuilder")
+            .field("kind", &self.kind)
+            .field("key", &self.key)
+            .finish_non_exhaustive()
+    }
+}
+
+impl<M> ElementBuilder<M> {
     pub fn new(kind: ElementKind) -> Self {
         let props = match kind {
             ElementKind::View => Props::View(ViewProps::default()),
@@ -268,7 +279,7 @@ impl ElementBuilder {
             props,
             children: Vec::new(),
             text_content: None,
-            action: None,
+            events: Vec::new(),
         }
     }
 
@@ -470,13 +481,8 @@ impl ElementBuilder {
         self
     }
 
-    pub fn children(mut self, children: impl IntoChildren) -> Self {
+    pub fn children(mut self, children: impl IntoChildren<M>) -> Self {
         self.children = children.into_children();
-        self
-    }
-
-    pub fn on_action(mut self, action: impl Into<String>) -> Self {
-        self.action = Some(action.into());
         self
     }
 
@@ -508,7 +514,7 @@ impl ElementBuilder {
         self
     }
 
-    pub fn build(self) -> Node {
+    pub fn build(self) -> Node<M> {
         let mut props = self.props;
         if let (Props::Text(tp), Some(content)) = (&mut props, self.text_content) {
             tp.content = content;
@@ -557,35 +563,128 @@ impl ElementBuilder {
             layout,
             props,
             children: self.children,
-            action: self.action,
+            events: self.events,
         }))
     }
 }
 
-impl From<ElementBuilder> for Node {
-    fn from(builder: ElementBuilder) -> Self {
+impl<M: Clone> ElementBuilder<M> {
+    pub fn add_event(mut self, kind: EventKind, msg: M) -> Self {
+        self.events.push(EventBinding { kind, message: msg });
+        self
+    }
+
+    pub fn interactive(mut self) -> Self {
+        if let Props::View(vp) = &mut self.props {
+            vp.interactive = true;
+        }
+        self
+    }
+
+    pub fn hover_bg(mut self, color: Rgba) -> Self {
+        if let Props::View(vp) = &mut self.props {
+            vp.hover_bg = Some(color);
+        }
+        self
+    }
+
+    pub fn hover_fg(mut self, color: Rgba) -> Self {
+        if let Props::View(vp) = &mut self.props {
+            vp.hover_fg = Some(color);
+        }
+        self
+    }
+
+    pub fn map_msg<N: Clone>(self, f: impl Fn(M) -> N + Clone + 'static) -> ElementBuilder<N> {
+        ElementBuilder {
+            kind: self.kind,
+            key: self.key,
+            layout: self.layout,
+            props: self.props,
+            children: self
+                .children
+                .into_iter()
+                .map(|c| c.map_msg(f.clone()))
+                .collect(),
+            text_content: self.text_content,
+            events: self
+                .events
+                .into_iter()
+                .map(|e| EventBinding {
+                    kind: e.kind,
+                    message: (f.clone())(e.message),
+                })
+                .collect(),
+        }
+    }
+}
+
+impl ElementBuilder<()> {
+    fn transition<N: Clone>(self, kind: EventKind, msg: N) -> ElementBuilder<N> {
+        ElementBuilder {
+            kind: self.kind,
+            key: self.key,
+            layout: self.layout,
+            props: self.props,
+            children: self
+                .children
+                .into_iter()
+                .map(|c| c.map_msg(|()| unreachable!("() nodes should not carry events")))
+                .collect(),
+            text_content: self.text_content,
+            events: vec![EventBinding { kind, message: msg }],
+        }
+    }
+
+    pub fn on_action(self, action: impl Into<String>) -> ElementBuilder<String> {
+        self.transition(EventKind::Click, action.into())
+    }
+
+    pub fn on_click<N: Clone>(self, msg: N) -> ElementBuilder<N> {
+        self.transition(EventKind::Click, msg)
+    }
+
+    pub fn on_right_click<N: Clone>(self, msg: N) -> ElementBuilder<N> {
+        self.transition(EventKind::RightClick, msg)
+    }
+
+    pub fn on_hover<N: Clone>(self, msg: N) -> ElementBuilder<N> {
+        self.transition(EventKind::Hover, msg)
+    }
+
+    pub fn on_scroll<N: Clone>(self, msg: N) -> ElementBuilder<N> {
+        self.transition(EventKind::Scroll, msg)
+    }
+
+    pub fn typed<N: Clone>(self, msg: N) -> ElementBuilder<N> {
+        self.transition(EventKind::Click, msg)
+    }
+}
+
+impl<M> From<ElementBuilder<M>> for Node<M> {
+    fn from(builder: ElementBuilder<M>) -> Self {
         builder.build()
     }
 }
 
-pub trait IntoChildren {
-    fn into_children(self) -> Vec<Node>;
+pub trait IntoChildren<M> {
+    fn into_children(self) -> Vec<Node<M>>;
 }
 
-impl IntoChildren for Vec<Node> {
-    fn into_children(self) -> Vec<Node> {
+impl<M> IntoChildren<M> for Vec<Node<M>> {
+    fn into_children(self) -> Self {
         self
     }
 }
 
-impl<const N: usize> IntoChildren for [Node; N] {
-    fn into_children(self) -> Vec<Node> {
-        self.to_vec()
+impl<M: Clone, const N: usize> IntoChildren<M> for [Node<M>; N] {
+    fn into_children(self) -> Vec<Node<M>> {
+        self.into_iter().collect()
     }
 }
 
-impl IntoChildren for Node {
-    fn into_children(self) -> Vec<Node> {
+impl<M> IntoChildren<M> for Node<M> {
+    fn into_children(self) -> Vec<Self> {
         vec![self]
     }
 }

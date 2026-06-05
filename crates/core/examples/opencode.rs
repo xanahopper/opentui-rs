@@ -40,8 +40,14 @@ use opentui_core::prelude::*;
 use opentui_core::view::{overlay, panel, rich_text, separator, span, text, view};
 use opentui_core::widgets::{BorderChars, BorderSides, BorderStyle};
 use opentui_rust::input::{Event, InputParser, KeyCode, KeyModifiers, ParseError};
-use opentui_rust::terminal::{MouseEventKind, enable_raw_mode, terminal_size};
+use opentui_rust::terminal::{enable_raw_mode, terminal_size};
 use opentui_rust::{Renderer, RendererOptions, Rgba, WrapMode};
+
+#[derive(Clone, Debug)]
+enum AppMsg {
+    PaletteSelect(usize),
+    ClickSend,
+}
 
 // ── Colour palette (opencode.json dark theme) ───────────────────────────
 
@@ -194,7 +200,6 @@ struct App {
     palette_selected: usize,
     palette_scroll: usize,
     palette_mouse_mode: bool,
-    hovered_palette: Option<usize>,
     mouse_x: u32,
     mouse_y: u32,
 }
@@ -236,7 +241,6 @@ impl App {
             palette_selected: 0,
             palette_scroll: 0,
             palette_mouse_mode: false,
-            hovered_palette: None,
             mouse_x: 0,
             mouse_y: 0,
         }
@@ -281,6 +285,24 @@ impl App {
         }
         self.palette_open = false;
     }
+
+    fn handle_msg(&mut self, msg: AppMsg, running: &AtomicBool) {
+        match msg {
+            AppMsg::PaletteSelect(display_idx) => {
+                self.palette_mouse_mode = true;
+                let indices = self.filtered_indices();
+                let cmd_indices: Vec<usize> = indices
+                    .iter()
+                    .enumerate()
+                    .filter(|(di, _)| *di >= self.palette_scroll && *di < self.palette_scroll + 10)
+                    .map(|(_, ci)| *ci)
+                    .collect();
+                self.palette_selected = *cmd_indices.get(display_idx).unwrap_or(&0);
+                self.activate_selected_palette(running);
+            }
+            AppMsg::ClickSend => self.send_message(),
+        }
+    }
 }
 
 // ── Read with timeout ───────────────────────────────────────────────────
@@ -311,7 +333,7 @@ fn read_with_timeout(
 
 // ── UI builders ─────────────────────────────────────────────────────────
 
-fn ui_sidebar() -> opentui_core::view::Node {
+fn ui_sidebar() -> opentui_core::view::Node<()> {
     view()
         .column()
         .width(SIDEBAR_WIDTH)
@@ -344,7 +366,7 @@ fn ui_sidebar() -> opentui_core::view::Node {
         .build()
 }
 
-fn ui_palette(app: &App, w: u32, h: u32) -> opentui_core::view::Node {
+fn ui_palette(app: &App, w: u32, h: u32) -> opentui_core::view::Node<AppMsg> {
     let dialog_w = 60_u32.min(w.saturating_sub(4));
     let dialog_h = 14_u32.min(h.saturating_sub(4));
     let x = w.saturating_sub(dialog_w) / 2;
@@ -356,7 +378,7 @@ fn ui_palette(app: &App, w: u32, h: u32) -> opentui_core::view::Node {
     let list_h = dialog_h.saturating_sub(5) as usize;
     let scroll = app.palette_scroll.min(indices.len().saturating_sub(1));
 
-    let palette_items: Vec<opentui_core::view::Node> = indices
+    let palette_items: Vec<opentui_core::view::Node<AppMsg>> = indices
         .iter()
         .enumerate()
         .skip(scroll)
@@ -364,26 +386,22 @@ fn ui_palette(app: &App, w: u32, h: u32) -> opentui_core::view::Node {
         .map(|(display_idx, &cmd_idx)| {
             let cmd = &cmds[cmd_idx];
             let selected = indices.get(app.palette_selected) == Some(&cmd_idx);
-            let hovered = app.hovered_palette == Some(display_idx);
-            let row_bg = if selected || hovered {
-                BG_HOVER
-            } else {
-                BG_PANEL
-            };
             let name_fg = if selected { TEXT_BRIGHT } else { TEXT };
             let cat_fg = TEXT_MUTED;
 
             view()
                 .row()
                 .height(1.0)
-                .bg(row_bg)
-                .on_action(format!("palette:{display_idx}"))
+                .bg(BG_PANEL)
                 .padding_x(1.0)
+                .interactive()
+                .hover_bg(BG_HOVER)
                 .children([
-                    text(cmd.name).fg(name_fg).bg(row_bg).grow(1.0).build(),
-                    text(cmd.category).fg(cat_fg).bg(row_bg).width(12.0).build(),
-                    text(cmd.shortcut).fg(cat_fg).bg(row_bg).width(14.0).build(),
+                    text(cmd.name).fg(name_fg).grow(1.0).build(),
+                    text(cmd.category).fg(cat_fg).width(12.0).build(),
+                    text(cmd.shortcut).fg(cat_fg).width(14.0).build(),
                 ])
+                .on_click(AppMsg::PaletteSelect(display_idx))
                 .build()
         })
         .collect();
@@ -399,25 +417,34 @@ fn ui_palette(app: &App, w: u32, h: u32) -> opentui_core::view::Node {
         TEXT
     };
 
+    let to_msg = |n: opentui_core::view::Node<()>| n.map_msg(|()| AppMsg::ClickSend);
+
     overlay(
         panel()
             .column()
             .padding(0.5, 0.5, 0.5, 0.5)
             .bg(BG_PANEL)
             .border_rounded(BORDER)
+            .on_click(AppMsg::ClickSend)
             .children([
+                to_msg(
+                    view()
+                        .row()
+                        .height(1.0)
+                        .padding_x(0.5)
+                        .bg(BG_ELEMENT)
+                        .children([
+                            text("> ").fg(PRIMARY).build(),
+                            text(filter_text).fg(filter_fg).grow(1.0).build(),
+                        ])
+                        .build(),
+                ),
+                to_msg(separator().fg(BORDER_SUBTLE).height(1.0).build()),
                 view()
-                    .row()
-                    .height(1.0)
-                    .padding_x(0.5)
-                    .bg(BG_ELEMENT)
-                    .children([
-                        text("> ").fg(PRIMARY).build(),
-                        text(filter_text).fg(filter_fg).grow(1.0).build(),
-                    ])
+                    .column()
+                    .on_click(AppMsg::ClickSend)
+                    .children(palette_items)
                     .build(),
-                separator().fg(BORDER_SUBTLE).height(1.0).build(),
-                view().column().children(palette_items).build(),
             ])
             .build(),
     )
@@ -427,7 +454,7 @@ fn ui_palette(app: &App, w: u32, h: u32) -> opentui_core::view::Node {
     .build()
 }
 
-fn ui_prompt(app: &App) -> opentui_core::view::Node {
+fn ui_prompt(app: &App) -> opentui_core::view::Node<()> {
     let accent = if app.mode == Mode::Plan {
         WARNING
     } else {
@@ -557,8 +584,8 @@ fn ui_prompt(app: &App) -> opentui_core::view::Node {
         .build()
 }
 
-fn ui_messages(app: &App) -> opentui_core::view::Node {
-    let mut nodes: Vec<opentui_core::view::Node> = Vec::new();
+fn ui_messages(app: &App) -> opentui_core::view::Node<()> {
+    let mut nodes: Vec<opentui_core::view::Node<()>> = Vec::new();
 
     for msg in &app.messages {
         let (label, label_fg) = if msg.role == "user" {
@@ -588,7 +615,7 @@ fn ui_messages(app: &App) -> opentui_core::view::Node {
         .build()
 }
 
-fn ui_footer() -> opentui_core::view::Node {
+fn ui_footer() -> opentui_core::view::Node<()> {
     view()
         .row()
         .height(1.0)
@@ -604,7 +631,9 @@ fn ui_footer() -> opentui_core::view::Node {
         .build()
 }
 
-fn ui(app: &App, w: u32, h: u32) -> opentui_core::view::Node {
+fn ui(app: &App, w: u32, h: u32) -> opentui_core::view::Node<AppMsg> {
+    let to_msg = |n: opentui_core::view::Node<()>| n.map_msg(|()| AppMsg::ClickSend);
+
     let main_area = view()
         .column()
         .grow(1.0)
@@ -613,22 +642,24 @@ fn ui(app: &App, w: u32, h: u32) -> opentui_core::view::Node {
         .bg(BG)
         .children([ui_messages(app), ui_prompt(app)])
         .build();
+    let main_area = to_msg(main_area);
 
-    let mut row_children: Vec<opentui_core::view::Node> = vec![main_area];
+    let mut row_children: Vec<opentui_core::view::Node<AppMsg>> = vec![main_area];
 
     if app.sidebar_visible {
-        row_children.push(ui_sidebar());
+        row_children.push(ui_sidebar().map_msg(|()| AppMsg::ClickSend));
     }
 
-    let mut root_children: Vec<opentui_core::view::Node> = vec![
+    let mut root_children: Vec<opentui_core::view::Node<AppMsg>> = vec![
         view()
             .row()
             .grow(1.0)
             .bg(BG)
             .overflow_hidden()
+            .on_click(AppMsg::ClickSend)
             .children(row_children)
             .build(),
-        ui_footer(),
+        to_msg(ui_footer()),
     ];
 
     if app.palette_open {
@@ -640,34 +671,9 @@ fn ui(app: &App, w: u32, h: u32) -> opentui_core::view::Node {
         .size(w as f32, h as f32)
         .bg(BG)
         .overflow_hidden()
+        .on_click(AppMsg::ClickSend)
         .children(root_children)
         .build()
-}
-
-// ── Hover + action ──────────────────────────────────────────────────────
-
-fn parse_palette_select(action: &str) -> Option<usize> {
-    action.strip_prefix("palette:")?.parse().ok()
-}
-
-fn detect_palette_hover(app: &mut App, runtime: &ViewRuntime) {
-    app.hovered_palette = None;
-
-    if !app.palette_open {
-        return;
-    }
-
-    let Some(hit_id) = runtime.hit_grid().test(app.mouse_x, app.mouse_y) else {
-        return;
-    };
-
-    let Some(action) = runtime.action_for_widget(hit_id as u64) else {
-        return;
-    };
-
-    if let Some(idx) = parse_palette_select(action) {
-        app.hovered_palette = Some(idx);
-    }
 }
 
 // ── Keyboard handler ────────────────────────────────────────────────────
@@ -795,7 +801,7 @@ fn run() -> io::Result<()> {
     let stdin = io::stdin();
     let mut read_buf = [0u8; 256];
     let mut pending: Vec<u8> = Vec::new();
-    let mut runtime = ViewRuntime::new();
+    let mut runtime: ViewRuntime<AppMsg> = ViewRuntime::new();
 
     while running.load(Ordering::SeqCst) {
         {
@@ -809,15 +815,10 @@ fn run() -> io::Result<()> {
                 link_pool: None,
                 hit_grid: None,
                 theme: None,
+                hovered_id: None,
             };
 
             runtime.render_to_buffer(&mut ctx, &node, w as f32, h as f32);
-
-            // Detect hover state for next frame
-            drop(app_ref);
-            let mut app_mut = app.borrow_mut();
-            detect_palette_hover(&mut app_mut, &runtime);
-            drop(app_mut);
         }
 
         renderer.present()?;
@@ -846,28 +847,9 @@ fn run() -> io::Result<()> {
                             app_mut.mouse_x = mouse.x;
                             app_mut.mouse_y = mouse.y;
 
-                            if mouse.kind == MouseEventKind::Press {
-                                let dispatch = runtime.dispatch_mouse(&mouse);
-                                if let Some(action) = dispatch.action {
-                                    if let Some(idx) = parse_palette_select(&action) {
-                                        app_mut.palette_mouse_mode = true;
-                                        let indices = app_mut.filtered_indices();
-                                        let cmd_indices: Vec<usize> = indices
-                                            .iter()
-                                            .enumerate()
-                                            .filter(|(di, _)| {
-                                                *di >= app_mut.palette_scroll
-                                                    && *di < app_mut.palette_scroll + 10
-                                            })
-                                            .map(|(_, ci)| *ci)
-                                            .collect();
-                                        app_mut.palette_selected =
-                                            *cmd_indices.get(idx).unwrap_or(&0);
-                                        app_mut.activate_selected_palette(&running);
-                                    } else if action == "click:send" {
-                                        app_mut.send_message();
-                                    }
-                                }
+                            let dispatch = runtime.process_mouse_event(&mouse);
+                            for msg in dispatch.messages {
+                                app_mut.handle_msg(msg, &running);
                             }
                         }
                         Ok((Event::Resize(resize), used)) => {

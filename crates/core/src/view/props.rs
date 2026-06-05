@@ -35,6 +35,9 @@ pub struct ViewProps {
     pub opacity: f32,
     pub focusable: bool,
     pub visible: bool,
+    pub interactive: bool,
+    pub hover_bg: Option<Rgba>,
+    pub hover_fg: Option<Rgba>,
 }
 
 impl Default for ViewProps {
@@ -48,6 +51,9 @@ impl Default for ViewProps {
             opacity: 1.0,
             focusable: false,
             visible: true,
+            interactive: false,
+            hover_bg: None,
+            hover_fg: None,
         }
     }
 }

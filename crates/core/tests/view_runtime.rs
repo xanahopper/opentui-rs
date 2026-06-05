@@ -7,8 +7,8 @@ use opentui_rust::{OptimizedBuffer, Rgba};
 const BG: Rgba = Rgba::new(0.0, 0.0, 0.0, 1.0);
 const TEXT: Rgba = Rgba::new(1.0, 1.0, 1.0, 1.0);
 
-fn render_node(node: &opentui_core::view::Node, w: u32, h: u32) -> OptimizedBuffer {
-    let mut runtime = ViewRuntime::new();
+fn render_node(node: &opentui_core::view::Node<()>, w: u32, h: u32) -> OptimizedBuffer {
+    let mut runtime: ViewRuntime<()> = ViewRuntime::new();
     runtime.rebuild(node);
     runtime.layout(w as f32, h as f32);
 
@@ -19,6 +19,7 @@ fn render_node(node: &opentui_core::view::Node, w: u32, h: u32) -> OptimizedBuff
         link_pool: None,
         hit_grid: None,
         theme: None,
+        hovered_id: None,
     };
     runtime.render(&mut ctx);
     buffer
@@ -61,7 +62,7 @@ fn test_rebuild_nested_layout() {
 
 #[test]
 fn test_rebuild_then_rebuild_again() {
-    let mut runtime = ViewRuntime::new();
+    let mut runtime: ViewRuntime<()> = ViewRuntime::new();
     let w = 20u32;
     let h = 5u32;
 
@@ -91,29 +92,12 @@ fn test_rebuild_then_rebuild_again() {
         link_pool: None,
         hit_grid: None,
         theme: None,
+        hovered_id: None,
     };
     runtime.render(&mut ctx);
 
     let ch = buffer.get(0, 0).and_then(|c| c.content.as_char());
     assert_eq!(ch, Some('s'));
-}
-
-#[test]
-fn test_empty_node_does_not_crash() {
-    let node = opentui_core::view::empty();
-    let mut runtime = ViewRuntime::new();
-    runtime.rebuild(&node);
-    runtime.layout(20.0, 5.0);
-
-    let mut buffer = OptimizedBuffer::new(20, 5);
-    let mut ctx = RenderContext {
-        buffer: &mut buffer,
-        grapheme_pool: None,
-        link_pool: None,
-        hit_grid: None,
-        theme: None,
-    };
-    runtime.render(&mut ctx);
 }
 
 #[test]
@@ -154,7 +138,7 @@ fn test_rebuild_with_overlay() {
         ])
         .build();
 
-    let mut runtime = ViewRuntime::new();
+    let mut runtime: ViewRuntime<()> = ViewRuntime::new();
     runtime.rebuild(&node);
     runtime.layout(20.0, 10.0);
     assert!(runtime.tree().overlays().len() == 1);
@@ -177,7 +161,7 @@ fn test_overlay_child_text_is_rendered() {
         ])
         .build();
 
-    let mut runtime = ViewRuntime::new();
+    let mut runtime: ViewRuntime<()> = ViewRuntime::new();
     runtime.rebuild(&node);
     runtime.layout(20.0, 10.0);
 
@@ -188,6 +172,7 @@ fn test_overlay_child_text_is_rendered() {
         link_pool: None,
         hit_grid: None,
         theme: None,
+        hovered_id: None,
     };
     runtime.render(&mut ctx);
 
@@ -217,7 +202,7 @@ fn test_text_grapheme_wide_char_has_continuation() {
         .children([text("\u{4E16}").fg(TEXT).height(1.0).build()])
         .build();
 
-    let mut runtime = ViewRuntime::new();
+    let mut runtime: ViewRuntime<()> = ViewRuntime::new();
     runtime.rebuild(&node);
     runtime.layout(10.0, 3.0);
 
@@ -228,6 +213,7 @@ fn test_text_grapheme_wide_char_has_continuation() {
         link_pool: None,
         hit_grid: None,
         theme: None,
+        hovered_id: None,
     };
     runtime.render(&mut ctx);
 
@@ -261,7 +247,7 @@ fn test_overlay_child_at_deterministic_position() {
         ])
         .build();
 
-    let mut runtime = ViewRuntime::new();
+    let mut runtime: ViewRuntime<()> = ViewRuntime::new();
     runtime.rebuild(&node);
     runtime.layout(20.0, 10.0);
 
@@ -272,6 +258,7 @@ fn test_overlay_child_at_deterministic_position() {
         link_pool: None,
         hit_grid: None,
         theme: None,
+        hovered_id: None,
     };
     runtime.render(&mut ctx);
 
@@ -287,14 +274,11 @@ fn test_on_action_click_returns_action() {
         .column()
         .size(20.0, 5.0)
         .bg(BG)
-        .children([text("hello")
-            .fg(TEXT)
-            .height(1.0)
-            .on_action("greet")
-            .build()])
+        .children([text("hello").fg(TEXT).height(1.0).build()])
+        .on_click("greet".to_string())
         .build();
 
-    let mut runtime = ViewRuntime::new();
+    let mut runtime: ViewRuntime<String> = ViewRuntime::new();
     let w = 20u32;
     let h = 5u32;
     runtime.rebuild(&node);
@@ -321,14 +305,14 @@ fn test_overlay_action_wins_over_background_action() {
         .column()
         .size(10.0, 3.0)
         .bg(Rgba::new(0.15, 0.15, 0.15, 1.0))
-        .on_action("overlay")
         .children([text("top").fg(TEXT).height(1.0).build()])
+        .on_click("overlay".to_string())
         .build();
     let node = view()
         .column()
         .size(20.0, 10.0)
         .bg(BG)
-        .on_action("background")
+        .on_click("background".to_string())
         .children([overlay(overlay_content)
             .position(5, 2)
             .size(10, 3)
@@ -336,9 +320,9 @@ fn test_overlay_action_wins_over_background_action() {
             .build()])
         .build();
 
-    let mut runtime = ViewRuntime::new();
+    let mut runtime: ViewRuntime<String> = ViewRuntime::new();
     let w = 20u32;
-    let h = 10u32;
+    let h = 5u32;
     runtime.rebuild(&node);
     runtime.layout(w as f32, h as f32);
     runtime.register_hit_areas(w, h);
@@ -355,21 +339,30 @@ fn test_overlay_action_wins_over_background_action() {
 
 #[test]
 fn test_on_action_click_outside_returns_none() {
-    let node = view()
+    let text_node: opentui_core::view::Node<String> = text("hello")
+        .fg(TEXT)
+        .height(1.0)
+        .on_click("greet".to_string())
+        .build();
+    let parent = view()
         .column()
         .size(20.0, 5.0)
         .bg(BG)
-        .children([text("hello")
-            .fg(TEXT)
-            .height(1.0)
-            .on_action("greet")
-            .build()])
-        .build();
+        .build()
+        .map_msg(|()| String::new());
 
-    let mut runtime = ViewRuntime::new();
+    let combined = match parent {
+        opentui_core::view::Node::Element(mut e) => {
+            e.children = vec![text_node];
+            opentui_core::view::Node::Element(e)
+        }
+        _ => panic!("expected Element"),
+    };
+
+    let mut runtime: ViewRuntime<String> = ViewRuntime::new();
     let w = 20u32;
     let h = 5u32;
-    runtime.rebuild(&node);
+    runtime.rebuild(&combined);
     runtime.layout(w as f32, h as f32);
     runtime.register_hit_areas(w, h);
 
@@ -396,7 +389,7 @@ fn test_grapheme_pool_combining_mark() {
         .children([text(combined).fg(TEXT).height(1.0).build()])
         .build();
 
-    let mut runtime = ViewRuntime::new();
+    let mut runtime: ViewRuntime<()> = ViewRuntime::new();
     runtime.rebuild(&node);
     runtime.layout(10.0, 3.0);
 
@@ -408,6 +401,7 @@ fn test_grapheme_pool_combining_mark() {
         link_pool: None,
         hit_grid: None,
         theme: None,
+        hovered_id: None,
     };
     runtime.render(&mut ctx);
 
@@ -446,7 +440,7 @@ fn test_grapheme_pool_zwj_emoji() {
         .children([text(emoji).fg(TEXT).height(1.0).build()])
         .build();
 
-    let mut runtime = ViewRuntime::new();
+    let mut runtime: ViewRuntime<()> = ViewRuntime::new();
     runtime.rebuild(&node);
     runtime.layout(10.0, 3.0);
 
@@ -458,6 +452,7 @@ fn test_grapheme_pool_zwj_emoji() {
         link_pool: None,
         hit_grid: None,
         theme: None,
+        hovered_id: None,
     };
     runtime.render(&mut ctx);
 

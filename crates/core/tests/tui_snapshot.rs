@@ -461,6 +461,7 @@ fn test_render_snapshot_no_sidebar() {
             link_pool: None,
             hit_grid: None,
             theme: None,
+            hovered_id: None,
         };
         tree.render(&mut ctx);
     }
@@ -521,6 +522,7 @@ fn test_render_snapshot_with_sidebar() {
             link_pool: None,
             hit_grid: None,
             theme: None,
+            hovered_id: None,
         };
         tree.render(&mut ctx);
     }

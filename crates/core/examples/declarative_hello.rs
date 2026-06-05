@@ -31,7 +31,7 @@ struct AppState {
     quit: bool,
 }
 
-fn ui(state: &AppState) -> Node {
+fn ui(state: &AppState) -> Node<()> {
     view()
         .column()
         .size_pct(1.0, 1.0)
@@ -98,7 +98,7 @@ fn main() -> io::Result<()> {
     let mut renderer = Renderer::new(w, h)?;
     let _raw_guard = enable_raw_mode()?;
     let mut input_parser = InputParser::new();
-    let mut runtime = ViewRuntime::new();
+    let mut runtime: ViewRuntime<()> = ViewRuntime::new();
 
     let mut state = AppState {
         counter: 0,
@@ -123,6 +123,7 @@ fn main() -> io::Result<()> {
                 link_pool: None,
                 hit_grid: None,
                 theme: None,
+                hovered_id: None,
             };
             runtime.render(&mut ctx);
         }

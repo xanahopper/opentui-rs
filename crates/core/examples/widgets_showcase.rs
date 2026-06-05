@@ -247,6 +247,7 @@ fn main() -> io::Result<()> {
                 link_pool: None,
                 hit_grid: None,
                 theme: Some(&theme),
+                hovered_id: None,
             };
             tree.render(&mut ctx);
         }

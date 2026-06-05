@@ -819,6 +819,7 @@ fn main() -> io::Result<()> {
                 link_pool: None,
                 hit_grid: None,
                 theme: None,
+                hovered_id: None,
             };
             tree.render(&mut ctx);
 
