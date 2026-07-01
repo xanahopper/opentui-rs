@@ -14,7 +14,7 @@ use std::cell::RefCell;
 use std::fmt::Write;
 use std::rc::Rc;
 
-use opentui_rust::{Cell, OptimizedBuffer, Rgba, Style};
+use opentui_core::{Cell, OptimizedBuffer, Rgba, Style};
 
 use opentui_core::layout::{ComputedLayout, LayoutStyle};
 use opentui_core::widget::{Overflow, RenderContext, Widget, WidgetId, WidgetTree};
@@ -104,10 +104,10 @@ macro_rules! impl_widget_boilerplate {
                 false
             }
             fn set_focused(&mut self, _focused: bool) {}
-            fn handle_key(&mut self, _key: &opentui_rust::KeyEvent) -> bool {
+            fn handle_key(&mut self, _key: &opentui_core::KeyEvent) -> bool {
                 false
             }
-            fn handle_mouse(&mut self, _mouse: &opentui_rust::MouseEvent) -> bool {
+            fn handle_mouse(&mut self, _mouse: &opentui_core::MouseEvent) -> bool {
                 false
             }
             fn as_any(&self) -> &dyn std::any::Any {
@@ -213,10 +213,10 @@ impl Widget for MessageAreaWidget {
         false
     }
     fn set_focused(&mut self, _focused: bool) {}
-    fn handle_key(&mut self, _key: &opentui_rust::KeyEvent) -> bool {
+    fn handle_key(&mut self, _key: &opentui_core::KeyEvent) -> bool {
         false
     }
-    fn handle_mouse(&mut self, _mouse: &opentui_rust::MouseEvent) -> bool {
+    fn handle_mouse(&mut self, _mouse: &opentui_core::MouseEvent) -> bool {
         false
     }
     fn as_any(&self) -> &dyn std::any::Any {
@@ -275,10 +275,10 @@ impl Widget for PromptWidget {
         false
     }
     fn set_focused(&mut self, _focused: bool) {}
-    fn handle_key(&mut self, _key: &opentui_rust::KeyEvent) -> bool {
+    fn handle_key(&mut self, _key: &opentui_core::KeyEvent) -> bool {
         false
     }
-    fn handle_mouse(&mut self, _mouse: &opentui_rust::MouseEvent) -> bool {
+    fn handle_mouse(&mut self, _mouse: &opentui_core::MouseEvent) -> bool {
         false
     }
     fn as_any(&self) -> &dyn std::any::Any {

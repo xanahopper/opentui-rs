@@ -317,7 +317,7 @@ mod tests {
 
     #[test]
     fn test_dispatch_key_tab() {
-        use opentui_rust::{KeyCode, KeyEvent, KeyModifiers};
+        use opentui_core::{KeyCode, KeyEvent, KeyModifiers};
 
         let mut tree = WidgetTree::new();
         let root = tree.add(StubWidget::new(1));
@@ -336,7 +336,7 @@ mod tests {
 
     #[test]
     fn test_dispatch_key_shift_tab() {
-        use opentui_rust::{KeyCode, KeyEvent, KeyModifiers};
+        use opentui_core::{KeyCode, KeyEvent, KeyModifiers};
 
         let mut tree = WidgetTree::new();
         let root = tree.add(StubWidget::new(1));

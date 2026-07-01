@@ -46,9 +46,9 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use opentui_core::prelude::*;
-use opentui_rust::input::{Event, InputParser, KeyCode, KeyModifiers, MouseEventKind, ParseError};
-use opentui_rust::terminal::{enable_raw_mode, terminal_size};
-use opentui_rust::{Cell, OptimizedBuffer, Renderer, RendererOptions, Rgba, Style};
+use opentui_core::input::{Event, InputParser, KeyCode, KeyModifiers, MouseEventKind, ParseError};
+use opentui_core::terminal::{enable_raw_mode, terminal_size};
+use opentui_core::{Cell, OptimizedBuffer, Renderer, RendererOptions, Rgba, Style};
 
 use opentui_core::widgets::{
     BorderChars, BorderSides, BoxWidget, FillWidget, SeparatorWidget, StyledSegment,

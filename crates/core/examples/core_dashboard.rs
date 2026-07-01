@@ -23,9 +23,9 @@
 use std::io::{self, Read};
 use std::time::Duration;
 
-use opentui_rust::input::{Event, InputParser, KeyCode};
-use opentui_rust::terminal::{enable_raw_mode, terminal_size};
-use opentui_rust::{Renderer, Rgba};
+use opentui_core::input::{Event, InputParser, KeyCode};
+use opentui_core::terminal::{enable_raw_mode, terminal_size};
+use opentui_core::{Renderer, Rgba};
 
 use opentui_core::layout::LayoutStyle;
 use opentui_core::theme::UiTheme;

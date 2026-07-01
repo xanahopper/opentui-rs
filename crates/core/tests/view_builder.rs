@@ -44,8 +44,8 @@ fn test_text_stores_content() {
 #[test]
 fn test_text_fg_bg_bold() {
     let node = text("x")
-        .fg(opentui_rust::Rgba::new(1.0, 0.0, 0.0, 1.0))
-        .bg(opentui_rust::Rgba::new(0.0, 0.0, 1.0, 1.0))
+        .fg(opentui_core::Rgba::new(1.0, 0.0, 0.0, 1.0))
+        .bg(opentui_core::Rgba::new(0.0, 0.0, 1.0, 1.0))
         .bold()
         .italic()
         .underline()
@@ -130,7 +130,7 @@ fn test_children_with_array() {
 #[test]
 fn test_view_bg_opacity_focusable() {
     let node = view()
-        .bg(opentui_rust::Rgba::new(0.1, 0.1, 0.1, 1.0))
+        .bg(opentui_core::Rgba::new(0.1, 0.1, 0.1, 1.0))
         .opacity(0.5)
         .focusable()
         .build();
@@ -167,8 +167,8 @@ fn test_panel_title() {
 
 #[test]
 fn test_rich_text_with_segments() {
-    let seg1 = span("Hello ", opentui_rust::Rgba::WHITE);
-    let seg2 = span("World", opentui_rust::Rgba::new(1.0, 0.0, 0.0, 1.0)).bold();
+    let seg1 = span("Hello ", opentui_core::Rgba::WHITE);
+    let seg2 = span("World", opentui_core::Rgba::new(1.0, 0.0, 0.0, 1.0)).bold();
     let node = rich_text(vec![seg1, seg2]).build();
     let elem = unwrap_element(&node);
     assert_eq!(elem.kind, ElementKind::StyledText);

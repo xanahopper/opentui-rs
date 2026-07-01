@@ -44,9 +44,9 @@
 use std::io::{self, Read};
 use std::time::Duration;
 
-use opentui_rust::input::{Event, InputParser, KeyCode, KeyModifiers, MouseEventKind, ParseError};
-use opentui_rust::terminal::{enable_raw_mode, terminal_size};
-use opentui_rust::{Cell, OptimizedBuffer, Renderer, RendererOptions, Rgba, Style};
+use opentui_core::input::{Event, InputParser, KeyCode, KeyModifiers, MouseEventKind, ParseError};
+use opentui_core::terminal::{enable_raw_mode, terminal_size};
+use opentui_core::{Cell, OptimizedBuffer, Renderer, RendererOptions, Rgba, Style};
 
 const SIDEBAR_WIDTH: u32 = 42;
 

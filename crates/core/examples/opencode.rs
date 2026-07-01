@@ -36,9 +36,9 @@ use std::time::Duration;
 
 use opentui_core::prelude::*;
 use opentui_core::view::{overlay, panel, rich_text, separator, span, text, view};
-use opentui_rust::input::{Event, InputParser, KeyCode, KeyModifiers, ParseError};
-use opentui_rust::terminal::{MouseEventKind, enable_raw_mode, terminal_size};
-use opentui_rust::{Renderer, RendererOptions, Rgba};
+use opentui_core::input::{Event, InputParser, KeyCode, KeyModifiers, ParseError};
+use opentui_core::terminal::{MouseEventKind, enable_raw_mode, terminal_size};
+use opentui_core::{Renderer, RendererOptions, Rgba};
 
 // ── Colour palette ──────────────────────────────────────────────────────
 

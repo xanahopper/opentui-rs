@@ -1,24 +1,77 @@
 [package]
 name = "opentui-core"
-version = "0.1.0"
-description = "Higher-level UI abstractions for opentui: layout, widgets, scrollable views"
+version = "0.2.1"
+description = "High-performance terminal UI rendering engine with alpha blending and diffed buffers"
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
 homepage.workspace = true
-keywords = ["tui", "terminal", "ui", "layout", "widgets"]
-categories = ["command-line-interface", "gui"]
+readme = "../../README.md"
+keywords = ["tui", "terminal", "ui", "cli"]
+categories = ["command-line-interface", "rendering"]
+exclude = [
+    "*.png",
+    "*.webp",
+]
 
 [features]
 default = []
+pty-tests = []
 
 [dependencies]
-opentui_rust.workspace = true
+bitflags = "2.12"
+libc = "0.2.186"
+ropey = "1.6"
 taffy.workspace = true
+unicode-bidi = "0.3.18"
+unicode-normalization = "0.1.25"
+unicode-segmentation = "1.13"
+unicode-width = "0.2"
 
 [dev-dependencies]
-libc = "0.2"
+criterion = { version = "0.8", features = ["html_reports"] }
+insta = { version = "1.47", features = ["json"] }
+portable-pty = "0.8"
+proptest = "1.11"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tempfile = "3"
+tracing = "0.1.44"
+tracing-subscriber = "0.3.23"
+vt100 = "0.15"
+
+[[bench]]
+name = "buffer"
+harness = false
+
+[[bench]]
+name = "color"
+harness = false
+
+[[bench]]
+name = "text"
+harness = false
+
+[[bench]]
+name = "renderer"
+harness = false
+
+[[bench]]
+name = "unicode"
+harness = false
+
+[[bench]]
+name = "highlight"
+harness = false
+
+[[bench]]
+name = "workloads"
+harness = false
+
+[[bench]]
+name = "input"
+harness = false
 
 [lints]
 workspace = true

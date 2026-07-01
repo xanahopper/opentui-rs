@@ -13,7 +13,8 @@ libfuzzer-sys = "0.4"
 arbitrary = { version = "1", features = ["derive"] }
 
 [dependencies.opentui]
-path = ".."
+path = "../crates/core"
+package = "opentui-core"
 
 # Fuzz targets - each corresponds to a file in fuzz_targets/
 [[bin]]

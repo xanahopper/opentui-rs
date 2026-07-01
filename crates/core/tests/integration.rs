@@ -3,7 +3,7 @@
 #![allow(clippy::float_cmp)]
 #![allow(clippy::missing_const_for_fn)]
 
-use opentui_rust::{OptimizedBuffer, Rgba};
+use opentui_core::{OptimizedBuffer, Rgba};
 
 use opentui_core::layout::LayoutStyle;
 use opentui_core::theme::UiTheme;
@@ -304,7 +304,7 @@ fn test_focus_cycle_with_render() {
 #[test]
 fn test_keybinding_in_render_loop() {
     use opentui_core::keybinding::KeyBindingRegistry;
-    use opentui_rust::input::{KeyCode, KeyEvent, KeyModifiers};
+    use opentui_core::input::{KeyCode, KeyEvent, KeyModifiers};
 
     let mut reg = KeyBindingRegistry::new();
     reg.bind(KeyModifiers::empty(), KeyCode::Char('q'), "quit");

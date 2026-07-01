@@ -1,166 +1,90 @@
-//! Higher-level event dispatch, focus management, and hit testing.
-//!
-//! This module provides an abstraction over raw `opentui_rust::Event` that
-//! handles focus tracking, keyboard dispatch to the focused widget, and
-//! mouse hit testing via the `HitGrid`.
+//! Event and log callback system.
 
-use opentui_rust as ot;
-use opentui_rust::renderer::HitGrid;
+use std::sync::{Mutex, OnceLock};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct FocusId(u64);
-
-impl FocusId {
-    pub fn new(id: u64) -> Self {
-        Self(id)
-    }
-
-    pub fn raw(&self) -> u64 {
-        self.0
-    }
+/// Log level for debug callbacks.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum LogLevel {
+    Debug,
+    Info,
+    Warn,
+    Error,
 }
 
-#[derive(Debug, Clone)]
-pub enum FocusEvent {
-    Gained(FocusId),
-    Lost(FocusId),
+type EventCallback = Box<dyn Fn(&str, &str) + Send + Sync + 'static>;
+type LogCallback = Box<dyn Fn(LogLevel, &str) + Send + Sync + 'static>;
+
+fn event_callback() -> &'static Mutex<Option<EventCallback>> {
+    static CALLBACK: OnceLock<Mutex<Option<EventCallback>>> = OnceLock::new();
+    CALLBACK.get_or_init(|| Mutex::new(None))
 }
 
-#[derive(Debug)]
-pub enum DispatchResult {
-    Consumed,
-    Ignored,
+fn log_callback() -> &'static Mutex<Option<LogCallback>> {
+    static CALLBACK: OnceLock<Mutex<Option<LogCallback>>> = OnceLock::new();
+    CALLBACK.get_or_init(|| Mutex::new(None))
 }
 
-pub struct FocusManager {
-    focused: Option<FocusId>,
-    focusable: Vec<FocusId>,
-    focus_index: Option<usize>,
+/// Set the global event callback.
+pub fn set_event_callback<F>(callback: F)
+where
+    F: Fn(&str, &str) + Send + Sync + 'static,
+{
+    let mut guard = event_callback().lock().expect("event callback lock");
+    *guard = Some(Box::new(callback));
 }
 
-impl FocusManager {
-    pub fn new() -> Self {
-        Self {
-            focused: None,
-            focusable: Vec::new(),
-            focus_index: None,
-        }
-    }
-
-    pub fn register(&mut self, id: FocusId) {
-        if !self.focusable.contains(&id) {
-            self.focusable.push(id);
-        }
-    }
-
-    pub fn unregister(&mut self, id: FocusId) {
-        self.focusable.retain(|f| *f != id);
-        if self.focused == Some(id) {
-            self.focused = None;
-            self.focus_index = None;
-        }
-    }
-
-    pub fn focus(&mut self, id: FocusId) -> Option<FocusEvent> {
-        let prev = self.focused.replace(id);
-        self.focus_index = self.focusable.iter().position(|f| *f == id);
-
-        match prev {
-            Some(old) if old != id => Some(FocusEvent::Lost(old)),
-            _ => None,
-        }
-    }
-
-    pub fn blur(&mut self) -> Option<FocusEvent> {
-        self.focused.take().map(FocusEvent::Lost)
-    }
-
-    pub fn focused(&self) -> Option<FocusId> {
-        self.focused
-    }
-
-    pub fn focus_next(&mut self) -> Option<FocusId> {
-        if self.focusable.is_empty() {
-            return None;
-        }
-        let next = match self.focus_index {
-            Some(i) => (i + 1) % self.focusable.len(),
-            None => 0,
-        };
-        let id = self.focusable[next];
-        self.focus(id);
-        Some(id)
-    }
-
-    pub fn focus_prev(&mut self) -> Option<FocusId> {
-        if self.focusable.is_empty() {
-            return None;
-        }
-        let prev = match self.focus_index {
-            Some(0) => self.focusable.len() - 1,
-            Some(i) => i - 1,
-            None => 0,
-        };
-        let id = self.focusable[prev];
-        self.focus(id);
-        Some(id)
-    }
-
-    pub fn hit_test(&self, hit_grid: &HitGrid, x: u32, y: u32) -> Option<u32> {
-        hit_grid.test(x, y)
-    }
-}
-
-impl Default for FocusManager {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-pub struct EventDispatcher {
-    pub focus: FocusManager,
-}
-
-impl EventDispatcher {
-    pub fn new() -> Self {
-        Self {
-            focus: FocusManager::new(),
-        }
-    }
-
-    pub fn dispatch_mouse(
-        &mut self,
-        event: &ot::MouseEvent,
-        hit_grid: &HitGrid,
-    ) -> MouseDispatchResult {
-        MouseDispatchResult {
-            hit_id: self.focus.hit_test(hit_grid, event.x, event.y),
-            consumed: true,
-        }
-    }
-
-    pub fn dispatch_key(&mut self, _event: &ot::KeyEvent) -> KeyDispatchResult {
-        KeyDispatchResult {
-            target: self.focus.focused(),
-            consumed: self.focus.focused.is_some(),
+/// Emit an event to the registered callback.
+pub fn emit_event(name: &str, data: &str) {
+    if let Ok(guard) = event_callback().lock() {
+        if let Some(callback) = guard.as_ref() {
+            callback(name, data);
         }
     }
 }
 
-impl Default for EventDispatcher {
-    fn default() -> Self {
-        Self::new()
+/// Set the global log callback.
+pub fn set_log_callback<F>(callback: F)
+where
+    F: Fn(LogLevel, &str) + Send + Sync + 'static,
+{
+    let mut guard = log_callback().lock().expect("log callback lock");
+    *guard = Some(Box::new(callback));
+}
+
+/// Emit a log event.
+pub fn emit_log(level: LogLevel, message: &str) {
+    if let Ok(guard) = log_callback().lock() {
+        if let Some(callback) = guard.as_ref() {
+            callback(level, message);
+        }
     }
 }
 
-#[derive(Debug)]
-pub struct MouseDispatchResult {
-    pub hit_id: Option<u32>,
-    pub consumed: bool,
-}
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-#[derive(Debug)]
-pub struct KeyDispatchResult {
-    pub target: Option<FocusId>,
-    pub consumed: bool,
+    #[test]
+    fn test_event_callback() {
+        use std::sync::Arc;
+        use std::sync::atomic::{AtomicBool, Ordering};
+
+        let called = Arc::new(AtomicBool::new(false));
+        let called_clone = Arc::clone(&called);
+        set_event_callback(move |name, _data| {
+            assert_eq!(name, "test");
+            called_clone.store(true, Ordering::SeqCst);
+        });
+        emit_event("test", "{}");
+        assert!(called.load(Ordering::SeqCst));
+    }
+
+    #[test]
+    fn test_log_callback() {
+        set_log_callback(|level, msg| {
+            assert_eq!(level, LogLevel::Info);
+            assert_eq!(msg, "hello");
+        });
+        emit_log(LogLevel::Info, "hello");
+    }
 }

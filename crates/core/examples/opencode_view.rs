@@ -38,9 +38,9 @@ use opentui_core::prelude::*;
 use opentui_core::view::{
     ViewRuntime, fill, overlay, panel, rich_text, separator, span, text, view,
 };
-use opentui_rust::input::{Event, InputParser, KeyCode, KeyModifiers, MouseEventKind, ParseError};
-use opentui_rust::terminal::{enable_raw_mode, terminal_size};
-use opentui_rust::{Renderer, RendererOptions, Rgba};
+use opentui_core::input::{Event, InputParser, KeyCode, KeyModifiers, MouseEventKind, ParseError};
+use opentui_core::terminal::{enable_raw_mode, terminal_size};
+use opentui_core::{Renderer, RendererOptions, Rgba};
 
 use opentui_core::widgets::{BorderChars, BorderSides};
 

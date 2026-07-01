@@ -2,7 +2,7 @@
 
 use opentui_core::view::{ViewRuntime, overlay, panel, text, view};
 use opentui_core::widget::RenderContext;
-use opentui_rust::{OptimizedBuffer, Rgba};
+use opentui_core::{OptimizedBuffer, Rgba};
 
 const BG: Rgba = Rgba::new(0.0, 0.0, 0.0, 1.0);
 const TEXT: Rgba = Rgba::new(1.0, 1.0, 1.0, 1.0);
@@ -301,11 +301,11 @@ fn test_on_action_click_returns_action() {
     runtime.layout(w as f32, h as f32);
     runtime.register_hit_areas(w, h);
 
-    let mouse = opentui_rust::terminal::MouseEvent::new(
+    let mouse = opentui_core::terminal::MouseEvent::new(
         0,
         0,
-        opentui_rust::terminal::MouseButton::Left,
-        opentui_rust::terminal::MouseEventKind::Press,
+        opentui_core::terminal::MouseButton::Left,
+        opentui_core::terminal::MouseEventKind::Press,
     );
     let result = runtime.dispatch_mouse(&mouse);
     assert_eq!(
@@ -343,11 +343,11 @@ fn test_overlay_action_wins_over_background_action() {
     runtime.layout(w as f32, h as f32);
     runtime.register_hit_areas(w, h);
 
-    let mouse = opentui_rust::terminal::MouseEvent::new(
+    let mouse = opentui_core::terminal::MouseEvent::new(
         5,
         2,
-        opentui_rust::terminal::MouseButton::Left,
-        opentui_rust::terminal::MouseEventKind::Press,
+        opentui_core::terminal::MouseButton::Left,
+        opentui_core::terminal::MouseEventKind::Press,
     );
     let result = runtime.dispatch_mouse(&mouse);
     assert_eq!(result.action.as_deref(), Some("overlay"));
@@ -373,11 +373,11 @@ fn test_on_action_click_outside_returns_none() {
     runtime.layout(w as f32, h as f32);
     runtime.register_hit_areas(w, h);
 
-    let mouse = opentui_rust::terminal::MouseEvent::new(
+    let mouse = opentui_core::terminal::MouseEvent::new(
         0,
         4,
-        opentui_rust::terminal::MouseButton::Left,
-        opentui_rust::terminal::MouseEventKind::Press,
+        opentui_core::terminal::MouseButton::Left,
+        opentui_core::terminal::MouseEventKind::Press,
     );
     let result = runtime.dispatch_mouse(&mouse);
     assert_eq!(
@@ -401,7 +401,7 @@ fn test_grapheme_pool_combining_mark() {
     runtime.layout(10.0, 3.0);
 
     let mut buffer = OptimizedBuffer::new(10, 3);
-    let mut pool = opentui_rust::GraphemePool::new();
+    let mut pool = opentui_core::GraphemePool::new();
     let mut ctx = RenderContext {
         buffer: &mut buffer,
         grapheme_pool: Some(&mut pool),
@@ -418,7 +418,7 @@ fn test_grapheme_pool_combining_mark() {
     );
     if let Some(c) = cell {
         match c.content {
-            opentui_rust::CellContent::Grapheme(gid) => {
+            opentui_core::CellContent::Grapheme(gid) => {
                 let resolved = pool.get(gid);
                 assert_eq!(
                     resolved,
@@ -426,7 +426,7 @@ fn test_grapheme_pool_combining_mark() {
                     "grapheme pool should store full combining sequence"
                 );
             }
-            opentui_rust::CellContent::Char(ch) => {
+            opentui_core::CellContent::Char(ch) => {
                 panic!(
                     "expected Grapheme content for combining mark, got Char('{ch}') — pool not used?"
                 );
@@ -451,7 +451,7 @@ fn test_grapheme_pool_zwj_emoji() {
     runtime.layout(10.0, 3.0);
 
     let mut buffer = OptimizedBuffer::new(10, 3);
-    let mut pool = opentui_rust::GraphemePool::new();
+    let mut pool = opentui_core::GraphemePool::new();
     let mut ctx = RenderContext {
         buffer: &mut buffer,
         grapheme_pool: Some(&mut pool),
@@ -465,7 +465,7 @@ fn test_grapheme_pool_zwj_emoji() {
     assert!(cell.is_some(), "ZWJ emoji should produce a cell at (0,0)");
     if let Some(c) = cell {
         match c.content {
-            opentui_rust::CellContent::Grapheme(gid) => {
+            opentui_core::CellContent::Grapheme(gid) => {
                 let resolved = pool.get(gid);
                 assert_eq!(
                     resolved,
@@ -473,7 +473,7 @@ fn test_grapheme_pool_zwj_emoji() {
                     "grapheme pool should store full ZWJ sequence"
                 );
             }
-            opentui_rust::CellContent::Char(ch) => {
+            opentui_core::CellContent::Char(ch) => {
                 panic!(
                     "expected Grapheme content for ZWJ emoji, got Char('{ch}') — pool not used?"
                 );
