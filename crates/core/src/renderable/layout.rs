@@ -313,6 +313,18 @@ impl LayoutEngine {
     pub fn add_child(&mut self, parent: taffy::tree::NodeId, child: taffy::tree::NodeId) {
         self.tree.add_child(parent, child).unwrap();
     }
+
+    /// Remove a child from its parent (does not delete the child node).
+    pub fn remove_from_parent(&mut self, parent: taffy::tree::NodeId, child: taffy::tree::NodeId) {
+        let mut kids = self.tree.children(parent).unwrap();
+        kids.retain(|&c| c != child);
+        let _ = self.tree.set_children(parent, &kids);
+    }
+
+    /// Set the children of a node, replacing all existing children.
+    pub fn set_children(&mut self, parent: taffy::tree::NodeId, children: &[taffy::tree::NodeId]) {
+        self.tree.set_children(parent, children).unwrap();
+    }
 }
 
 impl Default for LayoutEngine {

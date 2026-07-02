@@ -23,6 +23,7 @@ pty-tests = []
 bitflags = "2.12"
 libc = "0.2.186"
 ropey = "1.6"
+slotmap = "1.0"
 taffy.workspace = true
 unicode-bidi = "0.3.18"
 unicode-normalization = "0.1.25"

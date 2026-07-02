@@ -15,9 +15,10 @@
 use std::io::{self, Read};
 use std::time::Duration;
 
-use opentui_core::view::{Node, ViewRuntime, text, view, when};
 use opentui_core::input::{Event, InputParser, KeyCode};
+use opentui_core::prelude::RenderContext;
 use opentui_core::terminal::{enable_raw_mode, terminal_size};
+use opentui_core::view::{Node, ViewRuntime, text, view, when};
 use opentui_core::{Renderer, Rgba};
 
 const BG: Rgba = Rgba::new(0.059, 0.059, 0.086, 1.0);
@@ -117,7 +118,7 @@ fn main() -> io::Result<()> {
         {
             let buffer = renderer.buffer();
             buffer.clear(Rgba::TRANSPARENT);
-            let mut ctx = opentui_core::widget::RenderContext {
+            let mut ctx = RenderContext {
                 buffer,
                 grapheme_pool: None,
                 link_pool: None,

@@ -4,18 +4,18 @@
 //! viewport. Supports keyboard navigation (Up/Down/Home/End/PageUp/PageDown),
 //! mouse click selection, and optional scrollbar.
 
-use crate as ot;
 use crate::OptimizedBuffer;
 use crate::renderer::HitGrid;
 
 use crate::layout::{ComputedLayout, LayoutStyle};
 use crate::list::{ItemRenderer, VirtualList, VirtualListState};
+use crate::renderable::behavior::{Behavior, FrameworkDefaults};
+use crate::renderable::context::RenderContext;
+use crate::renderable::node::Overflow;
 use crate::scroll::ScrollBarStyle;
-use crate::widget::{Overflow, RenderContext, Widget, WidgetId};
 
 #[derive(Debug, Clone)]
 pub struct ListWidget {
-    id: WidgetId,
     style: LayoutStyle,
     state: VirtualListState,
     scrollbar: bool,
@@ -27,9 +27,8 @@ pub struct ListWidget {
 }
 
 impl ListWidget {
-    pub fn new(id: WidgetId, style: LayoutStyle) -> Self {
+    pub fn new(style: LayoutStyle) -> Self {
         Self {
-            id,
             style,
             state: VirtualListState::new(),
             scrollbar: true,
@@ -69,11 +68,7 @@ impl ListWidget {
     }
 }
 
-impl Widget for ListWidget {
-    fn id(&self) -> WidgetId {
-        self.id
-    }
-
+impl Behavior for ListWidget {
     fn style(&self) -> &LayoutStyle {
         &self.style
     }
@@ -82,37 +77,21 @@ impl Widget for ListWidget {
         &mut self.style
     }
 
-    fn render(&mut self, _ctx: &mut RenderContext<'_>, _layout: &ComputedLayout) {}
-
-    fn visible(&self) -> bool {
-        self.visible
+    fn framework_defaults(&self) -> FrameworkDefaults {
+        FrameworkDefaults {
+            focusable: self.focusable,
+            overflow: Overflow::Hidden,
+            ..FrameworkDefaults::default()
+        }
     }
 
-    fn opacity(&self) -> f32 {
-        self.opacity
-    }
+    fn render_self(&mut self, _ctx: &mut RenderContext<'_>, _layout: &ComputedLayout) {}
 
-    fn overflow(&self) -> Overflow {
-        Overflow::Hidden
-    }
-
-    fn focusable(&self) -> bool {
-        self.focusable
-    }
-
-    fn focused(&self) -> bool {
-        self.focused
-    }
-
-    fn set_focused(&mut self, focused: bool) {
-        self.focused = focused;
-    }
-
-    fn handle_key(&mut self, _key: &ot::KeyEvent) -> bool {
+    fn handle_key(&mut self, _key: &crate::KeyEvent) -> bool {
         false
     }
 
-    fn handle_mouse(&mut self, _mouse: &ot::MouseEvent) -> bool {
+    fn handle_mouse(&mut self, _mouse: &crate::MouseEvent) -> bool {
         false
     }
 

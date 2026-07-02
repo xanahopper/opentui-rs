@@ -463,6 +463,7 @@ dependencies = [
  "ropey",
  "serde",
  "serde_json",
+ "slotmap",
  "taffy",
  "tempfile",
  "tracing",

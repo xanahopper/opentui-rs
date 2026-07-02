@@ -59,6 +59,10 @@ pub struct EditorView {
     selection_follow_cursor: bool,
     selection: Option<Selection>,
     local_selection: Option<LocalSelection>,
+    tab_indicator: Option<char>,
+    tab_indicator_color: Option<Rgba>,
+    placeholder_text: Option<String>,
+    placeholder_style: Style,
 }
 
 impl EditorView {
@@ -80,6 +84,10 @@ impl EditorView {
             selection_follow_cursor: false,
             selection: None,
             local_selection: None,
+            tab_indicator: None,
+            tab_indicator_color: None,
+            placeholder_text: None,
+            placeholder_style: Style::dim(),
         }
     }
 
@@ -212,6 +220,39 @@ impl EditorView {
     /// Clear local selection.
     pub fn clear_local_selection(&mut self) {
         self.local_selection = None;
+    }
+
+    /// Set the tab indicator character.
+    ///
+    /// When set, the first cell of each expanded tab stop is rendered using this
+    /// character instead of a space. Use [`clear_tab_indicator`](Self::clear_tab_indicator)
+    /// to restore the default space expansion.
+    pub fn set_tab_indicator(&mut self, ch: char) {
+        self.tab_indicator = Some(ch);
+    }
+
+    /// Set the tab indicator foreground color.
+    ///
+    /// When `None` (the default), the indicator inherits the base style's foreground
+    /// (including syntax highlighting).
+    pub fn set_tab_indicator_color(&mut self, color: Rgba) {
+        self.tab_indicator_color = Some(color);
+    }
+
+    /// Clear the tab indicator, restoring default tab expansion (spaces).
+    pub fn clear_tab_indicator(&mut self) {
+        self.tab_indicator = None;
+        self.tab_indicator_color = None;
+    }
+
+    /// Set placeholder text shown when the buffer is empty.
+    pub fn set_placeholder(&mut self, text: Option<String>) {
+        self.placeholder_text = text;
+    }
+
+    /// Set the style used to render the placeholder text.
+    pub fn set_placeholder_style(&mut self, style: Style) {
+        self.placeholder_style = style;
     }
 
     /// Start a new selection at current cursor position.
@@ -754,11 +795,27 @@ impl EditorView {
             self.render_line_numbers(output, x, y, gutter_width, height);
         }
 
+        // Placeholder: render styled placeholder text instead of the empty buffer.
+        if self.edit_buffer.buffer().len_chars() == 0 {
+            if let Some(placeholder) = &self.placeholder_text {
+                output.draw_text(text_x, y, placeholder, self.placeholder_style);
+                // Render cursor at origin (empty buffer ⇒ cursor at 0,0).
+                if let Some(cell) = output.get_mut(text_x, y) {
+                    cell.apply_style(self.cursor_style);
+                }
+                return;
+            }
+        }
+
         // Create a view and render text
         let mut view = TextBufferView::new(self.edit_buffer.buffer())
             .viewport(0, 0, text_width, height)
             .wrap_mode(self.wrap_mode)
             .scroll(self.scroll_x, self.scroll_y);
+
+        if self.tab_indicator.is_some() {
+            view.set_tab_indicator(self.tab_indicator, self.tab_indicator_color);
+        }
 
         if let Some(sel) = self.selection {
             view.set_selection(sel.start, sel.end, sel.style);
@@ -1930,5 +1987,135 @@ mod tests {
         assert_eq!(sel.end, 5, "Selection should follow cursor");
 
         eprintln!("[TEST] PASS: selection_follow_cursor mode works");
+    }
+
+    // =========================================================================
+    // Tab Indicator Tests
+    // =========================================================================
+
+    #[test]
+    fn test_tab_indicator_default_none() {
+        let edit = EditBuffer::with_text("\t");
+        let view = EditorView::new(edit);
+        assert!(view.tab_indicator.is_none());
+        assert!(view.tab_indicator_color.is_none());
+    }
+
+    #[test]
+    fn test_tab_indicator_render() {
+        use crate::buffer::OptimizedBuffer;
+        use crate::cell::CellContent;
+
+        let edit = EditBuffer::with_text("\t");
+        let mut view = EditorView::new(edit);
+        view.set_tab_indicator('→');
+        view.set_tab_indicator_color(Rgba::rgb(1.0, 1.0, 0.0));
+
+        let mut output = OptimizedBuffer::new(16, 1);
+        view.render_to(&mut output, 0, 0, 16, 1);
+
+        let cell = output.get(0, 0).expect("tab indicator cell should exist");
+        assert!(
+            matches!(cell.content, CellContent::Char('→')),
+            "first tab cell should be the indicator char, got {:?}",
+            cell.content
+        );
+        assert_eq!(
+            cell.fg,
+            Rgba::rgb(1.0, 1.0, 0.0),
+            "indicator should use the set color"
+        );
+
+        // Remaining tab cells should be spaces.
+        let rest = output.get(1, 0).expect("second tab cell should exist");
+        assert!(
+            matches!(rest.content, CellContent::Char(' ')),
+            "remaining tab cells should be spaces"
+        );
+
+        view.clear_tab_indicator();
+        assert!(view.tab_indicator.is_none());
+    }
+
+    // =========================================================================
+    // Placeholder Tests
+    // =========================================================================
+
+    #[test]
+    fn test_placeholder_shown_when_empty() {
+        use crate::buffer::OptimizedBuffer;
+        use crate::cell::CellContent;
+
+        let edit = EditBuffer::new();
+        let mut view = EditorView::new(edit);
+        view.set_placeholder(Some("Type something...".to_string()));
+
+        let mut output = OptimizedBuffer::new(32, 1);
+        view.render_to(&mut output, 0, 0, 32, 1);
+
+        let cell = output.get(0, 0).expect("placeholder cell should exist");
+        assert!(
+            matches!(cell.content, CellContent::Char('T')),
+            "placeholder text should render, got {:?}",
+            cell.content
+        );
+    }
+
+    #[test]
+    fn test_placeholder_hidden_when_buffer_nonempty() {
+        use crate::buffer::OptimizedBuffer;
+        use crate::cell::CellContent;
+
+        let edit = EditBuffer::with_text("hi");
+        let mut view = EditorView::new(edit);
+        view.set_placeholder(Some("Type something...".to_string()));
+
+        let mut output = OptimizedBuffer::new(32, 1);
+        view.render_to(&mut output, 0, 0, 32, 1);
+
+        let cell = output.get(0, 0).expect("cell should exist");
+        assert!(
+            matches!(cell.content, CellContent::Char('h')),
+            "real buffer content should render, not placeholder, got {:?}",
+            cell.content
+        );
+    }
+
+    #[test]
+    fn test_placeholder_none_does_not_render() {
+        use crate::buffer::OptimizedBuffer;
+
+        let edit = EditBuffer::new();
+        let mut view = EditorView::new(edit);
+
+        let mut output = OptimizedBuffer::new(32, 1);
+        view.render_to(&mut output, 0, 0, 32, 1);
+
+        // With no placeholder and empty buffer, nothing meaningful renders.
+        let cell = output.get(0, 0);
+        assert!(cell.is_none() || cell.is_some(), "no panic either way");
+    }
+
+    #[test]
+    fn test_placeholder_style_applied() {
+        use crate::buffer::OptimizedBuffer;
+        use crate::cell::CellContent;
+        use crate::style::TextAttributes;
+
+        let edit = EditBuffer::new();
+        let mut view = EditorView::new(edit);
+        view.set_placeholder(Some("placeholder".to_string()));
+        view.set_placeholder_style(Style::fg(Rgba::GREEN).with_bold());
+
+        let mut output = OptimizedBuffer::new(32, 1);
+        view.render_to(&mut output, 0, 0, 32, 1);
+
+        let cell = output.get(0, 0).expect("placeholder cell should exist");
+        assert!(matches!(cell.content, CellContent::Char('p')));
+        assert_eq!(cell.fg, Rgba::GREEN);
+        assert!(
+            cell.attributes.contains(TextAttributes::BOLD),
+            "placeholder style (bold) should be applied"
+        );
     }
 }

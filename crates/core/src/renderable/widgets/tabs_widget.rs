@@ -2,11 +2,12 @@
 //!
 //! Provides a tabbed interface where only the active tab's content is rendered.
 
-use crate as ot;
-use crate::{Rgba, Style};
+use crate::{Cell, Rgba, Style};
 
-use crate::layout::{ComputedLayout, LayoutStyle};
-use crate::widget::{Overflow, RenderContext, Widget, WidgetId};
+use crate::renderable::behavior::{Behavior, FrameworkDefaults};
+use crate::renderable::context::RenderContext;
+use crate::renderable::layout::{ComputedLayout, LayoutStyle};
+use crate::renderable::node::Overflow;
 
 #[derive(Debug, Clone)]
 pub struct Tab {
@@ -47,7 +48,6 @@ impl Default for TabsStyle {
 }
 
 pub struct TabsWidget {
-    id: WidgetId,
     style: LayoutStyle,
     tabs: Vec<Tab>,
     active: usize,
@@ -59,9 +59,8 @@ pub struct TabsWidget {
 }
 
 impl TabsWidget {
-    pub fn new(id: WidgetId, style: LayoutStyle) -> Self {
+    pub fn new(style: LayoutStyle) -> Self {
         Self {
-            id,
             style,
             tabs: Vec::new(),
             active: 0,
@@ -152,7 +151,7 @@ impl TabsWidget {
         // Clear the bar row
         let clear_style = Style::builder().bg(self.tabs_style.bar_bg).build();
         for col in 0..width {
-            ctx.buffer.set(x + col, y, ot::Cell::new(' ', clear_style));
+            ctx.buffer.set(x + col, y, Cell::new(' ', clear_style));
         }
 
         let mut col: u32 = 0;
@@ -166,7 +165,7 @@ impl TabsWidget {
 
             // Left padding
             if col < width {
-                ctx.buffer.set(x + col, y, ot::Cell::new(' ', s));
+                ctx.buffer.set(x + col, y, Cell::new(' ', s));
                 col += 1;
             }
 
@@ -175,23 +174,20 @@ impl TabsWidget {
                 if col >= width {
                     break;
                 }
-                ctx.buffer.set(x + col, y, ot::Cell::new(ch, s));
+                ctx.buffer.set(x + col, y, Cell::new(ch, s));
                 col += 1;
             }
 
             // Right padding
             if col < width {
-                ctx.buffer.set(x + col, y, ot::Cell::new(' ', s));
+                ctx.buffer.set(x + col, y, Cell::new(' ', s));
                 col += 1;
             }
 
             // Separator (skip for last tab)
             if i < self.tabs.len() - 1 && col < width {
-                ctx.buffer.set(
-                    x + col,
-                    y,
-                    ot::Cell::new(self.tabs_style.separator, sep_style),
-                );
+                ctx.buffer
+                    .set(x + col, y, Cell::new(self.tabs_style.separator, sep_style));
                 col += 1;
             }
         }
@@ -213,7 +209,7 @@ impl TabsWidget {
                     for c in 0..tab_width.min(width.saturating_sub(start_col)) {
                         if start_col + c < width {
                             ctx.buffer
-                                .set(x + start_col + c, ul_y, ot::Cell::new(' ', underline));
+                                .set(x + start_col + c, ul_y, Cell::new(' ', underline));
                         }
                     }
                     break;
@@ -227,11 +223,7 @@ impl TabsWidget {
     }
 }
 
-impl Widget for TabsWidget {
-    fn id(&self) -> WidgetId {
-        self.id
-    }
-
+impl Behavior for TabsWidget {
     fn style(&self) -> &LayoutStyle {
         &self.style
     }
@@ -240,7 +232,7 @@ impl Widget for TabsWidget {
         &mut self.style
     }
 
-    fn render(&mut self, ctx: &mut RenderContext<'_>, layout: &ComputedLayout) {
+    fn render_self(&mut self, ctx: &mut RenderContext<'_>, layout: &ComputedLayout) {
         let x = layout.x as u32;
         let y = layout.y as u32;
         let w = layout.width as u32;
@@ -267,7 +259,7 @@ impl Widget for TabsWidget {
             for row in bar_height..h {
                 for col in 0..w {
                     ctx.buffer
-                        .set(x + col, y + row, ot::Cell::new(' ', content_style));
+                        .set(x + col, y + row, Cell::new(' ', content_style));
                 }
             }
 
@@ -281,32 +273,17 @@ impl Widget for TabsWidget {
         }
     }
 
-    fn visible(&self) -> bool {
-        self.visible
+    fn framework_defaults(&self) -> FrameworkDefaults {
+        FrameworkDefaults {
+            focusable: self.focusable,
+            overflow: Overflow::Hidden,
+            visible: self.visible,
+            opacity: self.opacity,
+        }
     }
 
-    fn opacity(&self) -> f32 {
-        self.opacity
-    }
-
-    fn overflow(&self) -> Overflow {
-        Overflow::Hidden
-    }
-
-    fn focusable(&self) -> bool {
-        self.focusable
-    }
-
-    fn focused(&self) -> bool {
-        self.focused
-    }
-
-    fn set_focused(&mut self, focused: bool) {
-        self.focused = focused;
-    }
-
-    fn handle_key(&mut self, key: &ot::KeyEvent) -> bool {
-        use ot::{KeyCode, KeyModifiers};
+    fn handle_key(&mut self, key: &crate::KeyEvent) -> bool {
+        use crate::{KeyCode, KeyModifiers};
         match (key.modifiers, key.code) {
             (m, KeyCode::Tab)
                 if m.contains(KeyModifiers::CTRL) && !m.contains(KeyModifiers::SHIFT) =>
@@ -341,7 +318,7 @@ impl Widget for TabsWidget {
         }
     }
 
-    fn handle_mouse(&mut self, _mouse: &ot::MouseEvent) -> bool {
+    fn handle_mouse(&mut self, _mouse: &crate::MouseEvent) -> bool {
         false
     }
 

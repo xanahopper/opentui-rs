@@ -146,7 +146,7 @@ pub struct TextBufferView<'a> {
     selection: Option<Selection>,
     local_selection: Option<LocalSelection>,
     tab_indicator: Option<char>,
-    tab_indicator_color: Rgba,
+    tab_indicator_color: Option<Rgba>,
     truncate: bool,
     line_cache: RefCell<Option<LineCache>>,
 }
@@ -276,7 +276,7 @@ impl<'a> TextBufferView<'a> {
             selection: None,
             local_selection: None,
             tab_indicator: None,
-            tab_indicator_color: Rgba::WHITE,
+            tab_indicator_color: None,
             truncate: false,
             line_cache: RefCell::new(None),
         }
@@ -318,8 +318,17 @@ impl<'a> TextBufferView<'a> {
     #[must_use]
     pub fn tab_indicator(mut self, ch: char, color: Rgba) -> Self {
         self.tab_indicator = Some(ch);
-        self.tab_indicator_color = color;
+        self.tab_indicator_color = Some(color);
         self
+    }
+
+    /// Set tab indicator with an optional color.
+    ///
+    /// When `ch` is `Some`, tab stops render `ch` at the first cell instead of a space.
+    /// When `color` is `None`, the base style's foreground is preserved.
+    pub fn set_tab_indicator(&mut self, ch: Option<char>, color: Option<Rgba>) {
+        self.tab_indicator = ch;
+        self.tab_indicator_color = color;
     }
 
     /// Enable or disable truncation.
@@ -787,8 +796,12 @@ impl<'a> TextBufferView<'a> {
                     if screen_col >= 0 {
                         if space_idx == 0 {
                             if let Some(indicator) = self.tab_indicator {
-                                // Tab indicator gets special foreground but preserves background
-                                let style = base_style.with_fg(self.tab_indicator_color);
+                                // Tab indicator overrides fg only when a color is set,
+                                // otherwise the base style (incl. syntax highlight fg) is preserved.
+                                let style = match self.tab_indicator_color {
+                                    Some(color) => base_style.with_fg(color),
+                                    None => base_style,
+                                };
                                 output.set(screen_col as u32, dest_y, Cell::new(indicator, style));
                             } else {
                                 output.set(screen_col as u32, dest_y, Cell::new(' ', base_style));

@@ -34,3 +34,6 @@ perf.data.*
 # Screenshots
 Snipping_*.png
 .harness/
+
+# Internal docs (gap analysis, convergence plans)
+docs/

@@ -4,13 +4,14 @@
 //! Renders text at position (0,0) within the allocated layout rectangle,
 //! filling remaining width with background color.
 
-use crate as ot;
 use crate::{Rgba, Style};
 
-use crate::layout::{ComputedLayout, LayoutStyle};
+use crate::renderable::behavior::{Behavior, FrameworkDefaults};
+use crate::renderable::context::RenderContext;
+use crate::renderable::layout::{ComputedLayout, LayoutStyle};
+use crate::renderable::node::Overflow;
 use crate::view::element::Element;
 use crate::view::props::{Props, TextProps};
-use crate::widget::{Overflow, RenderContext, Widget, WidgetId};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TextLineAlign {
@@ -21,7 +22,6 @@ pub enum TextLineAlign {
 
 #[derive(Debug, Clone)]
 pub struct TextLineWidget {
-    id: WidgetId,
     style: LayoutStyle,
     text: String,
     fg: Rgba,
@@ -31,16 +31,11 @@ pub struct TextLineWidget {
     underline: bool,
     align: TextLineAlign,
     overflow: Overflow,
-    visible: bool,
-    opacity: f32,
-    focusable: bool,
-    focused: bool,
 }
 
 impl TextLineWidget {
-    pub fn new(id: WidgetId, style: LayoutStyle) -> Self {
+    pub fn new(style: LayoutStyle) -> Self {
         Self {
-            id,
             style,
             text: String::new(),
             fg: Rgba::new(1.0, 1.0, 1.0, 1.0),
@@ -50,17 +45,13 @@ impl TextLineWidget {
             underline: false,
             align: TextLineAlign::Left,
             overflow: Overflow::Hidden,
-            visible: true,
-            opacity: 1.0,
-            focusable: false,
-            focused: false,
         }
     }
 
-    pub fn with_text(id: WidgetId, style: LayoutStyle, text: impl Into<String>) -> Self {
+    pub fn with_text(style: LayoutStyle, text: impl Into<String>) -> Self {
         Self {
             text: text.into(),
-            ..Self::new(id, style)
+            ..Self::new(style)
         }
     }
 
@@ -112,8 +103,8 @@ impl TextLineWidget {
         &self.text
     }
 
-    pub fn from_element(id: WidgetId, elem: &Element) -> Self {
-        let mut widget = Self::new(id, elem.layout.clone());
+    pub fn from_element(elem: &Element) -> Self {
+        let mut widget = Self::new(elem.layout.clone());
         if let Props::Text(ref props) = elem.props {
             widget.apply_text_props(props);
         }
@@ -131,11 +122,7 @@ impl TextLineWidget {
     }
 }
 
-impl Widget for TextLineWidget {
-    fn id(&self) -> WidgetId {
-        self.id
-    }
-
+impl Behavior for TextLineWidget {
     fn style(&self) -> &LayoutStyle {
         &self.style
     }
@@ -144,7 +131,14 @@ impl Widget for TextLineWidget {
         &mut self.style
     }
 
-    fn render(&mut self, ctx: &mut RenderContext<'_>, layout: &ComputedLayout) {
+    fn framework_defaults(&self) -> FrameworkDefaults {
+        FrameworkDefaults {
+            overflow: self.overflow,
+            ..Default::default()
+        }
+    }
+
+    fn render_self(&mut self, ctx: &mut RenderContext<'_>, layout: &ComputedLayout) {
         let x = layout.x as u32;
         let y = layout.y as u32;
         let w = layout.width as u32;
@@ -164,7 +158,7 @@ impl Widget for TextLineWidget {
             return;
         }
 
-        let text_width = ot::unicode::display_width(&self.text) as u32;
+        let text_width = crate::unicode::display_width(&self.text) as u32;
 
         let start_x = match self.align {
             TextLineAlign::Left => x,
@@ -194,7 +188,7 @@ impl Widget for TextLineWidget {
         } else {
             let max_col = x + w;
             let mut col = start_x;
-            for (grapheme, dw) in ot::unicode::split_graphemes_with_widths(&self.text) {
+            for (grapheme, dw) in crate::unicode::split_graphemes_with_widths(&self.text) {
                 if col >= max_col {
                     break;
                 }
@@ -202,14 +196,14 @@ impl Widget for TextLineWidget {
                 if dw == 0 {
                     continue;
                 }
-                let cell_bg = self.bg.unwrap_or(ot::Rgba::TRANSPARENT);
+                let cell_bg = self.bg.unwrap_or(crate::Rgba::TRANSPARENT);
                 if let Some(ch) = grapheme.chars().next() {
-                    ctx.buffer.set_blended(col, y, ot::Cell::new(ch, style));
+                    ctx.buffer.set_blended(col, y, crate::Cell::new(ch, style));
                 }
                 for i in 1..dw {
                     if col + i < max_col {
                         ctx.buffer
-                            .set_blended(col + i, y, ot::Cell::continuation(cell_bg));
+                            .set_blended(col + i, y, crate::Cell::continuation(cell_bg));
                     }
                 }
                 col += dw;
@@ -217,35 +211,11 @@ impl Widget for TextLineWidget {
         }
     }
 
-    fn visible(&self) -> bool {
-        self.visible
-    }
-
-    fn opacity(&self) -> f32 {
-        self.opacity
-    }
-
-    fn overflow(&self) -> Overflow {
-        self.overflow
-    }
-
-    fn focusable(&self) -> bool {
-        self.focusable
-    }
-
-    fn focused(&self) -> bool {
-        self.focused
-    }
-
-    fn set_focused(&mut self, focused: bool) {
-        self.focused = focused;
-    }
-
-    fn handle_key(&mut self, _key: &ot::KeyEvent) -> bool {
+    fn handle_key(&mut self, _key: &crate::KeyEvent) -> bool {
         false
     }
 
-    fn handle_mouse(&mut self, _mouse: &ot::MouseEvent) -> bool {
+    fn handle_mouse(&mut self, _mouse: &crate::MouseEvent) -> bool {
         false
     }
 

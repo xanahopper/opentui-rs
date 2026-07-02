@@ -80,6 +80,9 @@ pub struct OptimizedBuffer {
     id: String,
     respect_alpha: bool,
 
+    /// Distance between tab stops used by [`draw_text`](Self::draw_text).
+    tab_width: u32,
+
     /// Grapheme IDs that were overwritten by non-pool operations.
     /// These need to be cleaned up when a pool becomes available.
     orphaned_graphemes: Vec<GraphemeId>,
@@ -104,6 +107,7 @@ impl OptimizedBuffer {
             opacity_stack: OpacityStack::new(),
             id: String::new(),
             respect_alpha: true,
+            tab_width: 8,
             orphaned_graphemes: Vec::new(),
         }
     }
@@ -592,6 +596,36 @@ impl OptimizedBuffer {
         drawing::draw_box_with_options(self, x, y, w, h, options);
     }
 
+    /// Draw a table grid.
+    ///
+    /// `column_offsets` are the x-positions of vertical borders, `row_offsets`
+    /// are the y-positions of horizontal borders, both relative to `(x, y)`.
+    /// `border_char` fills line segments, `intersection_char` is drawn where a
+    /// row and column border cross. All drawing respects the scissor stack.
+    pub fn draw_grid(
+        &mut self,
+        x: u32,
+        y: u32,
+        column_offsets: &[u32],
+        row_offsets: &[u32],
+        border_char: char,
+        intersection_char: char,
+        fg: Rgba,
+        bg: Rgba,
+    ) {
+        drawing::draw_grid(
+            self,
+            x,
+            y,
+            column_offsets,
+            row_offsets,
+            border_char,
+            intersection_char,
+            fg,
+            bg,
+        );
+    }
+
     /// Draw a text buffer view to this buffer.
     ///
     /// This is a convenience method that calls [`TextBufferView::render_to`].
@@ -921,6 +955,19 @@ impl OptimizedBuffer {
     #[must_use]
     pub fn respect_alpha(&self) -> bool {
         self.respect_alpha
+    }
+
+    /// Get the tab stop width used when expanding `\t` in [`draw_text`](Self::draw_text).
+    #[must_use]
+    pub fn tab_width(&self) -> u32 {
+        self.tab_width
+    }
+
+    /// Set the tab stop width used when expanding `\t` in [`draw_text`](Self::draw_text).
+    ///
+    /// A value of 0 is treated as 1 during expansion to avoid division by zero.
+    pub fn set_tab_width(&mut self, width: u32) {
+        self.tab_width = width;
     }
 
     /// Get raw cell slice.

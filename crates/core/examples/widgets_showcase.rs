@@ -24,8 +24,9 @@ use opentui_core::terminal::{enable_raw_mode, terminal_size};
 use opentui_core::{Renderer, RendererOptions, Rgba};
 
 use opentui_core::layout::LayoutStyle;
+use opentui_core::prelude::RenderContext;
 use opentui_core::theme::UiTheme;
-use opentui_core::widget::{RenderContext, WidgetTree};
+use opentui_core::tree::RenderTree;
 use opentui_core::widgets::{
     BoxWidget, ProgressBarStyle, ProgressBarWidget, ProgressChars, StatusLineWidget, Tab,
     TabsWidget, TextWidget,
@@ -77,157 +78,188 @@ fn main() -> io::Result<()> {
     renderer.set_background(Rgba::from_rgb_u8(18, 18, 24));
 
     let theme = UiTheme::dark_default();
-    let mut tree = WidgetTree::new();
+    let mut tree = RenderTree::new();
 
-    let root = tree.add(
-        BoxWidget::new(1, LayoutStyle::column().width(w as f32).height(h as f32))
+    let root = tree.set_root(Box::new(
+        BoxWidget::new(LayoutStyle::column().width(w as f32).height(h as f32))
             .background(Rgba::from_rgb_u8(18, 18, 24)),
-    );
+    ));
 
     let header = tree.add_child(
         root,
-        BoxWidget::new(2, LayoutStyle::row().height(1.0).flex_shrink(0.0))
-            .background(Rgba::from_rgb_u8(40, 40, 55)),
+        Box::new(
+            BoxWidget::new(LayoutStyle::row().height(1.0).flex_shrink(0.0))
+                .background(Rgba::from_rgb_u8(40, 40, 55)),
+        ),
     );
     let _title = tree.add_child(
         header,
-        TextWidget::with_text(
-            3,
+        Box::new(TextWidget::with_text(
             LayoutStyle::default().flex_grow(1.0),
             " OpenTUI Core — Widgets Showcase ",
-        ),
+        )),
     );
 
     let tabs_id = tree.add_child(
         root,
-        TabsWidget::new(
-            10,
-            LayoutStyle::default()
-                .height(2.0)
-                .width(w as f32)
-                .flex_shrink(0.0),
-        )
-        .tabs(vec![
-            Tab::new("Progress"),
-            Tab::new("Layout"),
-            Tab::new("Info"),
-        ])
-        .focusable(),
+        Box::new(
+            TabsWidget::new(
+                LayoutStyle::default()
+                    .height(2.0)
+                    .width(w as f32)
+                    .flex_shrink(0.0),
+            )
+            .tabs(vec![
+                Tab::new("Progress"),
+                Tab::new("Layout"),
+                Tab::new("Info"),
+            ])
+            .focusable(),
+        ),
     );
 
     let content = tree.add_child(
         root,
-        BoxWidget::new(4, LayoutStyle::column().flex_grow(1.0))
-            .background(Rgba::from_rgb_u8(22, 22, 30)),
+        Box::new(
+            BoxWidget::new(LayoutStyle::column().flex_grow(1.0))
+                .background(Rgba::from_rgb_u8(22, 22, 30)),
+        ),
     );
 
     let progress_section = tree.add_child(
         content,
-        BoxWidget::new(
-            20,
-            LayoutStyle::column()
-                .flex_grow(1.0)
-                .padding_x(2.0)
-                .padding_y(1.0),
-        )
-        .background(Rgba::from_rgb_u8(22, 22, 30)),
+        Box::new(
+            BoxWidget::new(
+                LayoutStyle::column()
+                    .flex_grow(1.0)
+                    .padding_x(2.0)
+                    .padding_y(1.0),
+            )
+            .background(Rgba::from_rgb_u8(22, 22, 30)),
+        ),
     );
 
     let _pb_label1 = tree.add_child(
         progress_section,
-        TextWidget::with_text(21, LayoutStyle::default().height(1.0), "Downloads:"),
+        Box::new(TextWidget::with_text(
+            LayoutStyle::default().height(1.0),
+            "Downloads:",
+        )),
     );
     let _pb1 = tree.add_child(
         progress_section,
-        ProgressBarWidget::new(22, LayoutStyle::default().height(1.0).width(50.0))
-            .progress(0.75)
-            .label("opentui-core"),
+        Box::new(
+            ProgressBarWidget::new(LayoutStyle::default().height(1.0).width(50.0))
+                .progress(0.75)
+                .label("opentui-core"),
+        ),
     );
 
     let _spacer1 = tree.add_child(
         progress_section,
-        TextWidget::with_text(23, LayoutStyle::default().height(1.0), ""),
+        Box::new(TextWidget::with_text(
+            LayoutStyle::default().height(1.0),
+            "",
+        )),
     );
 
     let _pb_label2 = tree.add_child(
         progress_section,
-        TextWidget::with_text(24, LayoutStyle::default().height(1.0), "Upload:"),
+        Box::new(TextWidget::with_text(
+            LayoutStyle::default().height(1.0),
+            "Upload:",
+        )),
     );
     let _pb2 = tree.add_child(
         progress_section,
-        ProgressBarWidget::new(25, LayoutStyle::default().height(1.0).width(50.0))
-            .progress(0.33)
-            .bar_style(ProgressBarStyle {
-                filled_fg: Rgba::from_rgb_u8(80, 160, 255),
-                filled_bg: Rgba::from_rgb_u8(30, 60, 120),
-                empty_fg: Rgba::from_rgb_u8(50, 50, 60),
-                empty_bg: Rgba::from_rgb_u8(25, 25, 32),
-                label_fg: Rgba::from_rgb_u8(200, 220, 255),
-                chars: ProgressChars::blocks(),
-            }),
+        Box::new(
+            ProgressBarWidget::new(LayoutStyle::default().height(1.0).width(50.0))
+                .progress(0.33)
+                .bar_style(ProgressBarStyle {
+                    filled_fg: Rgba::from_rgb_u8(80, 160, 255),
+                    filled_bg: Rgba::from_rgb_u8(30, 60, 120),
+                    empty_fg: Rgba::from_rgb_u8(50, 50, 60),
+                    empty_bg: Rgba::from_rgb_u8(25, 25, 32),
+                    label_fg: Rgba::from_rgb_u8(200, 220, 255),
+                    chars: ProgressChars::blocks(),
+                }),
+        ),
     );
 
     let _spacer2 = tree.add_child(
         progress_section,
-        TextWidget::with_text(26, LayoutStyle::default().height(1.0), ""),
+        Box::new(TextWidget::with_text(
+            LayoutStyle::default().height(1.0),
+            "",
+        )),
     );
 
     let _pb_label3 = tree.add_child(
         progress_section,
-        TextWidget::with_text(27, LayoutStyle::default().height(1.0), "Tests:"),
+        Box::new(TextWidget::with_text(
+            LayoutStyle::default().height(1.0),
+            "Tests:",
+        )),
     );
     let _pb3 = tree.add_child(
         progress_section,
-        ProgressBarWidget::new(28, LayoutStyle::default().height(1.0).width(50.0))
-            .progress(1.0)
-            .bar_style(ProgressBarStyle {
-                filled_fg: Rgba::from_rgb_u8(100, 220, 120),
-                filled_bg: Rgba::from_rgb_u8(30, 80, 40),
-                empty_fg: Rgba::from_rgb_u8(50, 50, 60),
-                empty_bg: Rgba::from_rgb_u8(25, 25, 32),
-                label_fg: Rgba::WHITE,
-                chars: ProgressChars::ascii(),
-            })
-            .label("passed"),
+        Box::new(
+            ProgressBarWidget::new(LayoutStyle::default().height(1.0).width(50.0))
+                .progress(1.0)
+                .bar_style(ProgressBarStyle {
+                    filled_fg: Rgba::from_rgb_u8(100, 220, 120),
+                    filled_bg: Rgba::from_rgb_u8(30, 80, 40),
+                    empty_fg: Rgba::from_rgb_u8(50, 50, 60),
+                    empty_bg: Rgba::from_rgb_u8(25, 25, 32),
+                    label_fg: Rgba::WHITE,
+                    chars: ProgressChars::ascii(),
+                })
+                .label("passed"),
+        ),
     );
 
     let _spacer3 = tree.add_child(
         progress_section,
-        TextWidget::with_text(29, LayoutStyle::default().height(1.0), ""),
+        Box::new(TextWidget::with_text(
+            LayoutStyle::default().height(1.0),
+            "",
+        )),
     );
 
     let _pb_label4 = tree.add_child(
         progress_section,
-        TextWidget::with_text(
-            30,
+        Box::new(TextWidget::with_text(
             LayoutStyle::default().height(1.0),
             "Disk Usage (multi-row):",
-        ),
+        )),
     );
     let _pb4 = tree.add_child(
         progress_section,
-        ProgressBarWidget::new(31, LayoutStyle::default().height(3.0).width(50.0))
-            .progress(0.58)
-            .bar_style(ProgressBarStyle {
-                filled_fg: Rgba::from_rgb_u8(255, 180, 60),
-                filled_bg: Rgba::from_rgb_u8(100, 60, 15),
-                empty_fg: Rgba::from_rgb_u8(50, 50, 60),
-                empty_bg: Rgba::from_rgb_u8(25, 25, 32),
-                label_fg: Rgba::from_rgb_u8(255, 240, 200),
-                chars: ProgressChars::smooth(),
-            }),
+        Box::new(
+            ProgressBarWidget::new(LayoutStyle::default().height(3.0).width(50.0))
+                .progress(0.58)
+                .bar_style(ProgressBarStyle {
+                    filled_fg: Rgba::from_rgb_u8(255, 180, 60),
+                    filled_bg: Rgba::from_rgb_u8(100, 60, 15),
+                    empty_fg: Rgba::from_rgb_u8(50, 50, 60),
+                    empty_bg: Rgba::from_rgb_u8(25, 25, 32),
+                    label_fg: Rgba::from_rgb_u8(255, 240, 200),
+                    chars: ProgressChars::smooth(),
+                }),
+        ),
     );
 
     let _status = tree.add_child(
         root,
-        StatusLineWidget::new(50, LayoutStyle::default().height(1.0).width(w as f32))
-            .left("widgets_showcase")
-            .center("NORMAL")
-            .right("Tab: focus | q: quit"),
+        Box::new(
+            StatusLineWidget::new(LayoutStyle::default().height(1.0).width(w as f32))
+                .left("widgets_showcase")
+                .center("NORMAL")
+                .right("Tab: focus | q: quit"),
+        ),
     );
 
-    tree.build_focus_chain();
-    tree.set_focused_widget(Some(tabs_id));
+    tree.focus(tabs_id);
 
     let mut parser = InputParser::new();
     let stdin = io::stdin();
@@ -235,7 +267,7 @@ fn main() -> io::Result<()> {
     let mut running = true;
 
     while running {
-        tree.layout(w as f32, h as f32);
+        tree.run_layout(w as f32, h as f32);
 
         {
             let buffer = renderer.buffer();
@@ -248,7 +280,7 @@ fn main() -> io::Result<()> {
                 hit_grid: None,
                 theme: Some(&theme),
             };
-            tree.render(&mut ctx);
+            tree.run_render(&mut ctx, 0.0);
         }
         renderer.present()?;
 

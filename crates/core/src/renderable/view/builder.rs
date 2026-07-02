@@ -2,13 +2,13 @@ use crate::Rgba;
 use crate::buffer::TitleAlign;
 
 use crate::layout::LayoutStyle;
+use crate::renderable::node::Overflow;
 use crate::view::element::{Element, ElementKind};
 use crate::view::key::Key;
 use crate::view::node::{Node, OverlayNode};
 use crate::view::props::{
     FillProps, InputProps, ListProps, Props, SeparatorProps, StyledTextProps, TextProps, ViewProps,
 };
-use crate::widget::Overflow;
 use crate::widgets::{BorderChars, BorderSides, BorderStyle, StyledSegment};
 
 pub fn view() -> ElementBuilder {

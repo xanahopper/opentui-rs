@@ -1088,7 +1088,7 @@ mod tests {
         let id1 = pool.alloc("https://example.com");
         let id2 = pool.alloc("https://other.com");
 
-        assert!(id1 != id2);
+        assert_ne!(id1, id2);
         assert_eq!(pool.get(id1), Some("https://example.com"));
         assert_eq!(pool.get(id2), Some("https://other.com"));
     }

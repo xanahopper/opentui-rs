@@ -34,10 +34,10 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
-use opentui_core::prelude::*;
-use opentui_core::view::{overlay, panel, rich_text, separator, span, text, view};
 use opentui_core::input::{Event, InputParser, KeyCode, KeyModifiers, ParseError};
+use opentui_core::prelude::*;
 use opentui_core::terminal::{MouseEventKind, enable_raw_mode, terminal_size};
+use opentui_core::view::{overlay, panel, rich_text, separator, span, text, view};
 use opentui_core::{Renderer, RendererOptions, Rgba};
 
 // ── Colour palette ──────────────────────────────────────────────────────
@@ -79,7 +79,7 @@ struct CommandItem {
 }
 
 impl CommandItem {
-    fn all() -> &'static [Self] {
+    const fn all() -> &'static [Self] {
         &[
             Self {
                 name: "New Session",
@@ -256,7 +256,11 @@ impl App {
 
 // ── Read with timeout ───────────────────────────────────────────────────
 
-fn read_with_timeout(stdin: &io::Stdin, buf: &mut [u8], timeout: Duration) -> io::Result<usize> {
+fn read_with_timeout(
+    mut stdin: &io::Stdin,
+    buf: &mut [u8],
+    timeout: Duration,
+) -> io::Result<usize> {
     use std::os::fd::AsRawFd;
 
     let fd = stdin.as_raw_fd();
@@ -266,7 +270,7 @@ fn read_with_timeout(stdin: &io::Stdin, buf: &mut [u8], timeout: Duration) -> io
         revents: 0,
     };
     let timeout_ms = timeout.as_millis() as libc::c_int;
-    let ret = unsafe { libc::poll(&mut pollfd, 1, timeout_ms) };
+    let ret = unsafe { libc::poll(&raw mut pollfd, 1, timeout_ms) };
     if ret < 0 {
         return Err(io::Error::last_os_error());
     }
@@ -309,8 +313,8 @@ fn ui_sidebar() -> opentui_core::view::Node {
 fn ui_palette(app: &App, w: u32, h: u32) -> opentui_core::view::Node {
     let dialog_w = 60_u32.min(w.saturating_sub(4));
     let dialog_h = 14_u32.min(h.saturating_sub(4));
-    let x = (w.saturating_sub(dialog_w) / 2) as u32;
-    let y = (h / 4) as u32;
+    let x = w.saturating_sub(dialog_w) / 2;
+    let y = h / 4;
 
     let indices = app.filtered_indices();
     let cmds = CommandItem::all();
@@ -390,7 +394,7 @@ fn ui_palette(app: &App, w: u32, h: u32) -> opentui_core::view::Node {
 }
 
 fn ui_prompt(app: &App) -> opentui_core::view::Node {
-    let text = if app.input_text.is_empty() {
+    let prompt_text = if app.input_text.is_empty() {
         "Type a message...".to_string()
     } else {
         app.input_text.clone()
@@ -412,7 +416,7 @@ fn ui_prompt(app: &App) -> opentui_core::view::Node {
         })
         .on_action("click:prompt")
         .children([
-            text(format!("  {text}")).fg(fg).grow(1.0).build(),
+            text(format!("  {prompt_text}")).fg(fg).grow(1.0).build(),
             text("\u{23CE} Send  ")
                 .fg(if app.input_text.is_empty() {
                     TEXT_DIM
@@ -493,14 +497,15 @@ fn detect_palette_hover(app: &mut App, runtime: &ViewRuntime) {
         return;
     }
 
-    let hit_id = match runtime.hit_grid().test(app.mouse_x, app.mouse_y) {
-        Some(id) => id,
-        None => return,
+    let Some(hit_num) = runtime.hit_grid().test(app.mouse_x, app.mouse_y) else {
+        return;
+    };
+    let Some(hit_id) = runtime.tree().resolve_num(hit_num) else {
+        return;
     };
 
-    let action = match runtime.action_for_widget(hit_id as u64) {
-        Some(a) => a,
-        None => return,
+    let Some(action) = runtime.action_for_node(hit_id) else {
+        return;
     };
 
     if let Some(idx) = parse_palette_select(action) {
@@ -513,7 +518,7 @@ fn detect_palette_hover(app: &mut App, runtime: &ViewRuntime) {
 fn handle_key(code: KeyCode, modifiers: KeyModifiers, app: &mut App, running: &AtomicBool) {
     if modifiers.contains(KeyModifiers::CTRL) {
         match code {
-            KeyCode::Char('q') | KeyCode::Char('c') => {
+            KeyCode::Char('q' | 'c') => {
                 if app.palette_open {
                     app.palette_open = false;
                     app.palette_filter.clear();
@@ -678,35 +683,28 @@ fn run() -> io::Result<()> {
                             app_mut.mouse_x = mouse.x;
                             app_mut.mouse_y = mouse.y;
 
-                            match mouse.kind {
-                                MouseEventKind::Press => {
-                                    let dispatch = runtime.dispatch_mouse(&mouse);
-                                    if let Some(action) = dispatch.action {
-                                        if let Some(idx) = parse_palette_select(&action) {
-                                            app_mut.palette_mouse_mode = true;
-                                            let indices = app_mut.filtered_indices();
-                                            let cmd_indices: Vec<usize> = indices
-                                                .iter()
-                                                .enumerate()
-                                                .filter(|(di, _)| {
-                                                    *di >= app_mut.palette_scroll
-                                                        && *di < app_mut.palette_scroll + 10
-                                                })
-                                                .map(|(_, ci)| *ci)
-                                                .collect();
-                                            app_mut.palette_selected =
-                                                *cmd_indices.get(idx).unwrap_or(&0);
-                                            app_mut.activate_selected_palette(&running);
-                                        } else if action == "click:send" {
-                                            app_mut.send_message();
-                                        }
+                            if mouse.kind == MouseEventKind::Press {
+                                let dispatch = runtime.dispatch_mouse(&mouse);
+                                if let Some(action) = dispatch.action {
+                                    if let Some(idx) = parse_palette_select(&action) {
+                                        app_mut.palette_mouse_mode = true;
+                                        let indices = app_mut.filtered_indices();
+                                        let cmd_indices: Vec<usize> = indices
+                                            .iter()
+                                            .enumerate()
+                                            .filter(|(di, _)| {
+                                                *di >= app_mut.palette_scroll
+                                                    && *di < app_mut.palette_scroll + 10
+                                            })
+                                            .map(|(_, ci)| *ci)
+                                            .collect();
+                                        app_mut.palette_selected =
+                                            *cmd_indices.get(idx).unwrap_or(&0);
+                                        app_mut.activate_selected_palette(&running);
+                                    } else if action == "click:send" {
+                                        app_mut.send_message();
                                     }
                                 }
-                                MouseEventKind::ScrollUp => {
-                                    // Scrolling handled by overflow_hidden + render_offset would need ScrollState integration
-                                }
-                                MouseEventKind::ScrollDown => {}
-                                _ => {}
                             }
                         }
                         Ok((Event::Resize(resize), used)) => {

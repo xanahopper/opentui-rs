@@ -5,17 +5,17 @@
 
 use std::cell::RefCell;
 
-use crate as ot;
 use crate::text::{EditBuffer, EditorView};
 use crate::{Cell, Rgba, Style, WrapMode};
 
 use crate::layout::{ComputedLayout, LayoutStyle};
-use crate::widget::{Overflow, RenderContext, Widget, WidgetId};
+use crate::renderable::behavior::{Behavior, FrameworkDefaults};
+use crate::renderable::context::RenderContext;
+use crate::renderable::node::Overflow;
 
 impl std::fmt::Debug for EditorWidget {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("EditorWidget")
-            .field("id", &self.id)
             .field("focused", &self.focused)
             .field("line_numbers", &self.line_numbers)
             .finish_non_exhaustive()
@@ -23,7 +23,6 @@ impl std::fmt::Debug for EditorWidget {
 }
 
 pub struct EditorWidget {
-    id: WidgetId,
     style: LayoutStyle,
     editor: RefCell<EditorView>,
     line_numbers: bool,
@@ -37,9 +36,8 @@ pub struct EditorWidget {
 }
 
 impl EditorWidget {
-    pub fn new(id: WidgetId, style: LayoutStyle) -> Self {
+    pub fn new(style: LayoutStyle) -> Self {
         Self {
-            id,
             style,
             editor: RefCell::new(EditorView::new(EditBuffer::new())),
             line_numbers: false,
@@ -53,10 +51,10 @@ impl EditorWidget {
         }
     }
 
-    pub fn with_text(id: WidgetId, style: LayoutStyle, text: &str) -> Self {
+    pub fn with_text(style: LayoutStyle, text: &str) -> Self {
         Self {
             editor: RefCell::new(EditorView::new(EditBuffer::with_text(text))),
-            ..Self::new(id, style)
+            ..Self::new(style)
         }
     }
 
@@ -97,11 +95,7 @@ impl EditorWidget {
     }
 }
 
-impl Widget for EditorWidget {
-    fn id(&self) -> WidgetId {
-        self.id
-    }
-
+impl Behavior for EditorWidget {
     fn style(&self) -> &LayoutStyle {
         &self.style
     }
@@ -110,7 +104,15 @@ impl Widget for EditorWidget {
         &mut self.style
     }
 
-    fn render(&mut self, ctx: &mut RenderContext<'_>, layout: &ComputedLayout) {
+    fn framework_defaults(&self) -> FrameworkDefaults {
+        FrameworkDefaults {
+            focusable: self.focusable,
+            overflow: Overflow::Hidden,
+            ..FrameworkDefaults::default()
+        }
+    }
+
+    fn render_self(&mut self, ctx: &mut RenderContext<'_>, layout: &ComputedLayout) {
         let x = layout.x as u32;
         let y = layout.y as u32;
         let w = layout.width as u32;
@@ -123,7 +125,7 @@ impl Widget for EditorWidget {
         let is_empty = self.editor.borrow().edit_buffer().buffer().is_empty();
         if is_empty && !self.focused {
             if let Some(ref ph) = self.placeholder {
-                let display_w = ot::unicode::display_width(ph) as u32;
+                let display_w = crate::unicode::display_width(ph) as u32;
                 let chars: Vec<char> = ph.chars().collect();
                 let max = display_w.min(w);
                 for i in 0..max {
@@ -143,38 +145,14 @@ impl Widget for EditorWidget {
         editor.render_to(ctx.buffer, x, y, w, h);
     }
 
-    fn visible(&self) -> bool {
-        self.visible
-    }
-
-    fn opacity(&self) -> f32 {
-        self.opacity
-    }
-
-    fn overflow(&self) -> Overflow {
-        Overflow::Hidden
-    }
-
-    fn focusable(&self) -> bool {
-        self.focusable
-    }
-
-    fn focused(&self) -> bool {
-        self.focused
-    }
-
-    fn set_focused(&mut self, focused: bool) {
-        self.focused = focused;
-    }
-
-    fn handle_key(&mut self, key: &ot::KeyEvent) -> bool {
-        let ctrl = key.modifiers.contains(ot::KeyModifiers::CTRL);
-        let alt = key.modifiers.contains(ot::KeyModifiers::ALT);
+    fn handle_key(&mut self, key: &crate::KeyEvent) -> bool {
+        let ctrl = key.modifiers.contains(crate::KeyModifiers::CTRL);
+        let alt = key.modifiers.contains(crate::KeyModifiers::ALT);
         let mut editor = self.editor.borrow_mut();
         let buf = editor.edit_buffer_mut();
 
         match key.code {
-            ot::KeyCode::Char(ch) if ctrl => match ch {
+            crate::KeyCode::Char(ch) if ctrl => match ch {
                 'a' => buf.move_to_line_start(),
                 'e' => buf.move_to_line_end(),
                 'u' => {
@@ -191,43 +169,43 @@ impl Widget for EditorWidget {
                 }
                 _ => return false,
             },
-            ot::KeyCode::Char(ch) if !alt => {
+            crate::KeyCode::Char(ch) if !alt => {
                 buf.insert(&ch.to_string());
             }
-            ot::KeyCode::Enter => {
+            crate::KeyCode::Enter => {
                 buf.insert("\n");
             }
-            ot::KeyCode::Backspace => {
+            crate::KeyCode::Backspace => {
                 buf.delete_backward();
             }
-            ot::KeyCode::Delete => {
+            crate::KeyCode::Delete => {
                 buf.delete_forward();
             }
-            ot::KeyCode::Left if alt => {
+            crate::KeyCode::Left if alt => {
                 buf.move_word_left();
             }
-            ot::KeyCode::Left => {
+            crate::KeyCode::Left => {
                 buf.move_left();
             }
-            ot::KeyCode::Right if alt => {
+            crate::KeyCode::Right if alt => {
                 buf.move_word_right();
             }
-            ot::KeyCode::Right => {
+            crate::KeyCode::Right => {
                 buf.move_right();
             }
-            ot::KeyCode::Up => {
+            crate::KeyCode::Up => {
                 buf.move_up();
             }
-            ot::KeyCode::Down => {
+            crate::KeyCode::Down => {
                 buf.move_down();
             }
-            ot::KeyCode::Home => {
+            crate::KeyCode::Home => {
                 buf.move_to_line_start();
             }
-            ot::KeyCode::End => {
+            crate::KeyCode::End => {
                 buf.move_to_line_end();
             }
-            ot::KeyCode::Tab => {
+            crate::KeyCode::Tab => {
                 buf.insert("    ");
             }
             _ => return false,
@@ -236,7 +214,7 @@ impl Widget for EditorWidget {
         true
     }
 
-    fn handle_mouse(&mut self, _mouse: &ot::MouseEvent) -> bool {
+    fn handle_mouse(&mut self, _mouse: &crate::MouseEvent) -> bool {
         false
     }
 

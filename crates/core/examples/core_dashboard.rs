@@ -28,8 +28,9 @@ use opentui_core::terminal::{enable_raw_mode, terminal_size};
 use opentui_core::{Renderer, Rgba};
 
 use opentui_core::layout::LayoutStyle;
+use opentui_core::prelude::RenderContext;
 use opentui_core::theme::UiTheme;
-use opentui_core::widget::{RenderContext, WidgetTree};
+use opentui_core::tree::RenderTree;
 use opentui_core::widgets::{
     BoxWidget, ProgressBarStyle, ProgressBarWidget, ProgressChars, StatusLineWidget, TextWidget,
 };
@@ -73,133 +74,140 @@ fn main() -> io::Result<()> {
 
     let theme = UiTheme::dark_default();
 
-    let mut tree = WidgetTree::new();
+    let mut tree = RenderTree::new();
 
     // Root: full screen, column layout
-    let root = tree.add(
-        BoxWidget::new(1, LayoutStyle::column().width(w as f32).height(h as f32))
+    let root = tree.set_root(Box::new(
+        BoxWidget::new(LayoutStyle::column().width(w as f32).height(h as f32))
             .background(theme.background),
-    );
+    ));
 
     // Header: 1 row
     let header = tree.add_child(
         root,
-        BoxWidget::new(2, LayoutStyle::row().height(1.0).flex_shrink(0.0))
-            .background(theme.background_panel),
+        Box::new(
+            BoxWidget::new(LayoutStyle::row().height(1.0).flex_shrink(0.0))
+                .background(theme.background_panel),
+        ),
     );
     let _header_title = tree.add_child(
         header,
-        TextWidget::with_text(
-            3,
+        Box::new(TextWidget::with_text(
             LayoutStyle::default().flex_grow(1.0),
             " OpenTUI Core Dashboard ",
-        ),
+        )),
     );
 
     // Body: fills remaining space, row layout
     let body = tree.add_child(
         root,
-        BoxWidget::new(4, LayoutStyle::row().flex_grow(1.0)).background(theme.background),
+        Box::new(BoxWidget::new(LayoutStyle::row().flex_grow(1.0)).background(theme.background)),
     );
 
     // Left panel: file list
     let left = tree.add_child(
         body,
-        BoxWidget::new(
-            5,
-            LayoutStyle::column().width_percent(40.0).flex_shrink(0.0),
-        )
-        .border_rounded(theme.border)
-        .border_focused_color(theme.border_active)
-        .title("Files")
-        .background(theme.background_panel)
-        .focusable(),
+        Box::new(
+            BoxWidget::new(LayoutStyle::column().width_percent(40.0).flex_shrink(0.0))
+                .border_rounded(theme.border)
+                .border_focused_color(theme.border_active)
+                .title("Files")
+                .background(theme.background_panel)
+                .focusable(),
+        ),
     );
     let _file_list = tree.add_child(
         left,
-        TextWidget::with_text(
-            6,
+        Box::new(TextWidget::with_text(
             LayoutStyle::default().flex_grow(1.0),
             "  Cargo.toml\n  src/lib.rs\n  src/main.rs\n  README.md\n  benches/buffer.rs\n",
-        ),
+        )),
     );
 
     // Right panel: editor area + progress
     let right = tree.add_child(
         body,
-        BoxWidget::new(7, LayoutStyle::column().flex_grow(1.0))
-            .border_rounded(theme.border)
-            .border_focused_color(theme.border_active)
-            .title("Build Status")
-            .background(theme.background_panel)
-            .focusable(),
+        Box::new(
+            BoxWidget::new(LayoutStyle::column().flex_grow(1.0))
+                .border_rounded(theme.border)
+                .border_focused_color(theme.border_active)
+                .title("Build Status")
+                .background(theme.background_panel)
+                .focusable(),
+        ),
     );
 
     let _build_text = tree.add_child(
         right,
-        TextWidget::with_text(
-            8,
+        Box::new(TextWidget::with_text(
             LayoutStyle::default().flex_grow(1.0).height(3.0),
             "  Compiling opentui-core v0.1.0\n  Running tests...",
-        ),
+        )),
     );
 
     // Progress bars in right panel
     let _compile_pb = tree.add_child(
         right,
-        ProgressBarWidget::new(20, LayoutStyle::default().height(1.0).flex_grow(0.0))
-            .progress(0.85)
-            .label("compile"),
+        Box::new(
+            ProgressBarWidget::new(LayoutStyle::default().height(1.0).flex_grow(0.0))
+                .progress(0.85)
+                .label("compile"),
+        ),
     );
 
     let _test_pb = tree.add_child(
         right,
-        ProgressBarWidget::new(21, LayoutStyle::default().height(1.0).flex_grow(0.0))
-            .progress(0.62)
-            .bar_style(ProgressBarStyle {
-                filled_fg: Rgba::from_rgb_u8(80, 160, 255),
-                filled_bg: Rgba::from_rgb_u8(30, 60, 120),
-                empty_fg: Rgba::from_rgb_u8(50, 50, 60),
-                empty_bg: Rgba::from_rgb_u8(25, 25, 32),
-                label_fg: Rgba::from_rgb_u8(200, 220, 255),
-                chars: ProgressChars::blocks(),
-            })
-            .label("tests"),
+        Box::new(
+            ProgressBarWidget::new(LayoutStyle::default().height(1.0).flex_grow(0.0))
+                .progress(0.62)
+                .bar_style(ProgressBarStyle {
+                    filled_fg: Rgba::from_rgb_u8(80, 160, 255),
+                    filled_bg: Rgba::from_rgb_u8(30, 60, 120),
+                    empty_fg: Rgba::from_rgb_u8(50, 50, 60),
+                    empty_bg: Rgba::from_rgb_u8(25, 25, 32),
+                    label_fg: Rgba::from_rgb_u8(200, 220, 255),
+                    chars: ProgressChars::blocks(),
+                })
+                .label("tests"),
+        ),
     );
 
     let _lint_pb = tree.add_child(
         right,
-        ProgressBarWidget::new(22, LayoutStyle::default().height(1.0).flex_grow(0.0))
-            .progress(1.0)
-            .bar_style(ProgressBarStyle {
-                filled_fg: Rgba::from_rgb_u8(100, 220, 120),
-                filled_bg: Rgba::from_rgb_u8(30, 80, 40),
-                empty_fg: Rgba::from_rgb_u8(50, 50, 60),
-                empty_bg: Rgba::from_rgb_u8(25, 25, 32),
-                label_fg: Rgba::WHITE,
-                chars: ProgressChars::ascii(),
-            })
-            .label("clippy"),
+        Box::new(
+            ProgressBarWidget::new(LayoutStyle::default().height(1.0).flex_grow(0.0))
+                .progress(1.0)
+                .bar_style(ProgressBarStyle {
+                    filled_fg: Rgba::from_rgb_u8(100, 220, 120),
+                    filled_bg: Rgba::from_rgb_u8(30, 80, 40),
+                    empty_fg: Rgba::from_rgb_u8(50, 50, 60),
+                    empty_bg: Rgba::from_rgb_u8(25, 25, 32),
+                    label_fg: Rgba::WHITE,
+                    chars: ProgressChars::ascii(),
+                })
+                .label("clippy"),
+        ),
     );
 
     // Status line at bottom
     let _status = tree.add_child(
         root,
-        StatusLineWidget::new(50, LayoutStyle::default().height(1.0).flex_shrink(0.0))
-            .left("core_dashboard")
-            .center("NORMAL")
-            .right("Tab: focus | q: quit"),
+        Box::new(
+            StatusLineWidget::new(LayoutStyle::default().height(1.0).flex_shrink(0.0))
+                .left("core_dashboard")
+                .center("NORMAL")
+                .right("Tab: focus | q: quit"),
+        ),
     );
 
-    tree.build_focus_chain();
-    tree.set_focused_widget(Some(left));
+    tree.focus(left);
 
     let mut input_parser = InputParser::new();
     let stdin = io::stdin();
     let mut read_buf = [0u8; 1024];
 
     loop {
-        tree.layout(w as f32, h as f32);
+        tree.run_layout(w as f32, h as f32);
 
         {
             let buffer = renderer.buffer();
@@ -212,7 +220,7 @@ fn main() -> io::Result<()> {
                 hit_grid: None,
                 theme: Some(&theme),
             };
-            tree.render(&mut ctx);
+            tree.run_render(&mut ctx, 0.0);
         }
 
         renderer.present()?;

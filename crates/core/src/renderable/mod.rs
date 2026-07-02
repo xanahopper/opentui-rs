@@ -51,17 +51,20 @@
 #![allow(clippy::struct_excessive_bools)]
 #![allow(clippy::option_if_let_else)]
 
+pub mod behavior;
+pub mod context;
 pub mod event;
 pub mod keybinding;
 pub mod layout;
 pub mod list;
+pub mod node;
 pub mod prelude;
 pub mod render_command;
 pub mod scroll;
 pub mod theme;
+pub mod tree;
 pub mod view;
-pub mod widget;
 pub mod widgets;
 
 pub use layout::LayoutEngine;
-pub use widget::{RenderContext, Widget, WidgetId, WidgetTree};
+pub use tree::RenderTree;

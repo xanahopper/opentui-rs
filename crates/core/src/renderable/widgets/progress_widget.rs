@@ -2,11 +2,12 @@
 //!
 //! Renders a configurable progress bar with optional percentage label.
 
-use crate as ot;
-use crate::{Rgba, Style};
+use crate::{Cell, Rgba, Style};
 
-use crate::layout::{ComputedLayout, LayoutStyle};
-use crate::widget::{Overflow, RenderContext, Widget, WidgetId};
+use crate::renderable::behavior::{Behavior, FrameworkDefaults};
+use crate::renderable::context::RenderContext;
+use crate::renderable::layout::{ComputedLayout, LayoutStyle};
+use crate::renderable::node::Overflow;
 
 #[derive(Debug, Clone)]
 pub struct ProgressChars {
@@ -80,7 +81,6 @@ impl Default for ProgressBarStyle {
 }
 
 pub struct ProgressBarWidget {
-    id: WidgetId,
     style: LayoutStyle,
     progress: f32,
     label: Option<String>,
@@ -92,9 +92,8 @@ pub struct ProgressBarWidget {
 }
 
 impl ProgressBarWidget {
-    pub fn new(id: WidgetId, style: LayoutStyle) -> Self {
+    pub fn new(style: LayoutStyle) -> Self {
         Self {
-            id,
             style,
             progress: 0.0,
             label: None,
@@ -130,11 +129,7 @@ impl ProgressBarWidget {
     }
 }
 
-impl Widget for ProgressBarWidget {
-    fn id(&self) -> WidgetId {
-        self.id
-    }
-
+impl Behavior for ProgressBarWidget {
     fn style(&self) -> &LayoutStyle {
         &self.style
     }
@@ -143,7 +138,7 @@ impl Widget for ProgressBarWidget {
         &mut self.style
     }
 
-    fn render(&mut self, ctx: &mut RenderContext<'_>, layout: &ComputedLayout) {
+    fn render_self(&mut self, ctx: &mut RenderContext<'_>, layout: &ComputedLayout) {
         let x = layout.x as u32;
         let y = layout.y as u32;
         let w = layout.width as u32;
@@ -166,11 +161,8 @@ impl Widget for ProgressBarWidget {
             .fg(self.bar_style.empty_fg)
             .bg(self.bar_style.empty_bg)
             .build();
-        ctx.buffer.set(
-            x,
-            y,
-            ot::Cell::new(self.bar_style.chars.left_cap, cap_style),
-        );
+        ctx.buffer
+            .set(x, y, Cell::new(self.bar_style.chars.left_cap, cap_style));
 
         // Draw filled portion
         let filled_style = Style::builder()
@@ -181,7 +173,7 @@ impl Widget for ProgressBarWidget {
             ctx.buffer.set(
                 x + 1 + col,
                 y,
-                ot::Cell::new(self.bar_style.chars.filled, filled_style),
+                Cell::new(self.bar_style.chars.filled, filled_style),
             );
         }
 
@@ -194,7 +186,7 @@ impl Widget for ProgressBarWidget {
             ctx.buffer.set(
                 x + 1 + col,
                 y,
-                ot::Cell::new(self.bar_style.chars.empty, empty_style),
+                Cell::new(self.bar_style.chars.empty, empty_style),
             );
         }
 
@@ -202,7 +194,7 @@ impl Widget for ProgressBarWidget {
         ctx.buffer.set(
             x + w - 1,
             y,
-            ot::Cell::new(self.bar_style.chars.right_cap, cap_style),
+            Cell::new(self.bar_style.chars.right_cap, cap_style),
         );
 
         // Draw label centered on top
@@ -228,57 +220,41 @@ impl Widget for ProgressBarWidget {
                 .fg(self.bar_style.empty_fg)
                 .bg(self.bar_style.empty_bg)
                 .build();
+            ctx.buffer.set(x, y + row, Cell::new(' ', row_cap_style));
             ctx.buffer
-                .set(x, y + row, ot::Cell::new(' ', row_cap_style));
-            ctx.buffer
-                .set(x + w - 1, y + row, ot::Cell::new(' ', row_cap_style));
+                .set(x + w - 1, y + row, Cell::new(' ', row_cap_style));
 
             for col in 0..filled_count {
                 ctx.buffer.set(
                     x + 1 + col,
                     y + row,
-                    ot::Cell::new(self.bar_style.chars.filled, filled_style),
+                    Cell::new(self.bar_style.chars.filled, filled_style),
                 );
             }
             for col in filled_count..inner_w {
                 ctx.buffer.set(
                     x + 1 + col,
                     y + row,
-                    ot::Cell::new(self.bar_style.chars.empty, empty_style),
+                    Cell::new(self.bar_style.chars.empty, empty_style),
                 );
             }
         }
     }
 
-    fn visible(&self) -> bool {
-        self.visible
+    fn framework_defaults(&self) -> FrameworkDefaults {
+        FrameworkDefaults {
+            focusable: self.focusable,
+            overflow: Overflow::Hidden,
+            visible: self.visible,
+            opacity: self.opacity,
+        }
     }
 
-    fn opacity(&self) -> f32 {
-        self.opacity
-    }
-
-    fn overflow(&self) -> Overflow {
-        Overflow::Hidden
-    }
-
-    fn focusable(&self) -> bool {
-        self.focusable
-    }
-
-    fn focused(&self) -> bool {
-        self.focused
-    }
-
-    fn set_focused(&mut self, focused: bool) {
-        self.focused = focused;
-    }
-
-    fn handle_key(&mut self, _key: &ot::KeyEvent) -> bool {
+    fn handle_key(&mut self, _key: &crate::KeyEvent) -> bool {
         false
     }
 
-    fn handle_mouse(&mut self, _mouse: &ot::MouseEvent) -> bool {
+    fn handle_mouse(&mut self, _mouse: &crate::MouseEvent) -> bool {
         false
     }
 

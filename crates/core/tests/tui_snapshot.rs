@@ -17,7 +17,10 @@ use std::rc::Rc;
 use opentui_core::{Cell, OptimizedBuffer, Rgba, Style};
 
 use opentui_core::layout::{ComputedLayout, LayoutStyle};
-use opentui_core::widget::{Overflow, RenderContext, Widget, WidgetId, WidgetTree};
+use opentui_core::renderable::behavior::{Behavior, FrameworkDefaults};
+use opentui_core::renderable::context::RenderContext;
+use opentui_core::renderable::node::{NodeId, Overflow};
+use opentui_core::renderable::tree::RenderTree;
 use opentui_core::widgets::BoxWidget;
 
 const BG: Rgba = Rgba::new(0.059, 0.059, 0.086, 1.0);
@@ -33,24 +36,20 @@ struct FakeApp {
 }
 
 struct MessageAreaWidget {
-    id: WidgetId,
     style: LayoutStyle,
     app: Rc<RefCell<FakeApp>>,
 }
 
 struct PromptWidget {
-    id: WidgetId,
     style: LayoutStyle,
     app: Rc<RefCell<FakeApp>>,
 }
 
 struct HintBarWidget {
-    id: WidgetId,
     style: LayoutStyle,
 }
 
 struct SidebarWidget {
-    id: WidgetId,
     style: LayoutStyle,
 }
 
@@ -75,11 +74,15 @@ impl std::fmt::Debug for SidebarWidget {
     }
 }
 
-macro_rules! impl_widget_boilerplate {
+macro_rules! impl_behavior_boilerplate {
     ($t:ty) => {
-        impl Widget for $t {
-            fn id(&self) -> WidgetId {
-                self.id
+        impl Behavior for $t {
+            fn render_self(&mut self, _ctx: &mut RenderContext<'_>, _layout: &ComputedLayout) {}
+            fn framework_defaults(&self) -> FrameworkDefaults {
+                FrameworkDefaults {
+                    overflow: Overflow::Hidden,
+                    ..FrameworkDefaults::default()
+                }
             }
             fn style(&self) -> &LayoutStyle {
                 &self.style
@@ -87,23 +90,6 @@ macro_rules! impl_widget_boilerplate {
             fn style_mut(&mut self) -> &mut LayoutStyle {
                 &mut self.style
             }
-            fn render(&mut self, _ctx: &mut RenderContext<'_>, _layout: &ComputedLayout) {}
-            fn visible(&self) -> bool {
-                true
-            }
-            fn opacity(&self) -> f32 {
-                1.0
-            }
-            fn overflow(&self) -> Overflow {
-                Overflow::Hidden
-            }
-            fn focusable(&self) -> bool {
-                false
-            }
-            fn focused(&self) -> bool {
-                false
-            }
-            fn set_focused(&mut self, _focused: bool) {}
             fn handle_key(&mut self, _key: &opentui_core::KeyEvent) -> bool {
                 false
             }
@@ -120,13 +106,12 @@ macro_rules! impl_widget_boilerplate {
     };
 }
 
-impl_widget_boilerplate!(HintBarWidget);
-impl_widget_boilerplate!(SidebarWidget);
+impl_behavior_boilerplate!(HintBarWidget);
+impl_behavior_boilerplate!(SidebarWidget);
 
 impl MessageAreaWidget {
-    fn new(id: WidgetId, app: Rc<RefCell<FakeApp>>) -> Self {
+    fn new(app: Rc<RefCell<FakeApp>>) -> Self {
         Self {
-            id,
             style: LayoutStyle::column().flex_grow(1.0),
             app,
         }
@@ -134,9 +119,8 @@ impl MessageAreaWidget {
 }
 
 impl PromptWidget {
-    fn new(id: WidgetId, app: Rc<RefCell<FakeApp>>) -> Self {
+    fn new(app: Rc<RefCell<FakeApp>>) -> Self {
         Self {
-            id,
             style: LayoutStyle::column().height(5.0).flex_shrink(0.0),
             app,
         }
@@ -144,26 +128,27 @@ impl PromptWidget {
 }
 
 impl HintBarWidget {
-    fn new(id: WidgetId) -> Self {
+    fn new() -> Self {
         Self {
-            id,
             style: LayoutStyle::column().height(1.0).flex_shrink(0.0),
         }
     }
 }
 
 impl SidebarWidget {
-    fn new(id: WidgetId) -> Self {
+    fn new() -> Self {
         Self {
-            id,
             style: LayoutStyle::column().width(42.0).flex_shrink(0.0),
         }
     }
 }
 
-impl Widget for MessageAreaWidget {
-    fn id(&self) -> WidgetId {
-        self.id
+impl Behavior for MessageAreaWidget {
+    fn framework_defaults(&self) -> FrameworkDefaults {
+        FrameworkDefaults {
+            overflow: Overflow::Hidden,
+            ..FrameworkDefaults::default()
+        }
     }
     fn style(&self) -> &LayoutStyle {
         &self.style
@@ -172,7 +157,7 @@ impl Widget for MessageAreaWidget {
         &mut self.style
     }
 
-    fn render(&mut self, ctx: &mut RenderContext<'_>, layout: &ComputedLayout) {
+    fn render_self(&mut self, ctx: &mut RenderContext<'_>, layout: &ComputedLayout) {
         let x = layout.x as u32;
         let y = layout.y as u32;
         let w = layout.width as u32;
@@ -197,22 +182,6 @@ impl Widget for MessageAreaWidget {
         }
     }
 
-    fn visible(&self) -> bool {
-        true
-    }
-    fn opacity(&self) -> f32 {
-        1.0
-    }
-    fn overflow(&self) -> Overflow {
-        Overflow::Hidden
-    }
-    fn focusable(&self) -> bool {
-        false
-    }
-    fn focused(&self) -> bool {
-        false
-    }
-    fn set_focused(&mut self, _focused: bool) {}
     fn handle_key(&mut self, _key: &opentui_core::KeyEvent) -> bool {
         false
     }
@@ -227,9 +196,12 @@ impl Widget for MessageAreaWidget {
     }
 }
 
-impl Widget for PromptWidget {
-    fn id(&self) -> WidgetId {
-        self.id
+impl Behavior for PromptWidget {
+    fn framework_defaults(&self) -> FrameworkDefaults {
+        FrameworkDefaults {
+            overflow: Overflow::Hidden,
+            ..FrameworkDefaults::default()
+        }
     }
     fn style(&self) -> &LayoutStyle {
         &self.style
@@ -238,7 +210,7 @@ impl Widget for PromptWidget {
         &mut self.style
     }
 
-    fn render(&mut self, ctx: &mut RenderContext<'_>, layout: &ComputedLayout) {
+    fn render_self(&mut self, ctx: &mut RenderContext<'_>, layout: &ComputedLayout) {
         let x = layout.x as u32;
         let y = layout.y as u32;
         let w = layout.width as u32;
@@ -259,22 +231,6 @@ impl Widget for PromptWidget {
         }
     }
 
-    fn visible(&self) -> bool {
-        true
-    }
-    fn opacity(&self) -> f32 {
-        1.0
-    }
-    fn overflow(&self) -> Overflow {
-        Overflow::Hidden
-    }
-    fn focusable(&self) -> bool {
-        false
-    }
-    fn focused(&self) -> bool {
-        false
-    }
-    fn set_focused(&mut self, _focused: bool) {}
     fn handle_key(&mut self, _key: &opentui_core::KeyEvent) -> bool {
         false
     }
@@ -298,43 +254,38 @@ fn build_tree(
     h: f32,
     app: &Rc<RefCell<FakeApp>>,
     sidebar: bool,
-) -> (WidgetTree, [WidgetId; 5]) {
-    let mut tree = WidgetTree::new();
+) -> (RenderTree, [NodeId; 5]) {
+    let mut tree = RenderTree::new();
 
-    let root_id = tree.allocate_id();
-    let main_id = tree.allocate_id();
-    let msg_id = tree.allocate_id();
-    let prompt_id = tree.allocate_id();
-    let hint_id = tree.allocate_id();
-
-    tree.add(
-        BoxWidget::new(root_id, LayoutStyle::row().width(w).height(h))
+    let root_id = tree.set_root(Box::new(
+        BoxWidget::new(LayoutStyle::row().width(w).height(h))
             .background(BG)
             .overflow_hidden(),
-    );
+    ));
 
-    tree.add_child(
+    let main_id = tree.add_child(
         root_id,
-        BoxWidget::new(main_id, LayoutStyle::column().flex_grow(1.0))
-            .background(BG)
-            .overflow_hidden(),
+        Box::new(
+            BoxWidget::new(LayoutStyle::column().flex_grow(1.0))
+                .background(BG)
+                .overflow_hidden(),
+        ),
     );
 
-    tree.add_child(main_id, MessageAreaWidget::new(msg_id, Rc::clone(app)));
-    tree.add_child(main_id, PromptWidget::new(prompt_id, Rc::clone(app)));
-    tree.add_child(main_id, HintBarWidget::new(hint_id));
+    let msg_id = tree.add_child(main_id, Box::new(MessageAreaWidget::new(Rc::clone(app))));
+    let prompt_id = tree.add_child(main_id, Box::new(PromptWidget::new(Rc::clone(app))));
+    let hint_id = tree.add_child(main_id, Box::new(HintBarWidget::new()));
 
     if sidebar {
-        let sb_id = tree.allocate_id();
-        tree.add_child(root_id, SidebarWidget::new(sb_id));
+        let _sb_id = tree.add_child(root_id, Box::new(SidebarWidget::new()));
     }
 
-    tree.layout(w, h);
+    tree.run_layout(w, h);
 
     (tree, [root_id, main_id, msg_id, prompt_id, hint_id])
 }
 
-fn dump_layouts(tree: &WidgetTree, ids: &[WidgetId], names: &[&str]) -> String {
+fn dump_layouts(tree: &RenderTree, ids: &[NodeId], names: &[&str]) -> String {
     let mut out = String::new();
     for (id, name) in ids.iter().zip(names) {
         if let Some(l) = tree.computed_layout(*id) {
@@ -462,7 +413,7 @@ fn test_render_snapshot_no_sidebar() {
             hit_grid: None,
             theme: None,
         };
-        tree.render(&mut ctx);
+        tree.run_render(&mut ctx, 0.0);
     }
 
     let snapshot = render_to_string(&buf, w, h);
@@ -522,7 +473,7 @@ fn test_render_snapshot_with_sidebar() {
             hit_grid: None,
             theme: None,
         };
-        tree.render(&mut ctx);
+        tree.run_render(&mut ctx, 0.0);
     }
 
     let snapshot = render_to_string(&buf, w, h);

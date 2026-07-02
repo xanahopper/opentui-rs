@@ -1,18 +1,20 @@
 //! Integration tests for full tree → layout → render pipeline.
 
 #![allow(clippy::float_cmp)]
-#![allow(clippy::missing_const_for_fn)]
 
-use opentui_core::{OptimizedBuffer, Rgba};
-
-use opentui_core::layout::LayoutStyle;
-use opentui_core::theme::UiTheme;
-use opentui_core::widget::{Overlay, OverlayZOrder, RenderContext, WidgetTree};
+use opentui_core::renderable::context::RenderContext;
+use opentui_core::renderable::layout::ComputedLayout;
+use opentui_core::renderable::node::NodeId;
+use opentui_core::renderable::tree::{Overlay, RenderTree};
 use opentui_core::widgets::{
     BoxWidget, ProgressBarWidget, StatusLineWidget, Tab, TabsWidget, TextWidget,
 };
+use opentui_core::{OptimizedBuffer, Rgba, Style};
 
-fn make_ctx<'a>(buf: &'a mut OptimizedBuffer, theme: &'a UiTheme) -> RenderContext<'a> {
+use opentui_core::layout::LayoutStyle;
+use opentui_core::theme::UiTheme;
+
+const fn make_ctx<'a>(buf: &'a mut OptimizedBuffer, theme: &'a UiTheme) -> RenderContext<'a> {
     RenderContext {
         buffer: buf,
         grapheme_pool: None,
@@ -26,24 +28,56 @@ fn cell_char(buf: &OptimizedBuffer, x: u32, y: u32) -> Option<char> {
     buf.get(x, y).and_then(|c| c.content.as_char())
 }
 
+// The new `RenderTree` stores overlays but does not draw them itself (overlay
+// rendering is currently driven by the higher-level View layer). To keep these
+// pipeline tests meaningful, we render the registered overlay nodes manually
+// on top of the main tree, in z-order, with optional backdrop clearing —
+// mirroring the old `WidgetTree::render` behavior.
+fn render_overlays(tree: &mut RenderTree, ctx: &mut RenderContext<'_>) {
+    let mut overlays: Vec<Overlay> = tree.overlays().to_vec();
+    overlays.sort_by_key(|o| o.z_order);
+
+    let (w, h) = (ctx.buffer.width(), ctx.buffer.height());
+    for ov in overlays {
+        if ov.backdrop {
+            let spaces = " ".repeat(w as usize);
+            for y in 0..h {
+                ctx.buffer.draw_text(0, y, &spaces, Style::NONE);
+            }
+        }
+        let layout = ComputedLayout {
+            x: ov.x,
+            y: ov.y,
+            width: ov.width,
+            height: ov.height,
+        };
+        if let Some(node) = tree.get_mut(ov.node) {
+            node.behavior.render_self(ctx, &layout);
+        }
+    }
+}
+
 #[test]
 fn test_text_widget_renders() {
     let mut buf = OptimizedBuffer::new(40, 5);
     let theme = UiTheme::dark_default();
-    let mut tree = WidgetTree::new();
+    let mut tree = RenderTree::new();
 
-    let root = tree.add(
-        BoxWidget::new(1, LayoutStyle::column().width(40.0).height(5.0)).background(Rgba::BLACK),
-    );
+    let root = tree.set_root(Box::new(
+        BoxWidget::new(LayoutStyle::column().width(40.0).height(5.0)).background(Rgba::BLACK),
+    ));
     let _text = tree.add_child(
         root,
-        TextWidget::with_text(2, LayoutStyle::default().flex_grow(1.0), "Hello World"),
+        Box::new(TextWidget::with_text(
+            LayoutStyle::default().flex_grow(1.0),
+            "Hello World",
+        )),
     );
 
-    tree.layout(40.0, 5.0);
+    tree.run_layout(40.0, 5.0);
     {
         let mut ctx = make_ctx(&mut buf, &theme);
-        tree.render(&mut ctx);
+        tree.run_render(&mut ctx, 0.0);
     }
 
     assert_eq!(cell_char(&buf, 0, 0), Some('H'));
@@ -55,19 +89,19 @@ fn test_text_widget_renders() {
 fn test_status_line_renders_segments() {
     let mut buf = OptimizedBuffer::new(40, 1);
     let theme = UiTheme::dark_default();
-    let mut tree = WidgetTree::new();
+    let mut tree = RenderTree::new();
 
-    let _sl = tree.add(
-        StatusLineWidget::new(1, LayoutStyle::default().width(40.0).height(1.0))
+    let _sl = tree.set_root(Box::new(
+        StatusLineWidget::new(LayoutStyle::default().width(40.0).height(1.0))
             .left("LEFT")
             .center("MID")
             .right("RIGHT"),
-    );
+    ));
 
-    tree.layout(40.0, 1.0);
+    tree.run_layout(40.0, 1.0);
     {
         let mut ctx = make_ctx(&mut buf, &theme);
-        tree.render(&mut ctx);
+        tree.run_render(&mut ctx, 0.0);
     }
 
     assert_eq!(cell_char(&buf, 0, 0), Some('L'));
@@ -79,16 +113,16 @@ fn test_status_line_renders_segments() {
 fn test_progress_bar_renders_fill() {
     let mut buf = OptimizedBuffer::new(22, 1);
     let theme = UiTheme::dark_default();
-    let mut tree = WidgetTree::new();
+    let mut tree = RenderTree::new();
 
-    let _bar = tree.add(
-        ProgressBarWidget::new(1, LayoutStyle::default().width(22.0).height(1.0)).progress(0.5),
-    );
+    let _bar = tree.set_root(Box::new(
+        ProgressBarWidget::new(LayoutStyle::default().width(22.0).height(1.0)).progress(0.5),
+    ));
 
-    tree.layout(22.0, 1.0);
+    tree.run_layout(22.0, 1.0);
     {
         let mut ctx = make_ctx(&mut buf, &theme);
-        tree.render(&mut ctx);
+        tree.run_render(&mut ctx, 0.0);
     }
 
     // left cap at col 0
@@ -105,17 +139,17 @@ fn test_progress_bar_renders_fill() {
 fn test_tabs_renders_titles() {
     let mut buf = OptimizedBuffer::new(40, 3);
     let theme = UiTheme::dark_default();
-    let mut tree = WidgetTree::new();
+    let mut tree = RenderTree::new();
 
-    let _tabs = tree.add(
-        TabsWidget::new(1, LayoutStyle::default().width(40.0).height(3.0))
+    let _tabs = tree.set_root(Box::new(
+        TabsWidget::new(LayoutStyle::default().width(40.0).height(3.0))
             .tabs(vec![Tab::new("File"), Tab::new("Edit")]),
-    );
+    ));
 
-    tree.layout(40.0, 3.0);
+    tree.run_layout(40.0, 3.0);
     {
         let mut ctx = make_ctx(&mut buf, &theme);
-        tree.render(&mut ctx);
+        tree.run_render(&mut ctx, 0.0);
     }
 
     assert_eq!(cell_char(&buf, 1, 0), Some('F'));
@@ -128,30 +162,39 @@ fn test_tabs_renders_titles() {
 fn test_nested_layout_row_column() {
     let mut buf = OptimizedBuffer::new(40, 5);
     let theme = UiTheme::dark_default();
-    let mut tree = WidgetTree::new();
+    let mut tree = RenderTree::new();
 
-    let root = tree
-        .add(BoxWidget::new(1, LayoutStyle::row().width(40.0).height(5.0)).background(Rgba::BLACK));
+    let root: NodeId = tree.set_root(Box::new(
+        BoxWidget::new(LayoutStyle::row().width(40.0).height(5.0)).background(Rgba::BLACK),
+    ));
 
-    let left = tree.add_child(
+    let left: NodeId = tree.add_child(
         root,
-        BoxWidget::new(2, LayoutStyle::column().width(20.0).height(5.0)).background(Rgba::BLACK),
+        Box::new(
+            BoxWidget::new(LayoutStyle::column().width(20.0).height(5.0)).background(Rgba::BLACK),
+        ),
     );
     let _left_text = tree.add_child(
         left,
-        TextWidget::with_text(3, LayoutStyle::default().flex_grow(1.0), "L"),
+        Box::new(TextWidget::with_text(
+            LayoutStyle::default().flex_grow(1.0),
+            "L",
+        )),
     );
 
     let right = tree.add_child(
         root,
-        BoxWidget::new(4, LayoutStyle::column().flex_grow(1.0)).background(Rgba::BLACK),
+        Box::new(BoxWidget::new(LayoutStyle::column().flex_grow(1.0)).background(Rgba::BLACK)),
     );
     let _right_text = tree.add_child(
         right,
-        TextWidget::with_text(5, LayoutStyle::default().flex_grow(1.0), "R"),
+        Box::new(TextWidget::with_text(
+            LayoutStyle::default().flex_grow(1.0),
+            "R",
+        )),
     );
 
-    tree.layout(40.0, 5.0);
+    tree.run_layout(40.0, 5.0);
 
     let left_layout = tree.computed_layout(left).unwrap();
     let right_layout = tree.computed_layout(right).unwrap();
@@ -161,7 +204,7 @@ fn test_nested_layout_row_column() {
 
     {
         let mut ctx = make_ctx(&mut buf, &theme);
-        tree.render(&mut ctx);
+        tree.run_render(&mut ctx, 0.0);
     }
 
     assert_eq!(cell_char(&buf, 0, 0), Some('L'));
@@ -172,27 +215,45 @@ fn test_nested_layout_row_column() {
 fn test_overlay_renders_on_top() {
     let mut buf = OptimizedBuffer::new(40, 10);
     let theme = UiTheme::dark_default();
-    let mut tree = WidgetTree::new();
+    let mut tree = RenderTree::new();
 
-    let root = tree.add(
-        BoxWidget::new(1, LayoutStyle::column().width(40.0).height(10.0)).background(Rgba::BLACK),
-    );
+    let root = tree.set_root(Box::new(
+        BoxWidget::new(LayoutStyle::column().width(40.0).height(10.0)).background(Rgba::BLACK),
+    ));
     let _bg = tree.add_child(
         root,
-        TextWidget::with_text(2, LayoutStyle::default().flex_grow(1.0), "BBBBBBBBBB"),
+        Box::new(TextWidget::with_text(
+            LayoutStyle::default().flex_grow(1.0),
+            "BBBBBBBBBB",
+        )),
     );
 
-    let overlay_widget = tree.add(TextWidget::with_text(
-        3,
-        LayoutStyle::default().width(5.0).height(1.0),
-        "OVER",
-    ));
-    tree.add_overlay(Overlay::new(overlay_widget, 0.0, 0.0, 5.0, 1.0));
+    // Overlay nodes must live in the arena. Attach as an invisible child of the
+    // root so the tree's own render pass skips it; the overlay helper draws it
+    // at the explicit overlay coordinates instead.
+    let overlay_widget = tree.add_child(
+        root,
+        Box::new(TextWidget::with_text(
+            LayoutStyle::default().width(5.0).height(1.0),
+            "OVER",
+        )),
+    );
+    tree.set_visible(overlay_widget, false);
+    tree.add_overlay(Overlay {
+        node: overlay_widget,
+        x: 0.0,
+        y: 0.0,
+        width: 5.0,
+        height: 1.0,
+        z_order: 0,
+        backdrop: false,
+    });
 
-    tree.layout(40.0, 10.0);
+    tree.run_layout(40.0, 10.0);
     {
         let mut ctx = make_ctx(&mut buf, &theme);
-        tree.render(&mut ctx);
+        tree.run_render(&mut ctx, 0.0);
+        render_overlays(&mut tree, &mut ctx);
     }
 
     // Overlay overwrites the background text
@@ -206,35 +267,42 @@ fn test_overlay_renders_on_top() {
 fn test_overlay_backdrop_clears() {
     let mut buf = OptimizedBuffer::new(20, 5);
     let theme = UiTheme::dark_default();
-    let mut tree = WidgetTree::new();
+    let mut tree = RenderTree::new();
 
-    let root = tree.add(
-        BoxWidget::new(1, LayoutStyle::column().width(20.0).height(5.0)).background(Rgba::BLACK),
-    );
+    let root = tree.set_root(Box::new(
+        BoxWidget::new(LayoutStyle::column().width(20.0).height(5.0)).background(Rgba::BLACK),
+    ));
     let _bg = tree.add_child(
         root,
-        TextWidget::with_text(
-            2,
+        Box::new(TextWidget::with_text(
             LayoutStyle::default().flex_grow(1.0),
             "XXXXXXXXXXXXXXXXXXXX",
-        ),
+        )),
     );
 
-    let modal = tree.add(TextWidget::with_text(
-        3,
-        LayoutStyle::default().width(5.0).height(1.0),
-        "MODAL",
-    ));
-    tree.add_overlay(
-        Overlay::new(modal, 5.0, 2.0, 5.0, 1.0)
-            .z_order(OverlayZOrder::MODAL)
-            .backdrop(true),
+    let modal = tree.add_child(
+        root,
+        Box::new(TextWidget::with_text(
+            LayoutStyle::default().width(5.0).height(1.0),
+            "MODAL",
+        )),
     );
+    tree.set_visible(modal, false);
+    tree.add_overlay(Overlay {
+        node: modal,
+        x: 5.0,
+        y: 2.0,
+        width: 5.0,
+        height: 1.0,
+        z_order: 1000,
+        backdrop: true,
+    });
 
-    tree.layout(20.0, 5.0);
+    tree.run_layout(20.0, 5.0);
     {
         let mut ctx = make_ctx(&mut buf, &theme);
-        tree.render(&mut ctx);
+        tree.run_render(&mut ctx, 0.0);
+        render_overlays(&mut tree, &mut ctx);
     }
 
     // Backdrop clears all cells to spaces (not X)
@@ -247,54 +315,67 @@ fn test_overlay_backdrop_clears() {
 fn test_focus_cycle_with_render() {
     let mut buf = OptimizedBuffer::new(40, 5);
     let theme = UiTheme::dark_default();
-    let mut tree = WidgetTree::new();
+    let mut tree = RenderTree::new();
 
     let border_n = Rgba::from_rgb_u8(60, 60, 60);
     let border_f = Rgba::from_rgb_u8(100, 200, 255);
 
-    let root = tree
-        .add(BoxWidget::new(1, LayoutStyle::row().width(40.0).height(5.0)).background(Rgba::BLACK));
+    let root = tree.set_root(Box::new(
+        BoxWidget::new(LayoutStyle::row().width(40.0).height(5.0)).background(Rgba::BLACK),
+    ));
 
     let a = tree.add_child(
         root,
-        BoxWidget::new(2, LayoutStyle::column().width(20.0))
-            .border_rounded(border_n)
-            .border_focused_color(border_f)
-            .title("A")
-            .focusable(),
+        Box::new(
+            BoxWidget::new(LayoutStyle::column().width(20.0))
+                .border_rounded(border_n)
+                .border_focused_color(border_f)
+                .title("A")
+                .focusable(),
+        ),
     );
-    let _ta = tree.add_child(a, TextWidget::with_text(3, LayoutStyle::default(), "AA"));
+    // `.focusable()` on the widget is only propagated to the node by the View
+    // rebuild path; for direct RenderTree usage we must mark the node explicitly.
+    tree.set_focusable(a, true);
+    let _ta = tree.add_child(
+        a,
+        Box::new(TextWidget::with_text(LayoutStyle::default(), "AA")),
+    );
 
     let b = tree.add_child(
         root,
-        BoxWidget::new(4, LayoutStyle::column().flex_grow(1.0))
-            .border_rounded(border_n)
-            .border_focused_color(border_f)
-            .title("B")
-            .focusable(),
+        Box::new(
+            BoxWidget::new(LayoutStyle::column().flex_grow(1.0))
+                .border_rounded(border_n)
+                .border_focused_color(border_f)
+                .title("B")
+                .focusable(),
+        ),
     );
-    let _tb = tree.add_child(b, TextWidget::with_text(5, LayoutStyle::default(), "BB"));
-
-    tree.build_focus_chain();
+    tree.set_focusable(b, true);
+    let _tb = tree.add_child(
+        b,
+        Box::new(TextWidget::with_text(LayoutStyle::default(), "BB")),
+    );
 
     // Focus A
     tree.focus_next();
-    assert_eq!(tree.focused_id(), Some(a));
-    assert!(tree.has_focused_descendant(root));
+    assert_eq!(tree.focused_node(), Some(a));
+    assert!(tree.get(root).is_some_and(|n| n.has_focused_descendant));
 
     // Focus B
     tree.focus_next();
-    assert_eq!(tree.focused_id(), Some(b));
+    assert_eq!(tree.focused_node(), Some(b));
 
     // Wrap back to A
     tree.focus_next();
-    assert_eq!(tree.focused_id(), Some(a));
+    assert_eq!(tree.focused_node(), Some(a));
 
     // Render succeeds without panic
-    tree.layout(40.0, 5.0);
+    tree.run_layout(40.0, 5.0);
     {
         let mut ctx = make_ctx(&mut buf, &theme);
-        tree.render(&mut ctx);
+        tree.run_render(&mut ctx, 0.0);
     }
 
     // Title "A" renders somewhere in the box
@@ -303,8 +384,8 @@ fn test_focus_cycle_with_render() {
 
 #[test]
 fn test_keybinding_in_render_loop() {
-    use opentui_core::keybinding::KeyBindingRegistry;
     use opentui_core::input::{KeyCode, KeyEvent, KeyModifiers};
+    use opentui_core::keybinding::KeyBindingRegistry;
 
     let mut reg = KeyBindingRegistry::new();
     reg.bind(KeyModifiers::empty(), KeyCode::Char('q'), "quit");

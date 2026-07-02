@@ -25,7 +25,100 @@
 //! let ansi_256 = red.to_256_color();
 //! ```
 
+use std::cell::RefCell;
+use std::collections::HashMap;
 use std::fmt;
+use std::sync::LazyLock;
+
+/// 6x6x6 color cube channel levels for the xterm 256 palette.
+const XTERM_CUBE_LEVELS: [u8; 6] = [0, 95, 135, 175, 215, 255];
+
+/// Gray values for the 24-step ramp (palette indices 232-255).
+const XTERM_GRAYSCALE: [u8; 24] = [
+    8, 18, 28, 38, 48, 58, 68, 78, 88, 98, 108, 118, 128, 138, 148, 158, 168, 178, 188, 198, 208,
+    218, 228, 238,
+];
+
+/// Standard ANSI 16-color RGB values (palette indices 0-15).
+const ANSI16_RGB: [(u8, u8, u8); 16] = [
+    (0x00, 0x00, 0x00),
+    (0x80, 0x00, 0x00),
+    (0x00, 0x80, 0x00),
+    (0x80, 0x80, 0x00),
+    (0x00, 0x00, 0x80),
+    (0x80, 0x00, 0x80),
+    (0x00, 0x80, 0x80),
+    (0xC0, 0xC0, 0xC0),
+    (0x80, 0x80, 0x80),
+    (0xFF, 0x00, 0x00),
+    (0x00, 0xFF, 0x00),
+    (0xFF, 0xFF, 0x00),
+    (0x00, 0x00, 0xFF),
+    (0xFF, 0x00, 0xFF),
+    (0x00, 0xFF, 0xFF),
+    (0xFF, 0xFF, 0xFF),
+];
+
+/// The full xterm 256-color palette as [`Rgba`] values.
+///
+/// Layout: `0..16` standard ANSI colors, `16..232` the 6x6x6 cube, and
+/// `232..256` the 24-step grayscale ramp.
+static XTERM_256_PALETTE: LazyLock<[Rgba; 256]> = LazyLock::new(build_xterm_256_palette);
+
+fn build_xterm_256_palette() -> [Rgba; 256] {
+    let mut palette = [Rgba::BLACK; 256];
+
+    for (i, &(r, g, b)) in ANSI16_RGB.iter().enumerate() {
+        palette[i] = Rgba::from_rgb_u8(r, g, b);
+    }
+
+    for i in 0..216usize {
+        let r = XTERM_CUBE_LEVELS[(i / 36) % 6];
+        let g = XTERM_CUBE_LEVELS[(i / 6) % 6];
+        let b = XTERM_CUBE_LEVELS[i % 6];
+        palette[16 + i] = Rgba::from_rgb_u8(r, g, b);
+    }
+
+    for (i, &gray) in XTERM_GRAYSCALE.iter().enumerate() {
+        palette[232 + i] = Rgba::from_rgb_u8(gray, gray, gray);
+    }
+
+    palette
+}
+
+thread_local! {
+    /// Per-RGB-triple cache for [`Rgba::nearest_256`], letting recurring colors
+    /// skip the full palette scan on the rendering hot path.
+    static NEAREST_256_CACHE: RefCell<HashMap<(u8, u8, u8), u8>> = RefCell::new(HashMap::new());
+}
+
+/// Compute the nearest xterm-256 palette index (16-255) for an RGB triple.
+///
+/// Uses squared Euclidean distance. Indices 0-15 (themeable standard ANSI
+/// colors) are skipped; ties resolve to the lowest index.
+fn nearest_256_index(r: u8, g: u8, b: u8) -> u8 {
+    let palette = &*XTERM_256_PALETTE;
+    let tr = i32::from(r);
+    let tg = i32::from(g);
+    let tb = i32::from(b);
+
+    let mut best_idx = 16u8;
+    let mut best_dist = i32::MAX;
+
+    for i in 16u8..=255 {
+        let (cr, cg, cb) = palette[i as usize].to_rgb_u8();
+        let dr = tr - i32::from(cr);
+        let dg = tg - i32::from(cg);
+        let db = tb - i32::from(cb);
+        let dist = dr * dr + dg * dg + db * db;
+        if dist < best_dist {
+            best_dist = dist;
+            best_idx = i;
+        }
+    }
+
+    best_idx
+}
 
 /// RGBA color with f32 components in range [0.0, 1.0].
 ///
@@ -331,84 +424,37 @@ impl Rgba {
 
     /// Convert to nearest 256-color palette index.
     ///
-    /// Uses the 6x6x6 color cube (colors 16-231) or grayscale ramp (232-255)
-    /// depending on which provides the closest match.
+    /// Delegates to [`Rgba::nearest_256`], which searches the 6x6x6 color cube
+    /// (indices 16-231) and grayscale ramp (232-255) for the closest match by
+    /// squared Euclidean RGB distance, with per-RGB-triple caching.
     #[must_use]
     pub fn to_256_color(self) -> u8 {
+        self.nearest_256()
+    }
+
+    /// Find the nearest xterm-256 palette index for this color.
+    ///
+    /// Searches the 6x6x6 color cube (indices 16-231) and the 24-step grayscale
+    /// ramp (indices 232-255) using squared Euclidean distance in RGB space. The
+    /// 16 standard ANSI colors (0-15) are intentionally excluded because
+    /// terminals commonly override them via user themes, making them unreliable
+    /// quantization targets.
+    ///
+    /// Results are memoized per quantized RGB triple in a thread-local cache, so
+    /// repeated colors (the common case when rendering frames) skip the full
+    /// 240-entry scan entirely.
+    #[must_use]
+    pub fn nearest_256(&self) -> u8 {
         let (r, g, b) = self.to_rgb_u8();
+        let key = (r, g, b);
 
-        // Check if grayscale would be a better match
-        let gray = ((r as u16 + g as u16 + b as u16) / 3) as u8;
-        let is_grayscale = (r as i16 - gray as i16).abs() < 10
-            && (g as i16 - gray as i16).abs() < 10
-            && (b as i16 - gray as i16).abs() < 10;
-
-        if is_grayscale {
-            // Use grayscale ramp (232-255 = 24 levels)
-            // xterm grayscale values: 8, 18, 28, ..., 238 (24 levels, spacing of 10)
-            // Midpoints: 4, 13, 23, 33, ..., 243
-            return Self::nearest_grayscale_index(gray);
+        if let Some(idx) = NEAREST_256_CACHE.with(|cache| cache.borrow().get(&key).copied()) {
+            return idx;
         }
 
-        // Use 6x6x6 color cube (colors 16-231)
-        // Each component maps to 0-5: 0, 95, 135, 175, 215, 255
-        let ri = Self::nearest_cube_index(r);
-        let gi = Self::nearest_cube_index(g);
-        let bi = Self::nearest_cube_index(b);
-
-        16 + 36 * ri + 6 * gi + bi
-    }
-
-    /// Find the nearest index in the 6x6x6 cube for a component value.
-    ///
-    /// Uses a lookup table for O(1) mapping instead of linear search.
-    /// The cube values are [0, 95, 135, 175, 215, 255] with boundaries
-    /// at midpoints: 48, 115, 155, 195, 235.
-    #[inline]
-    fn nearest_cube_index(val: u8) -> u8 {
-        // Boundaries between cube values (midpoints)
-        // 0-47→0, 48-114→1, 115-154→2, 155-194→3, 195-234→4, 235-255→5
-        if val < 48 {
-            0
-        } else if val < 115 {
-            1
-        } else if val < 155 {
-            2
-        } else if val < 195 {
-            3
-        } else if val < 235 {
-            4
-        } else {
-            5
-        }
-    }
-
-    /// Find the nearest 256-color grayscale index for a gray value.
-    ///
-    /// The xterm grayscale ramp (indices 232-255) uses non-linear values:
-    /// 8, 18, 28, 38, 48, 58, 68, 78, 88, 98, 108, 118, 128, 138, 148, 158,
-    /// 168, 178, 188, 198, 208, 218, 228, 238.
-    ///
-    /// For very dark or very light grays, we use the color cube's black (16)
-    /// or white (231) since they provide closer matches than the grayscale ramp.
-    #[inline]
-    fn nearest_grayscale_index(gray: u8) -> u8 {
-        // Midpoint between black (0) and first gray level (8) is 4
-        if gray < 4 {
-            return 16; // Use black from color cube (RGB 0,0,0)
-        }
-        // Midpoint between last gray level (238) and white (255) is ~246
-        if gray > 246 {
-            return 231; // Use white from color cube (RGB 255,255,255)
-        }
-
-        // Find nearest grayscale level using midpoint boundaries.
-        // gray_level[i] = 8 + 10*i for i in 0..24
-        // Midpoint between level[i] and level[i+1] = 8 + 10*i + 5 = 13 + 10*i
-        // So: gray 4-12 → idx 0, 13-22 → idx 1, 23-32 → idx 2, etc.
-        // Simplified: idx = (gray - 3) / 10, clamped to 0..23
-        let idx = gray.saturating_sub(3) / 10;
-        232 + idx.min(23)
+        let idx = nearest_256_index(r, g, b);
+        NEAREST_256_CACHE.with(|cache| cache.borrow_mut().insert(key, idx));
+        idx
     }
 
     /// Convert to nearest 16-color (basic ANSI) palette index.
@@ -1478,8 +1524,9 @@ mod edge_case_tests {
 
     #[test]
     fn test_grayscale_ramp_boundary_values() {
-        // Test boundary values between grayscale levels
-        // Midpoint between black (0) and first gray (8) is 4
+        // Test boundary values between grayscale levels.
+        // Quantization now uses Euclidean nearest-neighbor over the cube +
+        // grayscale ramp; exact midpoints resolve to the lower index.
         let very_dark = Rgba::from_rgb_u8(3, 3, 3);
         assert_eq!(
             very_dark.to_256_color(),
@@ -1487,11 +1534,13 @@ mod edge_case_tests {
             "Very dark gray should use cube black"
         );
 
+        // Gray 4 is exactly equidistant from cube black (0,0,0) and gray-8
+        // (8,8,8); the tie resolves to the lower index (16).
         let first_gray = Rgba::from_rgb_u8(4, 4, 4);
         assert_eq!(
             first_gray.to_256_color(),
-            232,
-            "Gray 4+ should start grayscale ramp"
+            16,
+            "Gray 4 ties between black and gray-8, resolves to 16"
         );
 
         // Midpoint between last gray (238) and white (255) is ~246
@@ -1512,10 +1561,10 @@ mod edge_case_tests {
 
     #[test]
     fn test_grayscale_ramp_midpoint_rounding() {
-        // Test that midpoints between levels round correctly
-        // Midpoint between level 0 (gray=8) and level 1 (gray=18) is 13
+        // Midpoints between adjacent levels are exact ties under Euclidean
+        // distance and resolve to the lower index.
 
-        // Value 12 should go to level 0 (index 232)
+        // Value 12 is strictly closer to level 0 (gray=8) → index 232
         let below_mid = Rgba::from_rgb_u8(12, 12, 12);
         assert_eq!(
             below_mid.to_256_color(),
@@ -1523,12 +1572,13 @@ mod edge_case_tests {
             "Gray 12 should map to first level"
         );
 
-        // Value 13+ should go to level 1 (index 233)
+        // Value 13 is equidistant from gray-8 (232) and gray-18 (233); the tie
+        // resolves to the lower index (232).
         let at_mid = Rgba::from_rgb_u8(13, 13, 13);
         assert_eq!(
             at_mid.to_256_color(),
-            233,
-            "Gray 13+ should map to second level"
+            232,
+            "Gray 13 ties between levels, resolves to 232"
         );
     }
 
@@ -1543,6 +1593,156 @@ mod edge_case_tests {
 
         assert_eq!(black_idx, 16, "Pure black should use cube black (16)");
         assert_eq!(white_idx, 231, "Pure white should use cube white (231)");
+    }
+
+    // --- xterm 256 palette table + nearest_256() ---
+
+    #[test]
+    fn test_xterm_256_palette_known_positions() {
+        let palette = &*XTERM_256_PALETTE;
+
+        assert_eq!(palette[0].to_rgb_u8(), (0, 0, 0), "index 0 = black");
+        assert_eq!(palette[15].to_rgb_u8(), (255, 255, 255), "index 15 = white");
+        assert_eq!(palette[9].to_rgb_u8(), (255, 0, 0), "index 9 = bright red");
+
+        assert_eq!(palette[16].to_rgb_u8(), (0, 0, 0), "index 16 = cube black");
+        assert_eq!(
+            palette[231].to_rgb_u8(),
+            (255, 255, 255),
+            "index 231 = cube white"
+        );
+        assert_eq!(
+            palette[196].to_rgb_u8(),
+            (255, 0, 0),
+            "index 196 = cube bright red (r=5,g=0,b=0)"
+        );
+        assert_eq!(
+            palette[21].to_rgb_u8(),
+            (0, 0, 255),
+            "index 21 = cube blue (r=0,g=0,b=5)"
+        );
+
+        assert_eq!(palette[232].to_rgb_u8(), (8, 8, 8), "index 232 = gray 8");
+        assert_eq!(
+            palette[255].to_rgb_u8(),
+            (238, 238, 238),
+            "index 255 = gray 238"
+        );
+    }
+
+    #[test]
+    fn test_xterm_256_palette_size_and_shape() {
+        let palette = &*XTERM_256_PALETTE;
+        assert_eq!(palette.len(), 256);
+
+        // Verify every cube index decodes back to the expected levels.
+        for i in 0..216usize {
+            let idx = 16 + i;
+            let r = XTERM_CUBE_LEVELS[(i / 36) % 6];
+            let g = XTERM_CUBE_LEVELS[(i / 6) % 6];
+            let b = XTERM_CUBE_LEVELS[i % 6];
+            assert_eq!(
+                palette[idx].to_rgb_u8(),
+                (r, g, b),
+                "cube index {idx} mismatch"
+            );
+        }
+
+        // Verify the grayscale ramp.
+        for (i, &gray) in XTERM_GRAYSCALE.iter().enumerate() {
+            assert_eq!(
+                palette[232 + i].to_rgb_u8(),
+                (gray, gray, gray),
+                "grayscale index {} mismatch",
+                232 + i
+            );
+        }
+    }
+
+    #[test]
+    fn test_palette_matches_from_256_color() {
+        // The lookup table and Rgba::from_256_color must never drift apart.
+        let palette = &*XTERM_256_PALETTE;
+        for i in 0u8..=255 {
+            assert_eq!(
+                palette[i as usize],
+                Rgba::from_256_color(i),
+                "palette[{i}] != from_256_color({i})"
+            );
+        }
+    }
+
+    #[test]
+    fn test_nearest_256_known_colors() {
+        // Exact palette colors must map to themselves (distance 0).
+        assert_eq!(Rgba::RED.nearest_256(), 196, "pure red -> cube 196");
+        assert_eq!(Rgba::GREEN.nearest_256(), 46, "pure green -> cube 46");
+        assert_eq!(Rgba::BLUE.nearest_256(), 21, "pure blue -> cube 21");
+        assert_eq!(Rgba::BLACK.nearest_256(), 16, "pure black -> cube 16");
+        assert_eq!(Rgba::WHITE.nearest_256(), 231, "pure white -> cube 231");
+
+        // Grayscale exact values map to their ramp slot.
+        assert_eq!(
+            Rgba::from_rgb_u8(128, 128, 128).nearest_256(),
+            244,
+            "gray 128 -> ramp 244"
+        );
+
+        // Quantization never targets the 16 themeable ANSI colors (0-15).
+        for c in [Rgba::RED, Rgba::GREEN, Rgba::BLUE, Rgba::WHITE, Rgba::BLACK] {
+            let idx = c.nearest_256();
+            assert!((16..=255).contains(&idx), "{c:?} -> {idx} out of range");
+        }
+    }
+
+    #[test]
+    fn test_nearest_256_equals_to_256_color() {
+        // to_256_color delegates to nearest_256.
+        let samples = [
+            Rgba::RED,
+            Rgba::GREEN,
+            Rgba::BLUE,
+            Rgba::WHITE,
+            Rgba::BLACK,
+            Rgba::from_rgb_u8(123, 45, 67),
+            Rgba::from_rgb_u8(200, 200, 200),
+        ];
+        for c in samples {
+            assert_eq!(c.to_256_color(), c.nearest_256(), "{c:?} mismatch");
+        }
+    }
+
+    #[test]
+    fn test_nearest_256_picks_true_nearest() {
+        // An off-cube color should pick the genuinely closest palette entry,
+        // not just the cube-projection of the old closed-form algorithm.
+        // (100, 149, 237) cornflower blue: nearest cube entry is
+        // r=1(95) g=2(135) b=5(255) = index 16+36+12+5 = 69.
+        let cornflower = Rgba::from_rgb_u8(100, 149, 237);
+        let idx = cornflower.nearest_256();
+        assert_eq!(idx, 69, "cornflower blue nearest should be cube 69");
+
+        // The result must be at least as close as any other cube entry.
+        let (tr, tg, tb) = cornflower.to_rgb_u8();
+        let chosen = (i32::from(tr), i32::from(tg), i32::from(tb));
+        let chosen_dist = {
+            let (r, g, b) = XTERM_256_PALETTE[idx as usize].to_rgb_u8();
+            let dr = chosen.0 - i32::from(r);
+            let dg = chosen.1 - i32::from(g);
+            let db = chosen.2 - i32::from(b);
+            dr * dr + dg * dg + db * db
+        };
+        for i in 16u8..=255 {
+            let (r, g, b) = XTERM_256_PALETTE[i as usize].to_rgb_u8();
+            let dr = chosen.0 - i32::from(r);
+            let dg = chosen.1 - i32::from(g);
+            let db = chosen.2 - i32::from(b);
+            let dist = dr * dr + dg * dg + db * db;
+            assert!(
+                chosen_dist <= dist,
+                "index {i} (dist {dist}) is closer than chosen {idx} (dist {chosen_dist})"
+            );
+        }
     }
 
     // --- to_16_color() all mappings ---

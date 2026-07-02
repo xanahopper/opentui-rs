@@ -17,7 +17,72 @@ pub use queries::{TerminalResponse, all_queries, query_constants};
 pub use raw::{RawModeGuard, enable_raw_mode, is_tty, terminal_size};
 
 use crate::ansi::sequences;
+use std::env;
 use std::io::{self, Write};
+
+/// Terminal multiplexer type.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Multiplexer {
+    None,
+    Tmux,
+    Screen,
+    Zellij,
+}
+
+impl Multiplexer {
+    /// Detect multiplexer from environment variables.
+    #[must_use]
+    pub fn detect() -> Self {
+        if env::var_os("TMUX").is_some() {
+            Self::Tmux
+        } else if env::var_os("STY").is_some() {
+            Self::Screen
+        } else if env::var_os("ZELLIJ").is_some() || env::var_os("ZELLIJ_SESSION_NAME").is_some() {
+            Self::Zellij
+        } else {
+            Self::None
+        }
+    }
+}
+
+/// Encode bytes as base64 (no external dependency, RFC 4648 standard alphabet).
+fn base64_encode(data: &[u8]) -> String {
+    const ALPHABET: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut result = String::with_capacity(data.len().div_ceil(3) * 4);
+    let mut chunks = data.chunks_exact(3);
+    for chunk in &mut chunks {
+        let n = (u32::from(chunk[0]) << 16) | (u32::from(chunk[1]) << 8) | u32::from(chunk[2]);
+        result.push(ALPHABET[((n >> 18) & 0x3F) as usize] as char);
+        result.push(ALPHABET[((n >> 12) & 0x3F) as usize] as char);
+        result.push(ALPHABET[((n >> 6) & 0x3F) as usize] as char);
+        result.push(ALPHABET[(n & 0x3F) as usize] as char);
+    }
+    let rem = chunks.remainder();
+    match rem.len() {
+        1 => {
+            let n = u32::from(rem[0]) << 16;
+            result.push(ALPHABET[((n >> 18) & 0x3F) as usize] as char);
+            result.push(ALPHABET[((n >> 12) & 0x3F) as usize] as char);
+            result.push('=');
+            result.push('=');
+        }
+        2 => {
+            let n = (u32::from(rem[0]) << 16) | (u32::from(rem[1]) << 8);
+            result.push(ALPHABET[((n >> 18) & 0x3F) as usize] as char);
+            result.push(ALPHABET[((n >> 12) & 0x3F) as usize] as char);
+            result.push(ALPHABET[((n >> 6) & 0x3F) as usize] as char);
+            result.push('=');
+        }
+        _ => {}
+    }
+    result
+}
+
+/// Sanitize a string for safe use inside an OSC sequence.
+/// Strips control characters (C0, DEL, C1) that could break the sequence.
+fn sanitize_osc_string(s: &str) -> String {
+    s.chars().filter(|c| !c.is_control()).collect()
+}
 
 /// Terminal state manager.
 pub struct Terminal<W: Write> {
@@ -26,6 +91,10 @@ pub struct Terminal<W: Write> {
     cursor: CursorState,
     alt_screen: bool,
     mouse_enabled: bool,
+    bracketed_paste: bool,
+    focus_tracking: bool,
+    kitty_keyboard: bool,
+    modify_other_keys: bool,
     raw_mode_guard: Option<RawModeGuard>,
 }
 
@@ -38,6 +107,10 @@ impl<W: Write> Terminal<W> {
             cursor: CursorState::default(),
             alt_screen: false,
             mouse_enabled: false,
+            bracketed_paste: false,
+            focus_tracking: false,
+            kitty_keyboard: false,
+            modify_other_keys: false,
             raw_mode_guard: None,
         }
     }
@@ -300,10 +373,187 @@ impl<W: Write> Terminal<W> {
         self.writer.write_all(sequences::sync::END.as_bytes())
     }
 
+    // ── Mode toggles ──────────────────────────────────────────────
+
+    /// Enable bracketed paste mode.
+    pub fn enable_bracketed_paste(&mut self) -> io::Result<()> {
+        if !self.bracketed_paste {
+            self.writer
+                .write_all(sequences::BRACKETED_PASTE_ON.as_bytes())?;
+            self.bracketed_paste = true;
+        }
+        Ok(())
+    }
+
+    /// Disable bracketed paste mode.
+    pub fn disable_bracketed_paste(&mut self) -> io::Result<()> {
+        if self.bracketed_paste {
+            self.writer
+                .write_all(sequences::BRACKETED_PASTE_OFF.as_bytes())?;
+            self.bracketed_paste = false;
+        }
+        Ok(())
+    }
+
+    /// Enable focus tracking (focus in/out events).
+    pub fn enable_focus_tracking(&mut self) -> io::Result<()> {
+        if !self.focus_tracking {
+            self.writer.write_all(sequences::FOCUS_ON.as_bytes())?;
+            self.focus_tracking = true;
+        }
+        Ok(())
+    }
+
+    /// Disable focus tracking.
+    pub fn disable_focus_tracking(&mut self) -> io::Result<()> {
+        if self.focus_tracking {
+            self.writer.write_all(sequences::FOCUS_OFF.as_bytes())?;
+            self.focus_tracking = false;
+        }
+        Ok(())
+    }
+
+    /// Enable Kitty keyboard protocol with the given flags bitmask.
+    ///
+    /// Flags:
+    /// - bit 0: Disambiguate escape codes
+    /// - bit 1: Report event types (press/repeat/release)
+    /// - bit 2: Report alternate keys
+    /// - bit 3: Report all keys as CSI u
+    /// - bit 4: Report text with keys
+    pub fn enable_kitty_keyboard(&mut self, flags: u8) -> io::Result<()> {
+        if !self.kitty_keyboard {
+            let seq = sequences::kitty_keyboard_push(flags);
+            self.writer.write_all(seq.as_bytes())?;
+            self.kitty_keyboard = true;
+        }
+        Ok(())
+    }
+
+    /// Disable Kitty keyboard protocol (pop flags stack).
+    pub fn disable_kitty_keyboard(&mut self) -> io::Result<()> {
+        if self.kitty_keyboard {
+            self.writer
+                .write_all(sequences::KITTY_KEYBOARD_POP.as_bytes())?;
+            self.kitty_keyboard = false;
+        }
+        Ok(())
+    }
+
+    /// Enable xterm modifyOtherKeys mode 2.
+    pub fn enable_modify_other_keys(&mut self) -> io::Result<()> {
+        if !self.modify_other_keys {
+            self.writer
+                .write_all(sequences::MODIFY_OTHER_KEYS_ON.as_bytes())?;
+            self.modify_other_keys = true;
+        }
+        Ok(())
+    }
+
+    /// Disable xterm modifyOtherKeys mode.
+    pub fn disable_modify_other_keys(&mut self) -> io::Result<()> {
+        if self.modify_other_keys {
+            self.writer
+                .write_all(sequences::MODIFY_OTHER_KEYS_OFF.as_bytes())?;
+            self.modify_other_keys = false;
+        }
+        Ok(())
+    }
+
+    // ── Clipboard (OSC 52) ────────────────────────────────────────
+
+    /// Copy text to clipboard via OSC 52.
+    ///
+    /// Works through tmux/screen via passthrough wrapping when a
+    /// multiplexer is detected.
+    pub fn copy_to_clipboard(&mut self, text: &str) -> io::Result<()> {
+        self.osc_52_target('c', Some(text))
+    }
+
+    /// Clear clipboard via OSC 52.
+    pub fn clear_clipboard(&mut self) -> io::Result<()> {
+        self.osc_52_target('c', None)
+    }
+
+    /// Copy text to primary selection (X11 middle-click) via OSC 52.
+    pub fn copy_to_primary(&mut self, text: &str) -> io::Result<()> {
+        self.osc_52_target('p', Some(text))
+    }
+
+    fn osc_52_target(&mut self, target: char, text: Option<&str>) -> io::Result<()> {
+        let seq = match text {
+            Some(data) => {
+                let b64 = base64_encode(data.as_bytes());
+                sequences::osc_52_copy(target, &b64)
+            }
+            None => sequences::osc_52_clear(target),
+        };
+        let final_seq = self.wrap_for_multiplexer(&seq);
+        self.writer.write_all(final_seq.as_bytes())
+    }
+
+    // ── Notifications ─────────────────────────────────────────────
+
+    /// Send a desktop notification.
+    ///
+    /// Tries OSC 9 (iTerm2), falls back to OSC 777 (urxvt/rxvt-unicode).
+    pub fn send_notification(&mut self, message: &str, title: Option<&str>) -> io::Result<()> {
+        let clean_msg = sanitize_osc_string(message);
+        let seq = if let Some(t) = title {
+            let clean_title = sanitize_osc_string(t);
+            sequences::osc_777_notification(&clean_title, &clean_msg)
+        } else {
+            sequences::osc_9_notification(&clean_msg)
+        };
+        self.writer.write_all(seq.as_bytes())
+    }
+
+    // ── Multiplexer helpers ───────────────────────────────────────
+
+    /// Detect if running inside a terminal multiplexer.
+    #[must_use]
+    pub fn multiplexer(&self) -> Multiplexer {
+        Multiplexer::detect()
+    }
+
+    /// Check if inside tmux.
+    #[must_use]
+    pub fn is_in_tmux(&self) -> bool {
+        env::var_os("TMUX").is_some()
+    }
+
+    /// Check if inside GNU screen.
+    #[must_use]
+    pub fn is_in_screen(&self) -> bool {
+        env::var_os("STY").is_some()
+    }
+
+    /// Check if inside Zellij.
+    #[must_use]
+    pub fn is_in_zellij(&self) -> bool {
+        env::var_os("ZELLIJ").is_some() || env::var_os("ZELLIJ_SESSION_NAME").is_some()
+    }
+
+    /// Wrap an escape sequence for tmux passthrough if inside tmux.
+    #[must_use]
+    fn wrap_for_multiplexer(&self, seq: &str) -> String {
+        if self.is_in_tmux() {
+            sequences::tmux_passthrough(seq)
+        } else {
+            seq.to_string()
+        }
+    }
+
+    // ── Legacy passthroughs ───────────────────────────────────────
+
     /// Cleanup terminal on exit.
     pub fn cleanup(&mut self) -> io::Result<()> {
         self.show_cursor()?;
         self.disable_mouse()?;
+        self.disable_kitty_keyboard()?;
+        self.disable_modify_other_keys()?;
+        self.disable_bracketed_paste()?;
+        self.disable_focus_tracking()?;
         self.leave_alt_screen()?;
         self.exit_raw_mode()?;
         self.reset()?;

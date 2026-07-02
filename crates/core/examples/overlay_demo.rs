@@ -24,8 +24,9 @@ use opentui_core::terminal::{enable_raw_mode, terminal_size};
 use opentui_core::{Renderer, RendererOptions, Rgba};
 
 use opentui_core::layout::LayoutStyle;
+use opentui_core::prelude::RenderContext;
 use opentui_core::theme::UiTheme;
-use opentui_core::widget::{Overlay, OverlayZOrder, RenderContext, WidgetTree};
+use opentui_core::tree::{Overlay, OverlayZOrder, RenderTree};
 use opentui_core::widgets::{BoxWidget, StatusLineWidget, TextWidget};
 
 fn read_with_timeout(stdin: &io::Stdin, buf: &mut [u8], timeout: Duration) -> io::Result<usize> {
@@ -74,42 +75,43 @@ fn main() -> io::Result<()> {
     renderer.set_background(Rgba::from_rgb_u8(15, 15, 20));
 
     let theme = UiTheme::dark_default();
-    let mut tree = WidgetTree::new();
+    let mut tree = RenderTree::new();
 
-    let root = tree.add(
-        BoxWidget::new(1, LayoutStyle::column().width(w as f32).height(h as f32))
+    let root = tree.set_root(Box::new(
+        BoxWidget::new(LayoutStyle::column().width(w as f32).height(h as f32))
             .background(Rgba::from_rgb_u8(15, 15, 20)),
-    );
+    ));
 
     let header = tree.add_child(
         root,
-        BoxWidget::new(2, LayoutStyle::row().height(1.0).flex_shrink(0.0))
-            .background(Rgba::from_rgb_u8(30, 30, 45)),
+        Box::new(
+            BoxWidget::new(LayoutStyle::row().height(1.0).flex_shrink(0.0))
+                .background(Rgba::from_rgb_u8(30, 30, 45)),
+        ),
     );
     let _header_text = tree.add_child(
         header,
-        TextWidget::with_text(
-            3,
+        Box::new(TextWidget::with_text(
             LayoutStyle::default().flex_grow(1.0),
             " Overlay Demo — m: modal | d: dropdown | q: quit ",
-        ),
+        )),
     );
 
     let content = tree.add_child(
         root,
-        BoxWidget::new(
-            4,
-            LayoutStyle::column()
-                .flex_grow(1.0)
-                .padding_x(2.0)
-                .padding_y(1.0),
-        )
-        .background(Rgba::from_rgb_u8(15, 15, 20)),
+        Box::new(
+            BoxWidget::new(
+                LayoutStyle::column()
+                    .flex_grow(1.0)
+                    .padding_x(2.0)
+                    .padding_y(1.0),
+            )
+            .background(Rgba::from_rgb_u8(15, 15, 20)),
+        ),
     );
     let _content_text = tree.add_child(
         content,
-        TextWidget::with_text(
-            5,
+        Box::new(TextWidget::with_text(
             LayoutStyle::default().flex_grow(1.0),
             "This is the main application content.\n\n\
              Press 'm' to open a modal dialog.\n\
@@ -117,20 +119,21 @@ fn main() -> io::Result<()> {
              Press 'q' to quit.\n\n\
              Overlays render on top of this content\n\
              with optional backdrop dimming.",
-        ),
+        )),
     );
 
     let _status = tree.add_child(
         root,
-        StatusLineWidget::new(50, LayoutStyle::default().height(1.0))
-            .left("overlay_demo")
-            .center("NORMAL")
-            .right("m: modal | d: dropdown"),
+        Box::new(
+            StatusLineWidget::new(LayoutStyle::default().height(1.0))
+                .left("overlay_demo")
+                .center("NORMAL")
+                .right("m: modal | d: dropdown"),
+        ),
     );
 
-    let modal_widget = tree.add(
+    let modal_widget = tree.add_detached(Box::new(
         BoxWidget::new(
-            60,
             LayoutStyle::column()
                 .width(40.0)
                 .height(8.0)
@@ -139,19 +142,17 @@ fn main() -> io::Result<()> {
         .border_rounded(Rgba::from_rgb_u8(100, 180, 255))
         .title("Confirm")
         .background(Rgba::from_rgb_u8(35, 35, 50)),
-    );
+    ));
     let _modal_text = tree.add_child(
         modal_widget,
-        TextWidget::with_text(
-            61,
+        Box::new(TextWidget::with_text(
             LayoutStyle::default().flex_grow(1.0),
             "  Are you sure you want to continue?\n\n  Press 'm' or 'q' to close.",
-        ),
+        )),
     );
 
-    let dropdown_widget = tree.add(
+    let dropdown_widget = tree.add_detached(Box::new(
         BoxWidget::new(
-            70,
             LayoutStyle::column()
                 .width(20.0)
                 .height(6.0)
@@ -160,14 +161,13 @@ fn main() -> io::Result<()> {
         .border_rounded(Rgba::from_rgb_u8(200, 160, 60))
         .title("Menu")
         .background(Rgba::from_rgb_u8(40, 38, 28)),
-    );
+    ));
     let _dropdown_text = tree.add_child(
         dropdown_widget,
-        TextWidget::with_text(
-            71,
+        Box::new(TextWidget::with_text(
             LayoutStyle::default().flex_grow(1.0),
             "  New File\n  Open File\n  Save\n  Close",
-        ),
+        )),
     );
 
     let mut modal_visible = false;
@@ -207,7 +207,7 @@ fn main() -> io::Result<()> {
             tree.remove_overlay(dropdown_widget);
         }
 
-        tree.layout(w as f32, h as f32);
+        tree.run_layout(w as f32, h as f32);
 
         {
             let buffer = renderer.buffer();
@@ -220,7 +220,7 @@ fn main() -> io::Result<()> {
                 hit_grid: None,
                 theme: Some(&theme),
             };
-            tree.render(&mut ctx);
+            tree.run_render(&mut ctx, 0.0);
         }
         renderer.present()?;
 

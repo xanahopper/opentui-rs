@@ -1,7 +1,7 @@
 use crate::Rgba;
 use crate::buffer::TitleAlign;
 
-use crate::widget::Overflow;
+use crate::renderable::node::Overflow;
 use crate::widgets::{BorderStyle, StyledSegment, TextLineAlign};
 
 #[derive(Debug, Clone)]

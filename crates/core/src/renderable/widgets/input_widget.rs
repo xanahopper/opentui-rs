@@ -3,17 +3,17 @@
 //! Wraps an `EditBuffer` for single-line text entry with cursor display,
 //! optional placeholder text, and basic editing keybindings.
 
-use crate as ot;
 use crate::text::EditBuffer;
 use crate::{Rgba, Style};
 
-use crate::layout::{ComputedLayout, LayoutStyle};
-use crate::widget::{Overflow, RenderContext, Widget, WidgetId};
+use crate::renderable::behavior::{Behavior, FrameworkDefaults};
+use crate::renderable::context::RenderContext;
+use crate::renderable::layout::{ComputedLayout, LayoutStyle};
+use crate::renderable::node::Overflow;
 
 impl std::fmt::Debug for InputWidget {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("InputWidget")
-            .field("id", &self.id)
             .field("mode", &self.mode)
             .field("focused", &self.focused)
             .finish_non_exhaustive()
@@ -27,7 +27,6 @@ pub enum InputMode {
 }
 
 pub struct InputWidget {
-    id: WidgetId,
     style: LayoutStyle,
     buffer: EditBuffer,
     placeholder: Option<String>,
@@ -43,9 +42,8 @@ pub struct InputWidget {
 }
 
 impl InputWidget {
-    pub fn new(id: WidgetId, style: LayoutStyle) -> Self {
+    pub fn new(style: LayoutStyle) -> Self {
         Self {
-            id,
             style,
             buffer: EditBuffer::new(),
             placeholder: None,
@@ -61,10 +59,10 @@ impl InputWidget {
         }
     }
 
-    pub fn with_text(id: WidgetId, style: LayoutStyle, text: &str) -> Self {
+    pub fn with_text(style: LayoutStyle, text: &str) -> Self {
         Self {
             buffer: EditBuffer::with_text(text),
-            ..Self::new(id, style)
+            ..Self::new(style)
         }
     }
 
@@ -136,11 +134,7 @@ impl InputWidget {
     }
 }
 
-impl Widget for InputWidget {
-    fn id(&self) -> WidgetId {
-        self.id
-    }
-
+impl Behavior for InputWidget {
     fn style(&self) -> &LayoutStyle {
         &self.style
     }
@@ -149,7 +143,7 @@ impl Widget for InputWidget {
         &mut self.style
     }
 
-    fn render(&mut self, ctx: &mut RenderContext<'_>, layout: &ComputedLayout) {
+    fn render_self(&mut self, ctx: &mut RenderContext<'_>, layout: &ComputedLayout) {
         let x = layout.x as u32;
         let y = layout.y as u32;
         let w = layout.width as u32;
@@ -183,86 +177,71 @@ impl Widget for InputWidget {
         }
     }
 
-    fn visible(&self) -> bool {
-        self.visible
+    fn framework_defaults(&self) -> FrameworkDefaults {
+        FrameworkDefaults {
+            focusable: self.focusable,
+            overflow: Overflow::Hidden,
+            visible: self.visible,
+            opacity: self.opacity,
+        }
     }
 
-    fn opacity(&self) -> f32 {
-        self.opacity
-    }
-
-    fn overflow(&self) -> Overflow {
-        Overflow::Hidden
-    }
-
-    fn focusable(&self) -> bool {
-        self.focusable
-    }
-
-    fn focused(&self) -> bool {
-        self.focused
-    }
-
-    fn set_focused(&mut self, focused: bool) {
-        self.focused = focused;
-    }
-
-    fn handle_key(&mut self, key: &ot::KeyEvent) -> bool {
+    fn handle_key(&mut self, key: &crate::KeyEvent) -> bool {
         let width = 20;
-        let ctrl = key.modifiers.contains(ot::KeyModifiers::CTRL);
-        let alt = key.modifiers.contains(ot::KeyModifiers::ALT);
+        let ctrl = key.modifiers.contains(crate::KeyModifiers::CTRL);
+        let alt = key.modifiers.contains(crate::KeyModifiers::ALT);
 
         match key.code {
-            ot::KeyCode::Char(ch) if !ctrl && !alt => {
+            crate::KeyCode::Char(ch) if !ctrl && !alt => {
                 self.buffer.insert(&ch.to_string());
                 self.clamp_scroll(width);
                 true
             }
-            ot::KeyCode::Backspace => {
+            crate::KeyCode::Backspace => {
                 self.buffer.delete_backward();
                 self.clamp_scroll(width);
                 true
             }
-            ot::KeyCode::Delete => {
+            crate::KeyCode::Delete => {
                 self.buffer.delete_forward();
                 true
             }
-            ot::KeyCode::Left if alt => {
+            crate::KeyCode::Left if alt => {
                 self.buffer.move_word_left();
                 self.clamp_scroll(width);
                 true
             }
-            ot::KeyCode::Left => {
+            crate::KeyCode::Left => {
                 self.buffer.move_left();
                 self.clamp_scroll(width);
                 true
             }
-            ot::KeyCode::Right if alt => {
+            crate::KeyCode::Right if alt => {
                 self.buffer.move_word_right();
                 self.clamp_scroll(width);
                 true
             }
-            ot::KeyCode::Right => {
+            crate::KeyCode::Right => {
                 self.buffer.move_right();
                 self.clamp_scroll(width);
                 true
             }
-            ot::KeyCode::Home => {
+            crate::KeyCode::Home => {
                 self.buffer.move_to_line_start();
                 self.scroll_x = 0;
                 true
             }
-            ot::KeyCode::End => {
+            crate::KeyCode::End => {
                 self.buffer.move_to_line_end();
                 self.clamp_scroll(width);
                 true
             }
-            ot::KeyCode::Enter => true,
+            crate::KeyCode::Enter => true,
             _ => false,
         }
     }
 
-    fn handle_mouse(&mut self, _mouse: &ot::MouseEvent) -> bool {
+    fn handle_mouse(&mut self, _mouse: &crate::MouseEvent) -> bool {
         false
     }
 

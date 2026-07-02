@@ -1,7 +1,7 @@
 #![allow(clippy::cast_precision_loss)]
 
+use opentui_core::renderable::context::RenderContext;
 use opentui_core::view::{ViewRuntime, overlay, panel, text, view};
-use opentui_core::widget::RenderContext;
 use opentui_core::{OptimizedBuffer, Rgba};
 
 const BG: Rgba = Rgba::new(0.0, 0.0, 0.0, 1.0);
@@ -157,7 +157,7 @@ fn test_rebuild_with_overlay() {
     let mut runtime = ViewRuntime::new();
     runtime.rebuild(&node);
     runtime.layout(20.0, 10.0);
-    assert!(runtime.tree().overlays().len() == 1);
+    assert_eq!(runtime.tree().overlays().len(), 1);
 }
 
 #[test]

@@ -74,6 +74,58 @@ pub const FOCUS_ON: &str = "\x1b[?1004h";
 /// Disable focus tracking.
 pub const FOCUS_OFF: &str = "\x1b[?1004l";
 
+/// Kitty keyboard protocol — push current flags and set new ones.
+/// Format: CSI = {flags} u  (flags is a bitmask, default 1 = disambiguate)
+#[must_use]
+pub fn kitty_keyboard_push(flags: u8) -> String {
+    format!("\x1b[>{flags}u")
+}
+
+/// Kitty keyboard protocol — pop (restore previous flags).
+pub const KITTY_KEYBOARD_POP: &str = "\x1b[<u";
+
+/// Kitty keyboard protocol — disable (push flags=0).
+pub const KITTY_KEYBOARD_DISABLE: &str = "\x1b[>0u";
+
+/// Enable xterm modifyOtherKeys mode 2.
+pub const MODIFY_OTHER_KEYS_ON: &str = "\x1b[>4;2m";
+
+/// Disable xterm modifyOtherKeys mode.
+pub const MODIFY_OTHER_KEYS_OFF: &str = "\x1b[>4;0m";
+
+/// OSC 52 clipboard copy sequence.
+///
+/// `target`: 'c' = clipboard, 'p' = primary, 's' = selection
+#[must_use]
+pub fn osc_52_copy(target: char, base64_data: &str) -> String {
+    format!("\x1b]52;{target};{base64_data}\x07")
+}
+
+/// OSC 52 clipboard clear sequence (empty payload).
+#[must_use]
+pub fn osc_52_clear(target: char) -> String {
+    format!("\x1b]52;{target};\x07")
+}
+
+/// OSC 9 notification (iTerm2-style).
+#[must_use]
+pub fn osc_9_notification(message: &str) -> String {
+    format!("\x1b]9;{message}\x07")
+}
+
+/// OSC 777 notification (urxvt-style).
+#[must_use]
+pub fn osc_777_notification(title: &str, message: &str) -> String {
+    format!("\x1b]777;notify;{title};{message}\x07")
+}
+
+/// Wrap an escape sequence for tmux passthrough.
+#[must_use]
+pub fn tmux_passthrough(seq: &str) -> String {
+    let doubled = seq.replace('\x1b', "\x1b\x1b");
+    format!("\x1bPtmux;{doubled}\x1b\\")
+}
+
 /// Request terminal size (XTWINOPS).
 pub const REQUEST_SIZE: &str = "\x1b[18t";
 

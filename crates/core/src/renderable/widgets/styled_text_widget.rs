@@ -3,11 +3,12 @@
 //! Each segment has its own foreground/background/bold/italic/underline style.
 //! This is the equivalent of OpenCode's `<text>` component with nested `<span>` elements.
 
-use crate as ot;
 use crate::{Cell, Rgba, Style};
 
-use crate::layout::{ComputedLayout, LayoutStyle};
-use crate::widget::{Overflow, RenderContext, Widget, WidgetId};
+use crate::renderable::behavior::{Behavior, FrameworkDefaults};
+use crate::renderable::context::RenderContext;
+use crate::renderable::layout::{ComputedLayout, LayoutStyle};
+use crate::renderable::node::Overflow;
 
 #[derive(Debug, Clone)]
 pub struct StyledSegment {
@@ -61,7 +62,6 @@ pub enum StyledTextAlign {
 
 #[derive(Debug)]
 pub struct StyledTextWidget {
-    id: WidgetId,
     style: LayoutStyle,
     segments: Vec<StyledSegment>,
     align: StyledTextAlign,
@@ -73,9 +73,8 @@ pub struct StyledTextWidget {
 }
 
 impl StyledTextWidget {
-    pub fn new(id: WidgetId, style: LayoutStyle) -> Self {
+    pub fn new(style: LayoutStyle) -> Self {
         Self {
-            id,
             style,
             segments: Vec::new(),
             align: StyledTextAlign::Left,
@@ -87,9 +86,8 @@ impl StyledTextWidget {
         }
     }
 
-    pub fn from_segments(id: WidgetId, style: LayoutStyle, segments: Vec<StyledSegment>) -> Self {
+    pub fn from_segments(style: LayoutStyle, segments: Vec<StyledSegment>) -> Self {
         Self {
-            id,
             style,
             segments,
             align: StyledTextAlign::Left,
@@ -120,11 +118,7 @@ impl StyledTextWidget {
     }
 }
 
-impl Widget for StyledTextWidget {
-    fn id(&self) -> WidgetId {
-        self.id
-    }
-
+impl Behavior for StyledTextWidget {
     fn style(&self) -> &LayoutStyle {
         &self.style
     }
@@ -133,7 +127,7 @@ impl Widget for StyledTextWidget {
         &mut self.style
     }
 
-    fn render(&mut self, ctx: &mut RenderContext<'_>, layout: &ComputedLayout) {
+    fn render_self(&mut self, ctx: &mut RenderContext<'_>, layout: &ComputedLayout) {
         let x = layout.x as u32;
         let y = layout.y as u32;
         let w = layout.width as u32;
@@ -146,7 +140,7 @@ impl Widget for StyledTextWidget {
         let total_width: usize = self
             .segments
             .iter()
-            .map(|s| ot::unicode::display_width(&s.text))
+            .map(|s| crate::unicode::display_width(&s.text))
             .sum();
 
         let start_col = match self.align {
@@ -183,7 +177,7 @@ impl Widget for StyledTextWidget {
                 }
                 let seg_style = builder.build();
 
-                for (grapheme, dw) in ot::unicode::split_graphemes_with_widths(&segment.text) {
+                for (grapheme, dw) in crate::unicode::split_graphemes_with_widths(&segment.text) {
                     if col >= max_col {
                         break;
                     }
@@ -200,35 +194,20 @@ impl Widget for StyledTextWidget {
         }
     }
 
-    fn visible(&self) -> bool {
-        self.visible
+    fn framework_defaults(&self) -> FrameworkDefaults {
+        FrameworkDefaults {
+            focusable: self.focusable,
+            overflow: self.overflow,
+            visible: self.visible,
+            opacity: self.opacity,
+        }
     }
 
-    fn opacity(&self) -> f32 {
-        self.opacity
-    }
-
-    fn overflow(&self) -> Overflow {
-        self.overflow
-    }
-
-    fn focusable(&self) -> bool {
-        self.focusable
-    }
-
-    fn focused(&self) -> bool {
-        self.focused
-    }
-
-    fn set_focused(&mut self, focused: bool) {
-        self.focused = focused;
-    }
-
-    fn handle_key(&mut self, _key: &ot::KeyEvent) -> bool {
+    fn handle_key(&mut self, _key: &crate::KeyEvent) -> bool {
         false
     }
 
-    fn handle_mouse(&mut self, _mouse: &ot::MouseEvent) -> bool {
+    fn handle_mouse(&mut self, _mouse: &crate::MouseEvent) -> bool {
         false
     }
 

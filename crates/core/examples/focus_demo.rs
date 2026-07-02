@@ -25,8 +25,9 @@ use opentui_core::terminal::{enable_raw_mode, terminal_size};
 use opentui_core::{Renderer, RendererOptions, Rgba};
 
 use opentui_core::layout::LayoutStyle;
+use opentui_core::prelude::RenderContext;
 use opentui_core::theme::UiTheme;
-use opentui_core::widget::{RenderContext, WidgetTree};
+use opentui_core::tree::RenderTree;
 use opentui_core::widgets::{BoxWidget, TextWidget};
 
 fn read_with_timeout(stdin: &io::Stdin, buf: &mut [u8], timeout: Duration) -> io::Result<usize> {
@@ -75,154 +76,163 @@ fn main() -> io::Result<()> {
     renderer.set_background(Rgba::from_rgb_u8(15, 15, 20));
 
     let theme = UiTheme::dark_default();
-    let mut tree = WidgetTree::new();
+    let mut tree = RenderTree::new();
 
     let border_normal = Rgba::from_rgb_u8(60, 60, 75);
     let border_focused = Rgba::from_rgb_u8(100, 180, 255);
     let panel_bg = Rgba::from_rgb_u8(22, 22, 30);
     let p = 1.0_f32;
 
-    let root = tree.add(
-        BoxWidget::new(1, LayoutStyle::column().width(w as f32).height(h as f32))
+    let root = tree.set_root(Box::new(
+        BoxWidget::new(LayoutStyle::column().width(w as f32).height(h as f32))
             .background(Rgba::from_rgb_u8(15, 15, 20)),
-    );
+    ));
 
     let title_bar = tree.add_child(
         root,
-        BoxWidget::new(2, LayoutStyle::row().height(1.0).flex_shrink(0.0))
-            .background(Rgba::from_rgb_u8(30, 30, 45)),
+        Box::new(
+            BoxWidget::new(LayoutStyle::row().height(1.0).flex_shrink(0.0))
+                .background(Rgba::from_rgb_u8(30, 30, 45)),
+        ),
     );
     let _title_text = tree.add_child(
         title_bar,
-        TextWidget::with_text(
-            3,
+        Box::new(TextWidget::with_text(
             LayoutStyle::default().flex_grow(1.0),
             " Focus Demo — Tab / Shift+Tab | 1-5 jump to panel ",
-        ),
+        )),
     );
 
     let body = tree.add_child(
         root,
-        BoxWidget::new(4, LayoutStyle::row().flex_grow(1.0))
-            .background(Rgba::from_rgb_u8(15, 15, 20)),
+        Box::new(
+            BoxWidget::new(LayoutStyle::row().flex_grow(1.0))
+                .background(Rgba::from_rgb_u8(15, 15, 20)),
+        ),
     );
 
     let left_col = tree.add_child(
         body,
-        BoxWidget::new(
-            5,
-            LayoutStyle::column()
-                .width_percent(50.0)
-                .flex_shrink(0.0)
-                .padding(p, p, p, p),
-        )
-        .background(Rgba::from_rgb_u8(15, 15, 20)),
+        Box::new(
+            BoxWidget::new(
+                LayoutStyle::column()
+                    .width_percent(50.0)
+                    .flex_shrink(0.0)
+                    .padding(p, p, p, p),
+            )
+            .background(Rgba::from_rgb_u8(15, 15, 20)),
+        ),
     );
 
     let p1 = tree.add_child(
         left_col,
-        BoxWidget::new(10, LayoutStyle::column().flex_grow(1.0).padding(p, p, p, p))
-            .border_rounded(border_normal)
-            .border_focused_color(border_focused)
-            .title("1: Files")
-            .background(panel_bg)
-            .focusable(),
+        Box::new(
+            BoxWidget::new(LayoutStyle::column().flex_grow(1.0).padding(p, p, p, p))
+                .border_rounded(border_normal)
+                .border_focused_color(border_focused)
+                .title("1: Files")
+                .background(panel_bg)
+                .focusable(),
+        ),
     );
     let _p1_text = tree.add_child(
         p1,
-        TextWidget::with_text(
-            11,
+        Box::new(TextWidget::with_text(
             LayoutStyle::default().flex_grow(1.0),
             "  Cargo.toml\n  src/lib.rs\n  src/widget.rs\n  src/layout.rs",
-        ),
+        )),
     );
 
     let p2 = tree.add_child(
         left_col,
-        BoxWidget::new(20, LayoutStyle::column().flex_grow(1.0).padding(p, p, p, p))
-            .border_rounded(border_normal)
-            .border_focused_color(border_focused)
-            .title("2: Git Status")
-            .background(panel_bg)
-            .focusable(),
+        Box::new(
+            BoxWidget::new(LayoutStyle::column().flex_grow(1.0).padding(p, p, p, p))
+                .border_rounded(border_normal)
+                .border_focused_color(border_focused)
+                .title("2: Git Status")
+                .background(panel_bg)
+                .focusable(),
+        ),
     );
     let _p2_text = tree.add_child(
         p2,
-        TextWidget::with_text(
-            21,
+        Box::new(TextWidget::with_text(
             LayoutStyle::default().flex_grow(1.0),
             "  M src/widget.rs\n  A crates/core/Cargo.toml\n  ?? examples/",
-        ),
+        )),
     );
 
     let right_col = tree.add_child(
         body,
-        BoxWidget::new(6, LayoutStyle::column().flex_grow(1.0).padding(p, p, p, p))
-            .background(Rgba::from_rgb_u8(15, 15, 20)),
+        Box::new(
+            BoxWidget::new(LayoutStyle::column().flex_grow(1.0).padding(p, p, p, p))
+                .background(Rgba::from_rgb_u8(15, 15, 20)),
+        ),
     );
 
     let p3 = tree.add_child(
         right_col,
-        BoxWidget::new(30, LayoutStyle::column().flex_grow(2.0).padding(p, p, p, p))
-            .border_rounded(border_normal)
-            .border_focused_color(border_focused)
-            .title("3: Editor")
-            .background(panel_bg)
-            .focusable(),
+        Box::new(
+            BoxWidget::new(LayoutStyle::column().flex_grow(2.0).padding(p, p, p, p))
+                .border_rounded(border_normal)
+                .border_focused_color(border_focused)
+                .title("3: Editor")
+                .background(panel_bg)
+                .focusable(),
+        ),
     );
     let _p3_text = tree.add_child(
         p3,
-        TextWidget::with_text(
-            31,
+        Box::new(TextWidget::with_text(
             LayoutStyle::default().flex_grow(1.0),
             "fn main() {\n    println!(\"Hello!\");\n}",
-        ),
+        )),
     );
 
     let p4 = tree.add_child(
         right_col,
-        BoxWidget::new(40, LayoutStyle::column().flex_grow(1.0).padding(p, p, p, p))
-            .border_rounded(border_normal)
-            .border_focused_color(border_focused)
-            .title("4: Terminal")
-            .background(panel_bg)
-            .focusable(),
+        Box::new(
+            BoxWidget::new(LayoutStyle::column().flex_grow(1.0).padding(p, p, p, p))
+                .border_rounded(border_normal)
+                .border_focused_color(border_focused)
+                .title("4: Terminal")
+                .background(panel_bg)
+                .focusable(),
+        ),
     );
     let _p4_text = tree.add_child(
         p4,
-        TextWidget::with_text(
-            41,
+        Box::new(TextWidget::with_text(
             LayoutStyle::default().flex_grow(1.0),
             "$ cargo test\n  running 19 tests ...\n  test result: ok",
-        ),
+        )),
     );
 
     let p5 = tree.add_child(
         root,
-        BoxWidget::new(
-            50,
-            LayoutStyle::column()
-                .height(5.0)
-                .flex_shrink(0.0)
-                .padding(p, p, p, p),
-        )
-        .border_rounded(border_normal)
-        .border_focused_color(border_focused)
-        .title("5: Problems")
-        .background(panel_bg)
-        .focusable(),
+        Box::new(
+            BoxWidget::new(
+                LayoutStyle::column()
+                    .height(5.0)
+                    .flex_shrink(0.0)
+                    .padding(p, p, p, p),
+            )
+            .border_rounded(border_normal)
+            .border_focused_color(border_focused)
+            .title("5: Problems")
+            .background(panel_bg)
+            .focusable(),
+        ),
     );
     let _p5_text = tree.add_child(
         p5,
-        TextWidget::with_text(
-            51,
+        Box::new(TextWidget::with_text(
             LayoutStyle::default().flex_grow(1.0),
             "  No problems detected",
-        ),
+        )),
     );
 
-    tree.build_focus_chain();
-    tree.set_focused_widget(Some(p1));
+    tree.focus(p1);
 
     let mut parser = InputParser::new();
     let stdin = io::stdin();
@@ -232,17 +242,17 @@ fn main() -> io::Result<()> {
     let panels = [p1, p2, p3, p4, p5];
 
     while running {
-        tree.layout(w as f32, h as f32);
+        tree.run_layout(w as f32, h as f32);
 
         for &pid in &panels {
-            let is_focused = tree.focused_id() == Some(pid);
+            let is_focused = tree.focused_node() == Some(pid);
             let border_color = if is_focused {
                 border_focused
             } else {
                 border_normal
             };
-            if let Some(widget) = tree.get_mut(pid) {
-                if let Some(box_w) = widget.as_any_mut().downcast_mut::<BoxWidget>() {
+            if let Some(node) = tree.get_mut(pid) {
+                if let Some(box_w) = node.behavior.as_any_mut().downcast_mut::<BoxWidget>() {
                     box_w.set_border_focused_color(border_color);
                 }
             }
@@ -259,7 +269,7 @@ fn main() -> io::Result<()> {
                 hit_grid: None,
                 theme: Some(&theme),
             };
-            tree.render(&mut ctx);
+            tree.run_render(&mut ctx, 0.0);
         }
         renderer.present()?;
 
@@ -285,7 +295,7 @@ fn main() -> io::Result<()> {
                             if let Some(digit) = c.to_digit(10) {
                                 let idx = digit as usize;
                                 if idx >= 1 && idx <= panels.len() {
-                                    tree.set_focused_widget(Some(panels[idx - 1]));
+                                    tree.focus(panels[idx - 1]);
                                     continue;
                                 }
                             }

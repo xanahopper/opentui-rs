@@ -3,11 +3,12 @@
 //! Renders a one-row status bar with three independently aligned segments,
 //! commonly used for file name, mode indicator, and cursor position.
 
-use crate as ot;
-use crate::{Rgba, Style};
+use crate::{Cell, Rgba, Style};
 
-use crate::layout::{ComputedLayout, LayoutStyle};
-use crate::widget::{Overflow, RenderContext, Widget, WidgetId};
+use crate::renderable::behavior::{Behavior, FrameworkDefaults};
+use crate::renderable::context::RenderContext;
+use crate::renderable::layout::{ComputedLayout, LayoutStyle};
+use crate::renderable::node::Overflow;
 
 #[derive(Debug, Clone)]
 pub struct StatusLineStyle {
@@ -29,7 +30,6 @@ impl Default for StatusLineStyle {
 }
 
 pub struct StatusLineWidget {
-    id: WidgetId,
     style: LayoutStyle,
     left: String,
     center: String,
@@ -42,10 +42,9 @@ pub struct StatusLineWidget {
 }
 
 impl StatusLineWidget {
-    pub fn new(id: WidgetId, style: LayoutStyle) -> Self {
+    pub fn new(style: LayoutStyle) -> Self {
         let style = style.height(1.0);
         Self {
-            id,
             style,
             left: String::new(),
             center: String::new(),
@@ -95,11 +94,7 @@ impl StatusLineWidget {
     }
 }
 
-impl Widget for StatusLineWidget {
-    fn id(&self) -> WidgetId {
-        self.id
-    }
-
+impl Behavior for StatusLineWidget {
     fn style(&self) -> &LayoutStyle {
         &self.style
     }
@@ -108,7 +103,7 @@ impl Widget for StatusLineWidget {
         &mut self.style
     }
 
-    fn render(&mut self, ctx: &mut RenderContext<'_>, layout: &ComputedLayout) {
+    fn render_self(&mut self, ctx: &mut RenderContext<'_>, layout: &ComputedLayout) {
         let x = layout.x as u32;
         let y = layout.y as u32;
         let w = layout.width as u32;
@@ -124,7 +119,7 @@ impl Widget for StatusLineWidget {
 
         // Clear entire row
         for col in 0..w {
-            ctx.buffer.set(x + col, y, ot::Cell::new(' ', base_style));
+            ctx.buffer.set(x + col, y, Cell::new(' ', base_style));
         }
 
         let left_w = Self::char_width(&self.left);
@@ -164,35 +159,20 @@ impl Widget for StatusLineWidget {
         }
     }
 
-    fn visible(&self) -> bool {
-        self.visible
+    fn framework_defaults(&self) -> FrameworkDefaults {
+        FrameworkDefaults {
+            focusable: self.focusable,
+            overflow: Overflow::Hidden,
+            visible: self.visible,
+            opacity: self.opacity,
+        }
     }
 
-    fn opacity(&self) -> f32 {
-        self.opacity
-    }
-
-    fn overflow(&self) -> Overflow {
-        Overflow::Hidden
-    }
-
-    fn focusable(&self) -> bool {
-        self.focusable
-    }
-
-    fn focused(&self) -> bool {
-        self.focused
-    }
-
-    fn set_focused(&mut self, focused: bool) {
-        self.focused = focused;
-    }
-
-    fn handle_key(&mut self, _key: &ot::KeyEvent) -> bool {
+    fn handle_key(&mut self, _key: &crate::KeyEvent) -> bool {
         false
     }
 
-    fn handle_mouse(&mut self, _mouse: &ot::MouseEvent) -> bool {
+    fn handle_mouse(&mut self, _mouse: &crate::MouseEvent) -> bool {
         false
     }
 

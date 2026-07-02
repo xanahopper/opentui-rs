@@ -1,16 +1,16 @@
-use crate as ot;
 use crate::buffer::{BoxOptions, BoxSides, BoxStyle, TitleAlign};
 use crate::{Rgba, Style};
 
 use crate::layout::{ComputedLayout, LayoutStyle};
+use crate::renderable::behavior::{Behavior, FrameworkDefaults};
+use crate::renderable::context::RenderContext;
+use crate::renderable::node::Overflow;
 use crate::view::element::Element;
 use crate::view::props::{Props, ViewProps};
-use crate::widget::{Overflow, RenderContext, Widget, WidgetId};
 use crate::widgets::{BorderChars, BorderSides, BorderStyle};
 
 #[derive(Debug, Clone)]
 pub struct ViewWidget {
-    id: WidgetId,
     layout: LayoutStyle,
     bg: Option<Rgba>,
     border: Option<BorderStyle>,
@@ -25,9 +25,8 @@ pub struct ViewWidget {
 }
 
 impl ViewWidget {
-    pub fn new(id: WidgetId, layout: LayoutStyle) -> Self {
+    pub fn new(layout: LayoutStyle) -> Self {
         Self {
-            id,
             layout,
             bg: None,
             border: None,
@@ -42,8 +41,8 @@ impl ViewWidget {
         }
     }
 
-    pub fn from_element(id: WidgetId, elem: &Element) -> Self {
-        let mut widget = Self::new(id, elem.layout.clone());
+    pub fn from_element(elem: &Element) -> Self {
+        let mut widget = Self::new(elem.layout.clone());
         if let Props::View(ref props) = elem.props {
             widget.apply_view_props(props);
         }
@@ -139,11 +138,7 @@ impl ViewWidget {
     }
 }
 
-impl Widget for ViewWidget {
-    fn id(&self) -> WidgetId {
-        self.id
-    }
-
+impl Behavior for ViewWidget {
     fn style(&self) -> &LayoutStyle {
         &self.layout
     }
@@ -152,7 +147,15 @@ impl Widget for ViewWidget {
         &mut self.layout
     }
 
-    fn render(&mut self, ctx: &mut RenderContext<'_>, layout: &ComputedLayout) {
+    fn framework_defaults(&self) -> FrameworkDefaults {
+        FrameworkDefaults {
+            focusable: self.focusable,
+            overflow: self.overflow,
+            ..FrameworkDefaults::default()
+        }
+    }
+
+    fn render_self(&mut self, ctx: &mut RenderContext<'_>, layout: &ComputedLayout) {
         let x = layout.x as u32;
         let y = layout.y as u32;
         let w = layout.width as u32;
@@ -199,35 +202,11 @@ impl Widget for ViewWidget {
         }
     }
 
-    fn visible(&self) -> bool {
-        self.visible
-    }
-
-    fn opacity(&self) -> f32 {
-        self.opacity
-    }
-
-    fn overflow(&self) -> Overflow {
-        self.overflow
-    }
-
-    fn focusable(&self) -> bool {
-        self.focusable
-    }
-
-    fn focused(&self) -> bool {
-        self.focused
-    }
-
-    fn set_focused(&mut self, focused: bool) {
-        self.focused = focused;
-    }
-
-    fn handle_key(&mut self, _key: &ot::KeyEvent) -> bool {
+    fn handle_key(&mut self, _key: &crate::KeyEvent) -> bool {
         false
     }
 
-    fn handle_mouse(&mut self, _mouse: &ot::MouseEvent) -> bool {
+    fn handle_mouse(&mut self, _mouse: &crate::MouseEvent) -> bool {
         false
     }
 

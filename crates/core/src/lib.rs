@@ -90,7 +90,7 @@ pub mod renderable;
 // NOTE: `event` is NOT re-exported — it conflicts with the engine's `event` module.
 // Framework code must use `crate::renderable::event` for focus/dispatch types.
 pub use renderable::{
-    keybinding, layout, list, prelude, render_command, scroll, theme, view, widget, widgets,
+    keybinding, layout, list, prelude, render_command, scroll, theme, tree, view, widgets,
 };
 
 // Re-export core types at crate root

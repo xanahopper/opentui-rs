@@ -6,15 +6,14 @@
 
 #![allow(clippy::float_cmp)]
 
-use crate as ot;
-
 use crate::layout::{ComputedLayout, LayoutStyle};
+use crate::renderable::behavior::{Behavior, FrameworkDefaults};
+use crate::renderable::context::RenderContext;
+use crate::renderable::node::Overflow;
 use crate::scroll::{ScrollBarRenderer, ScrollBarStyle, ScrollState};
-use crate::widget::{Overflow, RenderContext, Widget, WidgetId};
 
 #[derive(Debug, Clone)]
 pub struct ScrollViewWidget {
-    id: WidgetId,
     style: LayoutStyle,
     state: ScrollState,
     scrollbar: bool,
@@ -26,9 +25,8 @@ pub struct ScrollViewWidget {
 }
 
 impl ScrollViewWidget {
-    pub fn new(id: WidgetId, style: LayoutStyle) -> Self {
+    pub fn new(style: LayoutStyle) -> Self {
         Self {
-            id,
             style,
             state: ScrollState::new(),
             scrollbar: true,
@@ -77,11 +75,7 @@ impl ScrollViewWidget {
     }
 }
 
-impl Widget for ScrollViewWidget {
-    fn id(&self) -> WidgetId {
-        self.id
-    }
-
+impl Behavior for ScrollViewWidget {
     fn style(&self) -> &LayoutStyle {
         &self.style
     }
@@ -90,7 +84,15 @@ impl Widget for ScrollViewWidget {
         &mut self.style
     }
 
-    fn render(&mut self, ctx: &mut RenderContext<'_>, layout: &ComputedLayout) {
+    fn framework_defaults(&self) -> FrameworkDefaults {
+        FrameworkDefaults {
+            focusable: self.focusable,
+            overflow: Overflow::Hidden,
+            ..FrameworkDefaults::default()
+        }
+    }
+
+    fn render_self(&mut self, ctx: &mut RenderContext<'_>, layout: &ComputedLayout) {
         let x = layout.x as u32;
         let y = layout.y as u32;
         let w = layout.width as u32;
@@ -101,7 +103,7 @@ impl Widget for ScrollViewWidget {
         }
 
         // Push scissor clip for viewport
-        let clip = ot::buffer::ClipRect::new(x as i32, y as i32, w, h);
+        let clip = crate::buffer::ClipRect::new(x as i32, y as i32, w, h);
         ctx.buffer.push_scissor(clip);
 
         // Children are rendered by WidgetTree with the scissor active.
@@ -117,37 +119,13 @@ impl Widget for ScrollViewWidget {
         }
     }
 
-    fn visible(&self) -> bool {
-        self.visible
-    }
-
-    fn opacity(&self) -> f32 {
-        self.opacity
-    }
-
-    fn overflow(&self) -> Overflow {
-        Overflow::Hidden
-    }
-
-    fn focusable(&self) -> bool {
-        self.focusable
-    }
-
-    fn focused(&self) -> bool {
-        self.focused
-    }
-
-    fn set_focused(&mut self, focused: bool) {
-        self.focused = focused;
-    }
-
-    fn handle_key(&mut self, key: &ot::KeyEvent) -> bool {
+    fn handle_key(&mut self, key: &crate::KeyEvent) -> bool {
         let before = self.state.offset_y;
         self.state.handle_key(key);
         self.state.offset_y != before
     }
 
-    fn handle_mouse(&mut self, mouse: &ot::MouseEvent) -> bool {
+    fn handle_mouse(&mut self, mouse: &crate::MouseEvent) -> bool {
         let before = self.state.offset_y;
         self.state.handle_mouse(mouse);
         self.state.offset_y != before

@@ -4,12 +4,13 @@
 //! background fill, title text, and child layout. This is the primary
 //! building block for composing TUI layouts.
 
-use crate as ot;
 use crate::buffer::{BoxOptions, BoxSides, BoxStyle, TitleAlign};
 use crate::{Rgba, Style};
 
-use crate::layout::{ComputedLayout, LayoutStyle};
-use crate::widget::{Overflow, RenderContext, Widget, WidgetId};
+use crate::renderable::behavior::{Behavior, FrameworkDefaults};
+use crate::renderable::context::RenderContext;
+use crate::renderable::layout::{ComputedLayout, LayoutStyle};
+use crate::renderable::node::Overflow;
 
 #[derive(Debug, Clone)]
 pub struct BorderStyle {
@@ -163,7 +164,6 @@ impl BorderSides {
 
 #[derive(Debug, Clone)]
 pub struct BoxWidget {
-    id: WidgetId,
     user_style: LayoutStyle,
     base_padding: (f32, f32, f32, f32),
     effective_style: LayoutStyle,
@@ -180,10 +180,9 @@ pub struct BoxWidget {
 }
 
 impl BoxWidget {
-    pub fn new(id: WidgetId, style: LayoutStyle) -> Self {
+    pub fn new(style: LayoutStyle) -> Self {
         let eff = style.clone();
         Self {
-            id,
             user_style: style,
             base_padding: (0.0, 0.0, 0.0, 0.0),
             effective_style: eff,
@@ -345,11 +344,7 @@ impl BoxWidget {
     }
 }
 
-impl Widget for BoxWidget {
-    fn id(&self) -> WidgetId {
-        self.id
-    }
-
+impl Behavior for BoxWidget {
     fn style(&self) -> &LayoutStyle {
         &self.effective_style
     }
@@ -358,7 +353,16 @@ impl Widget for BoxWidget {
         &mut self.user_style
     }
 
-    fn render(&mut self, ctx: &mut RenderContext<'_>, layout: &ComputedLayout) {
+    fn framework_defaults(&self) -> FrameworkDefaults {
+        FrameworkDefaults {
+            focusable: self.focusable,
+            overflow: self.overflow,
+            visible: self.visible,
+            opacity: self.opacity,
+        }
+    }
+
+    fn render_self(&mut self, ctx: &mut RenderContext<'_>, layout: &ComputedLayout) {
         let x = layout.x as u32;
         let y = layout.y as u32;
         let w = layout.width as u32;
@@ -405,35 +409,11 @@ impl Widget for BoxWidget {
         }
     }
 
-    fn visible(&self) -> bool {
-        self.visible
-    }
-
-    fn opacity(&self) -> f32 {
-        self.opacity
-    }
-
-    fn overflow(&self) -> Overflow {
-        self.overflow
-    }
-
-    fn focusable(&self) -> bool {
-        self.focusable
-    }
-
-    fn focused(&self) -> bool {
-        self.focused
-    }
-
-    fn set_focused(&mut self, focused: bool) {
-        self.focused = focused;
-    }
-
-    fn handle_key(&mut self, _key: &ot::KeyEvent) -> bool {
+    fn handle_key(&mut self, _key: &crate::KeyEvent) -> bool {
         false
     }
 
-    fn handle_mouse(&mut self, _mouse: &ot::MouseEvent) -> bool {
+    fn handle_mouse(&mut self, _mouse: &crate::MouseEvent) -> bool {
         false
     }
 

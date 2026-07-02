@@ -3,35 +3,26 @@
 //! The declarative equivalent of an empty `<box>` with just a `backgroundColor`.
 //! Used for spacers, padding rows, and background fills.
 
-use crate as ot;
 use crate::Rgba;
 
-use crate::layout::{ComputedLayout, LayoutStyle};
-use crate::widget::{Overflow, RenderContext, Widget, WidgetId};
+use crate::renderable::behavior::{Behavior, FrameworkDefaults};
+use crate::renderable::context::RenderContext;
+use crate::renderable::layout::{ComputedLayout, LayoutStyle};
+use crate::renderable::node::Overflow;
 
 #[derive(Debug, Clone)]
 pub struct FillWidget {
-    id: WidgetId,
     style: LayoutStyle,
     bg: Rgba,
     overflow: Overflow,
-    visible: bool,
-    opacity: f32,
-    focusable: bool,
-    focused: bool,
 }
 
 impl FillWidget {
-    pub fn new(id: WidgetId, style: LayoutStyle, bg: Rgba) -> Self {
+    pub fn new(style: LayoutStyle, bg: Rgba) -> Self {
         Self {
-            id,
             style,
             bg,
             overflow: Overflow::Hidden,
-            visible: true,
-            opacity: 1.0,
-            focusable: false,
-            focused: false,
         }
     }
 
@@ -40,11 +31,7 @@ impl FillWidget {
     }
 }
 
-impl Widget for FillWidget {
-    fn id(&self) -> WidgetId {
-        self.id
-    }
-
+impl Behavior for FillWidget {
     fn style(&self) -> &LayoutStyle {
         &self.style
     }
@@ -53,7 +40,14 @@ impl Widget for FillWidget {
         &mut self.style
     }
 
-    fn render(&mut self, ctx: &mut RenderContext<'_>, layout: &ComputedLayout) {
+    fn framework_defaults(&self) -> FrameworkDefaults {
+        FrameworkDefaults {
+            overflow: self.overflow,
+            ..Default::default()
+        }
+    }
+
+    fn render_self(&mut self, ctx: &mut RenderContext<'_>, layout: &ComputedLayout) {
         let x = layout.x as u32;
         let y = layout.y as u32;
         let w = layout.width as u32;
@@ -68,35 +62,11 @@ impl Widget for FillWidget {
         }
     }
 
-    fn visible(&self) -> bool {
-        self.visible
-    }
-
-    fn opacity(&self) -> f32 {
-        self.opacity
-    }
-
-    fn overflow(&self) -> Overflow {
-        self.overflow
-    }
-
-    fn focusable(&self) -> bool {
-        self.focusable
-    }
-
-    fn focused(&self) -> bool {
-        self.focused
-    }
-
-    fn set_focused(&mut self, focused: bool) {
-        self.focused = focused;
-    }
-
-    fn handle_key(&mut self, _key: &ot::KeyEvent) -> bool {
+    fn handle_key(&mut self, _key: &crate::KeyEvent) -> bool {
         false
     }
 
-    fn handle_mouse(&mut self, _mouse: &ot::MouseEvent) -> bool {
+    fn handle_mouse(&mut self, _mouse: &crate::MouseEvent) -> bool {
         false
     }
 

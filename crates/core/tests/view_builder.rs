@@ -108,13 +108,13 @@ fn test_layout_row_column() {
     let col = view().column().build();
     let row_elem = unwrap_element(&row);
     let col_elem = unwrap_element(&col);
-    assert!(
-        row_elem.layout.inner.flex_direction
-            == opentui_core::layout::taffy_style::FlexDirection::Row
+    assert_eq!(
+        row_elem.layout.inner.flex_direction,
+        opentui_core::layout::taffy_style::FlexDirection::Row
     );
-    assert!(
-        col_elem.layout.inner.flex_direction
-            == opentui_core::layout::taffy_style::FlexDirection::Column
+    assert_eq!(
+        col_elem.layout.inner.flex_direction,
+        opentui_core::layout::taffy_style::FlexDirection::Column
     );
 }
 
@@ -151,7 +151,7 @@ fn test_view_overflow_hidden() {
     if let Props::View(ref vp) = elem.props {
         assert!(matches!(
             vp.overflow,
-            opentui_core::widget::Overflow::Hidden
+            opentui_core::renderable::node::Overflow::Hidden
         ));
     }
 }

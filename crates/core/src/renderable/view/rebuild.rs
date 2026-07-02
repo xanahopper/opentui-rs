@@ -1,128 +1,124 @@
 use std::collections::HashMap;
 
 use crate::Rgba;
-
+use crate::renderable::behavior::{Behavior, FrameworkDefaults};
+use crate::renderable::node::NodeId;
+use crate::renderable::tree::RenderTree;
 use crate::view::element::{Element, ElementKind};
 use crate::view::node::Node;
 use crate::view::props::Props;
-use crate::widget::{Overlay, OverlayZOrder, WidgetId, WidgetTree};
-use crate::widgets::{
-    FillWidget, InputWidget, ListWidget, SeparatorWidget, StyledTextWidget, TextLineWidget,
-    ViewWidget,
-};
 
-pub fn build_tree(node: &Node) -> WidgetTree {
+pub fn build_tree(node: &Node) -> RenderTree {
     build_tree_with_actions(node).0
 }
 
-pub fn build_tree_with_actions(node: &Node) -> (WidgetTree, HashMap<WidgetId, String>) {
-    let mut ctx = BuildContext { next_id: 1 };
-    let mut tree = WidgetTree::new();
+pub fn build_tree_with_actions(node: &Node) -> (RenderTree, HashMap<NodeId, String>) {
+    let mut tree = RenderTree::new();
     let mut actions = HashMap::new();
-    build_recursive(node, &mut tree, None, &mut ctx, &mut actions);
-    tree.build_focus_chain();
+    build_recursive(node, &mut tree, None, &mut actions);
     (tree, actions)
-}
-
-struct BuildContext {
-    next_id: u64,
-}
-
-impl BuildContext {
-    fn alloc_id(&mut self) -> u64 {
-        let id = self.next_id;
-        self.next_id += 1;
-        id
-    }
 }
 
 fn build_recursive(
     node: &Node,
-    tree: &mut WidgetTree,
-    parent: Option<u64>,
-    ctx: &mut BuildContext,
-    actions: &mut HashMap<WidgetId, String>,
+    tree: &mut RenderTree,
+    parent: Option<NodeId>,
+    actions: &mut HashMap<NodeId, String>,
 ) {
     match node {
         Node::Element(elem) => {
-            let id = ctx.alloc_id();
+            let id = add_element(tree, parent, elem);
             if let Some(ref action) = elem.action {
                 actions.insert(id, action.clone());
             }
-            let widget = create_widget(id, elem);
-            if let Some(p) = parent {
-                tree.add_child(p, widget);
-            } else {
-                tree.add(widget);
-            }
             for child in &elem.children {
-                build_recursive(child, tree, Some(id), ctx, actions);
+                build_recursive(child, tree, Some(id), actions);
             }
         }
         Node::Overlay(overlay) => {
-            let id = ctx.alloc_id();
             if let Node::Element(ref elem) = *overlay.content {
+                let id = add_element(tree, None, elem);
                 if let Some(ref action) = elem.action {
                     actions.insert(id, action.clone());
                 }
-                let widget = create_widget(id, elem);
-                tree.add(widget);
-                tree.add_overlay(
-                    Overlay::new(
-                        id,
-                        overlay.x as f32,
-                        overlay.y as f32,
-                        overlay.width as f32,
-                        overlay.height as f32,
-                    )
-                    .z_order(OverlayZOrder::new(overlay.z_order))
-                    .backdrop(overlay.backdrop),
-                );
                 for child in &elem.children {
-                    build_recursive(child, tree, Some(id), ctx, actions);
+                    build_recursive(child, tree, Some(id), actions);
                 }
+                tree.add_overlay(crate::renderable::tree::Overlay {
+                    node: id,
+                    x: overlay.x as f32,
+                    y: overlay.y as f32,
+                    width: overlay.width as f32,
+                    height: overlay.height as f32,
+                    z_order: overlay.z_order,
+                    backdrop: overlay.backdrop,
+                });
             }
         }
         Node::Fragment(children) => {
             for child in children {
-                build_recursive(child, tree, parent, ctx, actions);
+                build_recursive(child, tree, parent, actions);
             }
         }
         Node::Empty => {}
     }
 }
 
-fn create_widget(id: u64, elem: &Element) -> Box<dyn crate::widget::Widget> {
+fn add_element(tree: &mut RenderTree, parent: Option<NodeId>, elem: &Element) -> NodeId {
+    let (behavior, defaults): (Box<dyn Behavior>, FrameworkDefaults) = create_behavior(elem);
+
+    let id = match parent {
+        Some(p) => tree.add_child(p, behavior),
+        None => tree.set_root(behavior),
+    };
+
+    tree.set_focusable(id, defaults.focusable);
+    tree.set_overflow(id, defaults.overflow);
+    tree.set_visible(id, defaults.visible);
+    tree.set_opacity(id, defaults.opacity);
+    tree.set_style(id, elem.layout.clone());
+
+    id
+}
+
+fn create_behavior(elem: &Element) -> (Box<dyn Behavior>, FrameworkDefaults) {
     match elem.kind {
-        ElementKind::Text => Box::new(TextLineWidget::from_element(id, elem)),
+        ElementKind::Text => {
+            let w = crate::renderable::widgets::TextLineWidget::from_element(elem);
+            let d = w.framework_defaults();
+            (Box::new(w), d)
+        }
         ElementKind::StyledText => {
-            let mut widget = StyledTextWidget::new(id, elem.layout.clone());
+            let mut w = crate::renderable::widgets::StyledTextWidget::new(elem.layout.clone());
             if let Props::StyledText(ref props) = elem.props {
-                widget.set_segments(props.segments.clone());
+                w.set_segments(props.segments.clone());
             }
-            Box::new(widget)
+            let d = w.framework_defaults();
+            (Box::new(w), d)
         }
         ElementKind::Input => {
-            let mut widget = InputWidget::new(id, elem.layout.clone());
+            let mut w = crate::renderable::widgets::InputWidget::new(elem.layout.clone());
             if let Props::Input(ref props) = elem.props {
                 if let Some(ref ph) = props.placeholder {
-                    widget = widget.placeholder(ph);
+                    w = w.placeholder(ph);
                 }
                 if props.password {
-                    widget = widget.password_mode();
+                    w = w.password_mode();
                 }
                 if let Some(ref val) = props.default_value {
-                    widget.set_value(val);
+                    w.set_value(val);
                 }
             }
-            Box::new(widget)
+            let d = w.framework_defaults();
+            (Box::new(w), d)
         }
         ElementKind::List => {
-            let mut widget = ListWidget::new(id, elem.layout.clone());
+            let mut w = crate::renderable::widgets::ListWidget::new(elem.layout.clone());
             if let Props::List(ref props) = elem.props {
-                widget = widget.scrollbar(props.scrollbar);
+                w = w.scrollbar(props.scrollbar);
             }
-            Box::new(widget)
+            let d = w.framework_defaults();
+            (Box::new(w), d)
         }
         ElementKind::Fill => {
             let color = if let Props::Fill(ref props) = elem.props {
@@ -130,15 +126,22 @@ fn create_widget(id: u64, elem: &Element) -> Box<dyn crate::widget::Widget> {
             } else {
                 Rgba::TRANSPARENT
             };
-            Box::new(FillWidget::new(id, elem.layout.clone(), color))
+            let w = crate::renderable::widgets::FillWidget::new(elem.layout.clone(), color);
+            let d = w.framework_defaults();
+            (Box::new(w), d)
         }
         ElementKind::Separator => {
-            let mut widget = SeparatorWidget::new(id, elem.layout.clone());
+            let mut w = crate::renderable::widgets::SeparatorWidget::new(elem.layout.clone());
             if let Props::Separator(ref props) = elem.props {
-                widget = widget.char_(props.char).fg(props.fg);
+                w = w.char_(props.char).fg(props.fg);
             }
-            Box::new(widget)
+            let d = w.framework_defaults();
+            (Box::new(w), d)
         }
-        ElementKind::Custom(_) | ElementKind::View => Box::new(ViewWidget::from_element(id, elem)),
+        ElementKind::Custom(_) | ElementKind::View => {
+            let w = crate::renderable::widgets::ViewWidget::from_element(elem);
+            let d = w.framework_defaults();
+            (Box::new(w), d)
+        }
     }
 }

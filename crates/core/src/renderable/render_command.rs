@@ -1,16 +1,17 @@
 //! Render command list for tree-based rendering.
 //!
-//! During the render phase, the `WidgetTree` traverses the widget tree and
-//! builds a flat list of `RenderCommand`s. This list is then executed
-//! against the `OptimizedBuffer` in order. This two-phase approach ensures
-//! correct scissor and opacity nesting.
+//! During the render phase, the tree traverses nodes and builds a flat list
+//! of `RenderCommand`s. This list is then executed against the
+//! `OptimizedBuffer` in order.
 
-use crate::widget::WidgetId;
+use crate::renderable::node::NodeId;
 
-#[derive(Debug, Clone)]
-pub enum RenderCommand {
+/// A render command collected during the update pass and executed during
+/// the render pass.
+#[derive(Debug, Clone, Copy)]
+pub enum RenderCommand<Id = NodeId> {
     Render {
-        id: WidgetId,
+        id: Id,
     },
     PushScissor {
         x: i32,
@@ -23,35 +24,4 @@ pub enum RenderCommand {
         opacity: f32,
     },
     PopOpacity,
-}
-
-#[derive(Debug, Default)]
-pub struct RenderCommandList {
-    commands: Vec<RenderCommand>,
-}
-
-impl RenderCommandList {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    pub fn push(&mut self, cmd: RenderCommand) {
-        self.commands.push(cmd);
-    }
-
-    pub fn clear(&mut self) {
-        self.commands.clear();
-    }
-
-    pub fn commands(&self) -> &[RenderCommand] {
-        &self.commands
-    }
-
-    pub fn commands_mut(&mut self) -> &mut Vec<RenderCommand> {
-        &mut self.commands
-    }
-
-    pub fn into_commands(self) -> Vec<RenderCommand> {
-        self.commands
-    }
 }
