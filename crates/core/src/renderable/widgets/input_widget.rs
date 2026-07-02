@@ -11,6 +11,8 @@ use crate::renderable::context::RenderContext;
 use crate::renderable::layout::{ComputedLayout, LayoutStyle};
 use crate::renderable::node::Overflow;
 
+const DEFAULT_SCROLL_WIDTH: u32 = 20;
+
 impl std::fmt::Debug for InputWidget {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("InputWidget")
@@ -118,6 +120,76 @@ impl InputWidget {
         }
     }
 
+    fn delete_to_line_start(&mut self) {
+        let end = self.buffer.cursor().offset;
+        if end > 0 {
+            self.buffer.delete_range_offsets(0, end);
+            self.scroll_x = 0;
+        }
+    }
+
+    fn delete_to_line_end(&mut self) {
+        let start = self.buffer.cursor().offset;
+        let end = self.buffer.text().chars().count();
+        if start < end {
+            self.buffer.delete_range_offsets(start, end);
+        }
+    }
+
+    fn handle_ctrl_key(&mut self, code: crate::KeyCode, width: u32) -> bool {
+        match code {
+            crate::KeyCode::Char('a') => {
+                self.buffer.move_to_line_start();
+                self.scroll_x = 0;
+            }
+            crate::KeyCode::Char('b') => {
+                self.buffer.move_left();
+                self.clamp_scroll(width);
+            }
+            crate::KeyCode::Char('d') => self.buffer.delete_forward(),
+            crate::KeyCode::Char('e') => {
+                self.buffer.move_to_line_end();
+                self.clamp_scroll(width);
+            }
+            crate::KeyCode::Char('f') => {
+                self.buffer.move_right();
+                self.clamp_scroll(width);
+            }
+            crate::KeyCode::Char('h') => {
+                self.buffer.delete_backward();
+                self.clamp_scroll(width);
+            }
+            crate::KeyCode::Char('k') => self.delete_to_line_end(),
+            crate::KeyCode::Char('u') => self.delete_to_line_start(),
+            crate::KeyCode::Char('w') => {
+                self.buffer.delete_word_backward();
+                self.clamp_scroll(width);
+            }
+            _ => return false,
+        }
+        true
+    }
+
+    fn handle_alt_key(&mut self, code: crate::KeyCode, width: u32) -> bool {
+        match code {
+            crate::KeyCode::Char('b') | crate::KeyCode::Left => {
+                self.buffer.move_word_left();
+                self.clamp_scroll(width);
+            }
+            crate::KeyCode::Char('d') => self.buffer.delete_word_forward(),
+            crate::KeyCode::Char('f') | crate::KeyCode::Right => {
+                self.buffer.move_word_right();
+                self.clamp_scroll(width);
+            }
+            crate::KeyCode::Backspace => {
+                self.buffer.delete_word_backward();
+                self.clamp_scroll(width);
+            }
+            _ => return false,
+        }
+        true
+    }
+
     pub fn compute_cursor_pos(&mut self, layout: &ComputedLayout) {
         if !self.focused || !self.cursor_visible {
             self.cursor_pos = None;
@@ -187,12 +259,19 @@ impl Behavior for InputWidget {
     }
 
     fn handle_key(&mut self, key: &crate::KeyEvent) -> bool {
-        let width = 20;
+        let width = DEFAULT_SCROLL_WIDTH;
         let ctrl = key.modifiers.contains(crate::KeyModifiers::CTRL);
         let alt = key.modifiers.contains(crate::KeyModifiers::ALT);
 
+        if ctrl {
+            return self.handle_ctrl_key(key.code, width);
+        }
+        if alt && self.handle_alt_key(key.code, width) {
+            return true;
+        }
+
         match key.code {
-            crate::KeyCode::Char(ch) if !ctrl && !alt => {
+            crate::KeyCode::Char(ch) if !alt => {
                 self.buffer.insert(&ch.to_string());
                 self.clamp_scroll(width);
                 true
@@ -206,18 +285,8 @@ impl Behavior for InputWidget {
                 self.buffer.delete_forward();
                 true
             }
-            crate::KeyCode::Left if alt => {
-                self.buffer.move_word_left();
-                self.clamp_scroll(width);
-                true
-            }
             crate::KeyCode::Left => {
                 self.buffer.move_left();
-                self.clamp_scroll(width);
-                true
-            }
-            crate::KeyCode::Right if alt => {
-                self.buffer.move_word_right();
                 self.clamp_scroll(width);
                 true
             }
@@ -251,5 +320,77 @@ impl Behavior for InputWidget {
 
     fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
         self
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{KeyCode, KeyEvent, KeyModifiers};
+
+    fn ctrl(ch: char) -> KeyEvent {
+        KeyEvent::new(KeyCode::Char(ch), KeyModifiers::CTRL)
+    }
+
+    fn alt(ch: char) -> KeyEvent {
+        KeyEvent::new(KeyCode::Char(ch), KeyModifiers::ALT)
+    }
+
+    #[test]
+    fn emacs_ctrl_navigation_and_delete() {
+        let mut input = InputWidget::with_text(LayoutStyle::default(), "hello world");
+
+        assert!(input.handle_key(&ctrl('e')));
+        assert_eq!(input.buffer().cursor().offset, 11);
+        assert!(input.handle_key(&ctrl('b')));
+        assert_eq!(input.buffer().cursor().offset, 10);
+        assert!(input.handle_key(&ctrl('f')));
+        assert_eq!(input.buffer().cursor().offset, 11);
+        assert!(input.handle_key(&ctrl('a')));
+        assert_eq!(input.buffer().cursor().offset, 0);
+
+        assert!(input.handle_key(&ctrl('d')));
+        assert_eq!(input.value(), "ello world");
+        assert!(input.handle_key(&ctrl('e')));
+        assert!(input.handle_key(&ctrl('h')));
+        assert_eq!(input.value(), "ello worl");
+    }
+
+    #[test]
+    fn emacs_ctrl_k_and_u_delete_line_ranges() {
+        let mut input = InputWidget::with_text(LayoutStyle::default(), "alpha beta gamma");
+
+        assert!(input.handle_key(&ctrl('e')));
+        assert!(input.handle_key(&alt('b')));
+        assert!(input.handle_key(&ctrl('k')));
+        assert_eq!(input.value(), "alpha beta ");
+
+        assert!(input.handle_key(&ctrl('u')));
+        assert_eq!(input.value(), "");
+    }
+
+    #[test]
+    fn emacs_word_navigation_and_delete() {
+        let mut input = InputWidget::with_text(LayoutStyle::default(), "alpha beta gamma");
+
+        assert!(input.handle_key(&ctrl('e')));
+        assert!(input.handle_key(&alt('b')));
+        assert_eq!(input.buffer().cursor().offset, 11);
+
+        assert!(input.handle_key(&ctrl('w')));
+        assert_eq!(input.value(), "alpha gamma");
+
+        assert!(input.handle_key(&alt('d')));
+        assert_eq!(input.value(), "alpha ");
+    }
+
+    #[test]
+    fn alt_backspace_deletes_previous_word() {
+        let mut input = InputWidget::with_text(LayoutStyle::default(), "alpha beta");
+
+        assert!(input.handle_key(&ctrl('e')));
+        assert!(input.handle_key(&KeyEvent::new(KeyCode::Backspace, KeyModifiers::ALT)));
+
+        assert_eq!(input.value(), "alpha ");
     }
 }
