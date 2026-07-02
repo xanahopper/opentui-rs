@@ -555,20 +555,28 @@ impl RenderTree {
         let Some(fid) = self.focused else {
             return false;
         };
-        if let Some(node) = self.nodes.get_mut(fid) {
+        let consumed = if let Some(node) = self.nodes.get_mut(fid) {
             node.behavior.handle_key(key)
         } else {
             false
+        };
+        if consumed {
+            self.mark_dirty(fid);
         }
+        consumed
     }
 
     /// Dispatch a mouse event to a specific node (by NodeId).
     pub fn dispatch_mouse_to(&mut self, id: NodeId, event: &MouseEvent) -> bool {
-        if let Some(node) = self.nodes.get_mut(id) {
+        let consumed = if let Some(node) = self.nodes.get_mut(id) {
             node.behavior.handle_mouse(event)
         } else {
             false
+        };
+        if consumed {
+            self.mark_dirty(id);
         }
+        consumed
     }
 
     /// Dispatch a mouse event with DOM-like bubbling.
@@ -584,6 +592,7 @@ impl RenderTree {
                 false
             };
             if consumed {
+                self.mark_dirty(cid);
                 return true;
             }
             current = self.nodes.get(cid).and_then(|n| n.parent);
@@ -650,7 +659,7 @@ impl RenderTree {
         if !self.can_reuse_render_list() {
             self.render_list.clear();
             if let Some(root) = self.root {
-                self.collect_commands(root, delta_time);
+                self.collect_commands(root, delta_time, 0.0);
             }
             self.render_list_valid = true;
         }
@@ -821,7 +830,7 @@ impl RenderTree {
             .is_some_and(|r| self.nodes.get(r).is_some_and(|n| !n.dirty))
     }
 
-    fn collect_commands(&mut self, id: NodeId, delta: f64) {
+    fn collect_commands(&mut self, id: NodeId, delta: f64, offset_y: f32) {
         // Read all needed fields from immutable borrow
         let (visible, destroyed, needs_z_sort) = match self.nodes.get(id) {
             Some(n) => (n.visible, n.destroyed, n.needs_z_sort),
@@ -837,24 +846,34 @@ impl RenderTree {
         }
 
         // Read visual / geometry fields
-        let (opacity, overflow, screen_x, screen_y, width, height, has_filter, children_z) =
-            match self.nodes.get(id) {
-                Some(n) => (
-                    n.opacity,
-                    n.overflow,
-                    n.screen_x,
-                    n.screen_y,
-                    n.width,
-                    n.height,
-                    n.behavior.has_visible_child_filter(),
-                    if needs_z_sort {
-                        n.children.clone()
-                    } else {
-                        n.children_z.clone()
-                    },
-                ),
-                None => return,
-            };
+        let (
+            opacity,
+            overflow,
+            screen_x,
+            screen_y,
+            width,
+            height,
+            has_filter,
+            child_offset_y,
+            children_z,
+        ) = match self.nodes.get(id) {
+            Some(n) => (
+                n.opacity,
+                n.overflow,
+                n.screen_x,
+                n.screen_y,
+                n.width,
+                n.height,
+                n.behavior.has_visible_child_filter(),
+                n.behavior.child_offset_y(),
+                if needs_z_sort {
+                    n.children.clone()
+                } else {
+                    n.children_z.clone()
+                },
+            ),
+            None => return,
+        };
 
         // z-sort if needed (collect indices first to avoid borrow conflict)
         if needs_z_sort {
@@ -877,13 +896,20 @@ impl RenderTree {
                 .push(RenderCommand::PushOpacity { opacity });
         }
 
-        self.render_list.push(RenderCommand::Render { id });
+        let render_y = screen_y - offset_y;
+        self.render_list.push(RenderCommand::Render {
+            id,
+            x: screen_x,
+            y: render_y,
+            width,
+            height,
+        });
 
         let should_push_scissor = overflow == Overflow::Hidden && width > 0.0 && height > 0.0;
         if should_push_scissor {
             self.render_list.push(RenderCommand::PushScissor {
                 x: screen_x as i32,
-                y: screen_y as i32,
+                y: render_y as i32,
                 width: width as u32,
                 height: height as u32,
             });
@@ -899,8 +925,9 @@ impl RenderTree {
             children_z
         };
 
+        let child_render_offset_y = offset_y + child_offset_y;
         for child in children_to_visit {
-            self.collect_commands(child, delta);
+            self.collect_commands(child, delta, child_render_offset_y);
         }
 
         if should_push_scissor {
@@ -920,15 +947,18 @@ impl RenderTree {
         let commands: Vec<RenderCommand<NodeId>> = self.render_list.clone();
         for cmd in &commands {
             match cmd {
-                RenderCommand::Render { id } => {
-                    let layout = self.nodes.get(*id).map(|n| ComputedLayout {
-                        x: n.screen_x,
-                        y: n.screen_y,
-                        width: n.width,
-                        height: n.height,
-                    });
-                    let Some(layout) = layout else {
-                        continue;
+                RenderCommand::Render {
+                    id,
+                    x,
+                    y,
+                    width,
+                    height,
+                } => {
+                    let layout = ComputedLayout {
+                        x: *x,
+                        y: *y,
+                        width: *width,
+                        height: *height,
                     };
                     if let Some(node) = self.nodes.get_mut(*id) {
                         node.behavior

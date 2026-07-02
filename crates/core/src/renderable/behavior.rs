@@ -89,6 +89,11 @@ pub trait Behavior {
         true
     }
 
+    /// Vertical render offset applied to this node's children.
+    fn child_offset_y(&self) -> f32 {
+        0.0
+    }
+
     /// Framework-level defaults for the RenderNode (focusable, overflow, etc.).
     /// Override to provide non-default values.
     fn framework_defaults(&self) -> FrameworkDefaults {

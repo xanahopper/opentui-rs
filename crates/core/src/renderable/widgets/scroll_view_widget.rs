@@ -92,6 +92,18 @@ impl Behavior for ScrollViewWidget {
         }
     }
 
+    fn on_resize(&mut self, _width: f32, height: f32) {
+        self.state.set_viewport_height(height.max(0.0) as u32);
+    }
+
+    fn set_focus_state(&mut self, focused: bool, _has_focused_descendant: bool) {
+        self.focused = focused;
+    }
+
+    fn child_offset_y(&self) -> f32 {
+        self.state.offset_y
+    }
+
     fn render_self(&mut self, ctx: &mut RenderContext<'_>, layout: &ComputedLayout) {
         let x = layout.x as u32;
         let y = layout.y as u32;
@@ -101,16 +113,7 @@ impl Behavior for ScrollViewWidget {
         if w == 0 || h == 0 {
             return;
         }
-
-        // Push scissor clip for viewport
-        let clip = crate::buffer::ClipRect::new(x as i32, y as i32, w, h);
-        ctx.buffer.push_scissor(clip);
-
-        // Children are rendered by WidgetTree with the scissor active.
-        // The actual child rendering happens via WidgetTree's render commands,
-        // so this widget just sets up the scissor + scrollbar.
-
-        ctx.buffer.pop_scissor();
+        self.state.set_viewport_height(h);
 
         // Draw scrollbar on top
         if self.scrollbar && self.state.content_height > 0.0 {

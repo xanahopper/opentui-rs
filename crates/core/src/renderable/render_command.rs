@@ -12,6 +12,10 @@ use crate::renderable::node::NodeId;
 pub enum RenderCommand<Id = NodeId> {
     Render {
         id: Id,
+        x: f32,
+        y: f32,
+        width: f32,
+        height: f32,
     },
     PushScissor {
         x: i32,

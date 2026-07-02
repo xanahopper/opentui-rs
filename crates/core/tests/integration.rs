@@ -7,7 +7,8 @@ use opentui_core::renderable::layout::ComputedLayout;
 use opentui_core::renderable::node::NodeId;
 use opentui_core::renderable::tree::{Overlay, RenderTree};
 use opentui_core::widgets::{
-    BoxWidget, ProgressBarWidget, StatusLineWidget, Tab, TabsWidget, TextWidget,
+    BoxWidget, ProgressBarWidget, ScrollViewWidget, StatusLineWidget, Tab, TabsWidget,
+    TextLineWidget, TextWidget,
 };
 use opentui_core::{OptimizedBuffer, Rgba, Style};
 
@@ -209,6 +210,66 @@ fn test_nested_layout_row_column() {
 
     assert_eq!(cell_char(&buf, 0, 0), Some('L'));
     assert_eq!(cell_char(&buf, 20, 0), Some('R'));
+}
+
+#[test]
+fn test_scroll_view_offsets_child_rendering() {
+    let mut buf = OptimizedBuffer::new(10, 1);
+    let theme = UiTheme::dark_default();
+    let mut tree = RenderTree::new();
+
+    let scroll = tree.set_root(Box::new(
+        ScrollViewWidget::new(LayoutStyle::column().width(10.0).height(1.0))
+            .content_height(3.0)
+            .scrollbar(false)
+            .focusable(),
+    ));
+    tree.set_focusable(scroll, true);
+    let content = tree.add_child(
+        scroll,
+        Box::new(BoxWidget::new(
+            LayoutStyle::column().width(10.0).height(3.0),
+        )),
+    );
+    let _a = tree.add_child(
+        content,
+        Box::new(TextLineWidget::with_text(
+            LayoutStyle::default().height(1.0),
+            "A",
+        )),
+    );
+    let _b = tree.add_child(
+        content,
+        Box::new(TextLineWidget::with_text(
+            LayoutStyle::default().height(1.0),
+            "B",
+        )),
+    );
+    let _c = tree.add_child(
+        content,
+        Box::new(TextLineWidget::with_text(
+            LayoutStyle::default().height(1.0),
+            "C",
+        )),
+    );
+
+    tree.focus(scroll);
+    tree.run_layout(10.0, 1.0);
+    {
+        let mut ctx = make_ctx(&mut buf, &theme);
+        tree.run_render(&mut ctx, 0.0);
+    }
+    assert_eq!(cell_char(&buf, 0, 0), Some('A'));
+
+    assert!(tree.dispatch_key(&opentui_core::KeyEvent::key(opentui_core::KeyCode::Down,)));
+    let mut buf = OptimizedBuffer::new(10, 1);
+    tree.run_layout(10.0, 1.0);
+    {
+        let mut ctx = make_ctx(&mut buf, &theme);
+        tree.run_render(&mut ctx, 0.0);
+    }
+
+    assert_eq!(cell_char(&buf, 0, 0), Some('B'));
 }
 
 #[test]
