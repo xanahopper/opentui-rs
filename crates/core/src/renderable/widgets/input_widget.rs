@@ -258,6 +258,10 @@ impl Behavior for InputWidget {
         }
     }
 
+    fn set_focus_state(&mut self, focused: bool, _has_focused_descendant: bool) {
+        self.focused = focused;
+    }
+
     fn handle_key(&mut self, key: &crate::KeyEvent) -> bool {
         let width = DEFAULT_SCROLL_WIDTH;
         let ctrl = key.modifiers.contains(crate::KeyModifiers::CTRL);

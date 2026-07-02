@@ -52,6 +52,9 @@ pub trait Behavior {
     /// Called when the node's computed size changes.
     fn on_resize(&mut self, _width: f32, _height: f32) {}
 
+    /// Sync framework-owned focus state into behavior-owned rendering state.
+    fn set_focus_state(&mut self, _focused: bool, _has_focused_descendant: bool) {}
+
     /// Handle a key event. Return `true` if consumed.
     fn handle_key(&mut self, _key: &KeyEvent) -> bool {
         false

@@ -723,6 +723,8 @@ impl RenderTree {
             height: h,
         };
         if let Some(node) = self.nodes.get_mut(id) {
+            node.behavior
+                .set_focus_state(node.focused, node.has_focused_descendant);
             node.behavior.render_self(ctx, &layout);
         }
 
@@ -929,6 +931,8 @@ impl RenderTree {
                         continue;
                     };
                     if let Some(node) = self.nodes.get_mut(*id) {
+                        node.behavior
+                            .set_focus_state(node.focused, node.has_focused_descendant);
                         node.behavior.render_self(ctx, &layout);
                     }
                 }

@@ -112,6 +112,10 @@ impl Behavior for EditorWidget {
         }
     }
 
+    fn set_focus_state(&mut self, focused: bool, _has_focused_descendant: bool) {
+        self.focused = focused;
+    }
+
     fn render_self(&mut self, ctx: &mut RenderContext<'_>, layout: &ComputedLayout) {
         let x = layout.x as u32;
         let y = layout.y as u32;

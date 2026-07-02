@@ -177,6 +177,7 @@ pub struct BoxWidget {
     opacity: f32,
     focusable: bool,
     focused: bool,
+    has_focused_descendant: bool,
 }
 
 impl BoxWidget {
@@ -196,6 +197,7 @@ impl BoxWidget {
             opacity: 1.0,
             focusable: false,
             focused: false,
+            has_focused_descendant: false,
         }
     }
 
@@ -332,7 +334,7 @@ impl BoxWidget {
 
     fn border_color(&self) -> Rgba {
         if let Some(ref b) = self.border {
-            if self.focused {
+            if self.focused || self.has_focused_descendant {
                 if let Some(fc) = b.focused_color {
                     return fc;
                 }
@@ -360,6 +362,11 @@ impl Behavior for BoxWidget {
             visible: self.visible,
             opacity: self.opacity,
         }
+    }
+
+    fn set_focus_state(&mut self, focused: bool, has_focused_descendant: bool) {
+        self.focused = focused;
+        self.has_focused_descendant = has_focused_descendant;
     }
 
     fn render_self(&mut self, ctx: &mut RenderContext<'_>, layout: &ComputedLayout) {

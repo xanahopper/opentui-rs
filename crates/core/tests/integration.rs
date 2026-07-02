@@ -380,6 +380,43 @@ fn test_focus_cycle_with_render() {
 
     // Title "A" renders somewhere in the box
     assert!(cell_char(&buf, 1, 0) == Some('A') || cell_char(&buf, 2, 0) == Some('A'));
+    assert_eq!(buf.get(0, 0).unwrap().fg, border_f);
+}
+
+#[test]
+fn test_box_uses_focused_border_for_focused_descendant() {
+    let mut buf = OptimizedBuffer::new(20, 5);
+    let theme = UiTheme::dark_default();
+    let mut tree = RenderTree::new();
+
+    let border_n = Rgba::from_rgb_u8(60, 60, 60);
+    let border_f = Rgba::from_rgb_u8(100, 200, 255);
+
+    let root = tree.set_root(Box::new(
+        BoxWidget::new(LayoutStyle::column().width(20.0).height(5.0)).background(Rgba::BLACK),
+    ));
+    let parent = tree.add_child(
+        root,
+        Box::new(
+            BoxWidget::new(LayoutStyle::column().width(20.0).height(5.0))
+                .border_rounded(border_n)
+                .border_focused_color(border_f),
+        ),
+    );
+    let child = tree.add_child(
+        parent,
+        Box::new(BoxWidget::new(LayoutStyle::column().width(10.0).height(2.0)).focusable()),
+    );
+    tree.set_focusable(child, true);
+    tree.focus(child);
+
+    tree.run_layout(20.0, 5.0);
+    {
+        let mut ctx = make_ctx(&mut buf, &theme);
+        tree.run_render(&mut ctx, 0.0);
+    }
+
+    assert_eq!(buf.get(0, 0).unwrap().fg, border_f);
 }
 
 #[test]
