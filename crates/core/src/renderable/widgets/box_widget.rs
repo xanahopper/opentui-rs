@@ -171,6 +171,7 @@ pub struct BoxWidget {
     border: Option<BorderStyle>,
     title: Option<String>,
     title_align: TitleAlign,
+    title_color: Option<Rgba>,
     bottom_title: Option<String>,
     overflow: Overflow,
     visible: bool,
@@ -191,6 +192,7 @@ impl BoxWidget {
             border: None,
             title: None,
             title_align: TitleAlign::Left,
+            title_color: None,
             bottom_title: None,
             overflow: Overflow::Visible,
             visible: true,
@@ -291,6 +293,11 @@ impl BoxWidget {
 
     pub fn title_align(mut self, align: TitleAlign) -> Self {
         self.title_align = align;
+        self
+    }
+
+    pub fn title_color(mut self, color: Rgba) -> Self {
+        self.title_color = Some(color);
         self
     }
 
@@ -405,7 +412,9 @@ impl Behavior for BoxWidget {
                 },
                 fill,
                 title: self.title.clone(),
+                bottom_title: self.bottom_title.clone(),
                 title_align: self.title_align,
+                title_style: self.title_color.map(Style::fg),
             };
 
             ctx.buffer.draw_box_with_options(x, y, w, h, options);

@@ -363,6 +363,13 @@ impl ElementBuilder {
         self
     }
 
+    pub fn title_color(mut self, color: Rgba) -> Self {
+        if let Props::View(vp) = &mut self.props {
+            vp.title_color = Some(color);
+        }
+        self
+    }
+
     pub fn align_left(mut self) -> Self {
         if let Props::Text(tp) = &mut self.props {
             tp.align = crate::widgets::TextLineAlign::Left;

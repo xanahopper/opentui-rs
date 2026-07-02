@@ -302,7 +302,9 @@ fn run_box_test(case: &FixtureCase, logger: &ArtifactLogger) -> bool {
         sides: opentui::buffer::BoxSides::default(),
         fill: None,
         title,
+        bottom_title: None,
         title_align: opentui::buffer::TitleAlign::default(),
+        title_style: None,
     };
     buffer.draw_box_with_options(0, 0, width, height, options);
 

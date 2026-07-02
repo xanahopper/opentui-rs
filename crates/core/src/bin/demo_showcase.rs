@@ -6033,7 +6033,9 @@ fn draw_drawing_section(buffer: &mut OptimizedBuffer, rect: &Rect, theme: &Theme
                 sides: BoxSides::default(),
                 fill: None,
                 title: Some("Left".to_string()),
+                bottom_title: None,
                 title_align: TitleAlign::Left,
+                title_style: None,
             };
             buffer.draw_box_with_options(col, row, titled_w, box_h, options);
             col += titled_w + 2;
@@ -6046,7 +6048,9 @@ fn draw_drawing_section(buffer: &mut OptimizedBuffer, rect: &Rect, theme: &Theme
                 sides: BoxSides::default(),
                 fill: None,
                 title: Some("Center".to_string()),
+                bottom_title: None,
                 title_align: TitleAlign::Center,
+                title_style: None,
             };
             buffer.draw_box_with_options(col, row, titled_w, box_h, options);
             col += titled_w + 2;
@@ -6059,7 +6063,9 @@ fn draw_drawing_section(buffer: &mut OptimizedBuffer, rect: &Rect, theme: &Theme
                 sides: BoxSides::default(),
                 fill: None,
                 title: Some("Right".to_string()),
+                bottom_title: None,
                 title_align: TitleAlign::Right,
+                title_style: None,
             };
             buffer.draw_box_with_options(col, row, titled_w, box_h, options);
         }
@@ -6086,7 +6092,9 @@ fn draw_drawing_section(buffer: &mut OptimizedBuffer, rect: &Rect, theme: &Theme
                 },
                 fill: None,
                 title: None,
+                bottom_title: None,
                 title_align: TitleAlign::Left,
+                title_style: None,
             };
             buffer.draw_box_with_options(col, row, partial_w, box_h, options);
             buffer.draw_text(col + 1, row + 1, "No top", dim_style);
@@ -6105,7 +6113,9 @@ fn draw_drawing_section(buffer: &mut OptimizedBuffer, rect: &Rect, theme: &Theme
                 },
                 fill: None,
                 title: None,
+                bottom_title: None,
                 title_align: TitleAlign::Left,
+                title_style: None,
             };
             buffer.draw_box_with_options(col, row, partial_w, box_h, options);
             buffer.draw_text(col + 1, row + 1, "No left", dim_style);
@@ -6124,7 +6134,9 @@ fn draw_drawing_section(buffer: &mut OptimizedBuffer, rect: &Rect, theme: &Theme
                 },
                 fill: None,
                 title: None,
+                bottom_title: None,
                 title_align: TitleAlign::Left,
+                title_style: None,
             };
             buffer.draw_box_with_options(col, row, partial_w, box_h, options);
             buffer.draw_text(col + 1, row + 1, "H lines", dim_style);
@@ -6143,7 +6155,9 @@ fn draw_drawing_section(buffer: &mut OptimizedBuffer, rect: &Rect, theme: &Theme
             sides: BoxSides::default(),
             fill: Some(fill_color),
             title: Some("Filled".to_string()),
+            bottom_title: None,
             title_align: TitleAlign::Center,
+            title_style: None,
         };
         buffer.draw_box_with_options(x + 2, row, 20, box_h, options);
         buffer.draw_text(x + 4, row + box_h / 2, "Alpha: 0.2", Style::fg(theme.fg0));

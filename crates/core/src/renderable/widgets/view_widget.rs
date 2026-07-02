@@ -16,6 +16,7 @@ pub struct ViewWidget {
     border: Option<BorderStyle>,
     title: Option<String>,
     title_align: TitleAlign,
+    title_color: Option<Rgba>,
     overflow: Overflow,
     visible: bool,
     opacity: f32,
@@ -33,6 +34,7 @@ impl ViewWidget {
             border: None,
             title: None,
             title_align: TitleAlign::Left,
+            title_color: None,
             overflow: Overflow::Visible,
             visible: true,
             opacity: 1.0,
@@ -56,6 +58,7 @@ impl ViewWidget {
         self.border.clone_from(&props.border);
         self.title.clone_from(&props.title);
         self.title_align = props.title_align;
+        self.title_color = props.title_color;
         self.overflow = props.overflow;
         self.opacity = props.opacity;
         self.focusable = props.focusable;
@@ -198,7 +201,9 @@ impl Behavior for ViewWidget {
                 },
                 fill,
                 title: self.title.clone(),
+                bottom_title: None,
                 title_align: self.title_align,
+                title_style: self.title_color.map(Style::fg),
             };
 
             ctx.buffer.draw_box_with_options(x, y, w, h, options);

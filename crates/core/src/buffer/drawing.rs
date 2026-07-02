@@ -55,7 +55,9 @@ pub struct BoxOptions {
     pub sides: BoxSides,
     pub fill: Option<Rgba>,
     pub title: Option<String>,
+    pub bottom_title: Option<String>,
     pub title_align: TitleAlign,
+    pub title_style: Option<Style>,
 }
 
 impl BoxOptions {
@@ -66,9 +68,49 @@ impl BoxOptions {
             sides: BoxSides::default(),
             fill: None,
             title: None,
+            bottom_title: None,
             title_align: TitleAlign::Left,
+            title_style: None,
         }
     }
+}
+
+fn draw_box_title(
+    buffer: &mut OptimizedBuffer,
+    x: u32,
+    y: u32,
+    w: u32,
+    title: &str,
+    align: TitleAlign,
+    style: Style,
+) {
+    if w <= 2 {
+        return;
+    }
+    let title_width = crate::unicode::display_width(title) as i32;
+    let box_width = w as i32;
+    let min_title_space = 4;
+
+    if title_width == 0 || box_width < title_width + min_title_space {
+        return;
+    }
+
+    let padding = 2;
+    let start_x = x as i32;
+    let end_x = start_x + box_width - 1;
+    let mut title_x = match align {
+        TitleAlign::Left => start_x + padding,
+        TitleAlign::Center => {
+            let centered = (box_width - title_width) / 2;
+            start_x + padding.max(centered)
+        }
+        TitleAlign::Right => start_x + box_width - padding - title_width,
+    };
+
+    let min_x = start_x + padding;
+    let max_x = end_x - padding - title_width + 1;
+    title_x = title_x.clamp(min_x, max_x);
+    buffer.draw_text(title_x as u32, y, title, style);
 }
 
 impl BoxStyle {
@@ -521,34 +563,23 @@ pub fn draw_box_with_options(
     }
 
     // Title
+    let title_style = options.title_style.unwrap_or(style);
     if let Some(title) = options.title {
-        if has_top && w > 2 {
-            let title_width = crate::unicode::display_width(&title) as i32;
-            let box_width = w as i32;
-            let min_title_space = 4;
-
-            if title_width > 0 && box_width >= title_width + min_title_space {
-                let padding = 2;
-                let start_x = x as i32;
-                let end_x = start_x + box_width - 1;
-
-                let mut title_x = match options.title_align {
-                    TitleAlign::Left => start_x + padding,
-                    TitleAlign::Center => {
-                        let centered = (box_width - title_width) / 2;
-                        start_x + padding.max(centered)
-                    }
-                    TitleAlign::Right => start_x + box_width - padding - title_width,
-                };
-
-                // Clamp title position to respect padding on both sides.
-                // min_x ensures left padding, max_x ensures right padding.
-                let min_x = start_x + padding;
-                let max_x = end_x - padding - title_width + 1;
-                title_x = title_x.clamp(min_x, max_x);
-
-                buffer.draw_text(title_x as u32, y, &title, style);
-            }
+        if has_top {
+            draw_box_title(buffer, x, y, w, &title, options.title_align, title_style);
+        }
+    }
+    if let Some(title) = options.bottom_title {
+        if has_bottom {
+            draw_box_title(
+                buffer,
+                x,
+                y + h - 1,
+                w,
+                &title,
+                options.title_align,
+                title_style,
+            );
         }
     }
 }
@@ -817,7 +848,9 @@ mod tests {
             sides: BoxSides::default(),
             fill: None,
             title: Some("Title".to_string()),
+            bottom_title: None,
             title_align: TitleAlign::Left,
+            title_style: None,
         };
         draw_box_with_options(&mut buffer, 0, 0, 10, 4, options);
         assert_eq!(

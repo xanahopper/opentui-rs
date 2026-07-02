@@ -2,6 +2,7 @@
 
 #![allow(clippy::float_cmp)]
 
+use opentui_core::buffer::TitleAlign;
 use opentui_core::renderable::context::RenderContext;
 use opentui_core::renderable::layout::ComputedLayout;
 use opentui_core::renderable::node::NodeId;
@@ -134,6 +135,34 @@ fn test_progress_bar_renders_fill() {
     assert_eq!(cell_char(&buf, 1, 0), Some('█'));
     // empty char at col 19
     assert_eq!(cell_char(&buf, 19, 0), Some('░'));
+}
+
+#[test]
+fn test_box_title_color_and_bottom_title_render() {
+    let mut buf = OptimizedBuffer::new(20, 4);
+    let theme = UiTheme::dark_default();
+    let mut tree = RenderTree::new();
+    let title_color = Rgba::from_rgb_u8(255, 180, 80);
+
+    let _root = tree.set_root(Box::new(
+        BoxWidget::new(LayoutStyle::column().width(20.0).height(4.0))
+            .border_rounded(Rgba::from_rgb_u8(60, 60, 60))
+            .title("Top")
+            .bottom_title("Bottom")
+            .title_align(TitleAlign::Left)
+            .title_color(title_color),
+    ));
+
+    tree.run_layout(20.0, 4.0);
+    {
+        let mut ctx = make_ctx(&mut buf, &theme);
+        tree.run_render(&mut ctx, 0.0);
+    }
+
+    assert_eq!(cell_char(&buf, 2, 0), Some('T'));
+    assert_eq!(buf.get(2, 0).unwrap().fg, title_color);
+    assert_eq!(cell_char(&buf, 2, 3), Some('B'));
+    assert_eq!(buf.get(2, 3).unwrap().fg, title_color);
 }
 
 #[test]
