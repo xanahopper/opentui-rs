@@ -8,8 +8,8 @@ use opentui_core::renderable::layout::ComputedLayout;
 use opentui_core::renderable::node::NodeId;
 use opentui_core::renderable::tree::{Overlay, RenderTree};
 use opentui_core::widgets::{
-    BoxWidget, ProgressBarWidget, ScrollViewWidget, StatusLineWidget, Tab, TabsWidget,
-    TextLineWidget, TextWidget,
+    BoxWidget, ProgressBarWidget, ScrollViewWidget, SliderWidget, StatusLineWidget, Tab,
+    TabsWidget, TextLineWidget, TextWidget,
 };
 use opentui_core::{OptimizedBuffer, Rgba, Style};
 
@@ -135,6 +135,113 @@ fn test_progress_bar_renders_fill() {
     assert_eq!(cell_char(&buf, 1, 0), Some('█'));
     // empty char at col 19
     assert_eq!(cell_char(&buf, 19, 0), Some('░'));
+}
+
+#[test]
+fn test_slider_clamps_value_and_viewport() {
+    let mut slider = SliderWidget::horizontal(LayoutStyle::default().width(20.0).height(1.0))
+        .range(0.0, 100.0)
+        .value(150.0)
+        .viewport_size(150.0);
+
+    assert_eq!(slider.value_value(), 100.0);
+    assert_eq!(slider.viewport_size_value(), 100.0);
+
+    slider.set_value(-10.0);
+    assert_eq!(slider.value_value(), 0.0);
+
+    slider.set_min(20.0);
+    assert_eq!(slider.value_value(), 20.0);
+
+    slider.set_max(80.0);
+    slider.set_value(90.0);
+    assert_eq!(slider.value_value(), 80.0);
+}
+
+#[test]
+fn test_slider_renders_smooth_horizontal_thumb() {
+    let mut buf = OptimizedBuffer::new(20, 1);
+    let theme = UiTheme::dark_default();
+    let mut tree = RenderTree::new();
+
+    let _slider = tree.set_root(Box::new(
+        SliderWidget::horizontal(LayoutStyle::default().width(20.0).height(1.0))
+            .range(0.0, 100.0)
+            .value(50.0)
+            .viewport_size(10.0),
+    ));
+
+    tree.run_layout(20.0, 1.0);
+    {
+        let mut ctx = make_ctx(&mut buf, &theme);
+        tree.run_render(&mut ctx, 0.0);
+    }
+
+    assert_eq!(cell_char(&buf, 9, 0), Some('▐'));
+    assert_eq!(cell_char(&buf, 10, 0), Some('█'));
+}
+
+#[test]
+fn test_slider_keyboard_updates_focused_value() {
+    let mut tree = RenderTree::new();
+    let slider = tree.set_root(Box::new(
+        SliderWidget::horizontal(LayoutStyle::default().width(20.0).height(1.0))
+            .range(0.0, 100.0)
+            .value(50.0),
+    ));
+    tree.focus(slider);
+
+    assert!(tree.dispatch_key(&opentui_core::KeyEvent::key(opentui_core::KeyCode::Right,)));
+    let node = tree.get(slider).unwrap();
+    let slider_widget = node
+        .behavior
+        .as_any()
+        .downcast_ref::<SliderWidget>()
+        .unwrap();
+    assert_eq!(slider_widget.value_value(), 51.0);
+
+    assert!(tree.dispatch_key(&opentui_core::KeyEvent::key(opentui_core::KeyCode::Home,)));
+    let node = tree.get(slider).unwrap();
+    let slider_widget = node
+        .behavior
+        .as_any()
+        .downcast_ref::<SliderWidget>()
+        .unwrap();
+    assert_eq!(slider_widget.value_value(), 0.0);
+}
+
+#[test]
+fn test_slider_mouse_press_updates_from_position() {
+    let mut buf = OptimizedBuffer::new(20, 1);
+    let theme = UiTheme::dark_default();
+    let mut tree = RenderTree::new();
+    let slider = tree.set_root(Box::new(
+        SliderWidget::horizontal(LayoutStyle::default().width(20.0).height(1.0))
+            .range(0.0, 100.0)
+            .value(0.0),
+    ));
+
+    tree.run_layout(20.0, 1.0);
+    {
+        let mut ctx = make_ctx(&mut buf, &theme);
+        tree.run_render(&mut ctx, 0.0);
+    }
+
+    assert!(tree.dispatch_mouse_to(
+        slider,
+        &opentui_core::terminal::MouseEvent::press(
+            10,
+            0,
+            opentui_core::terminal::MouseButton::Left,
+        ),
+    ));
+    let node = tree.get(slider).unwrap();
+    let slider_widget = node
+        .behavior
+        .as_any()
+        .downcast_ref::<SliderWidget>()
+        .unwrap();
+    assert_eq!(slider_widget.value_value(), 50.0);
 }
 
 #[test]
