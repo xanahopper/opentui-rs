@@ -10,6 +10,7 @@ mod list_widget;
 mod progress_widget;
 mod scroll_view_widget;
 mod scrollbar_widget;
+mod select_widget;
 mod separator_widget;
 mod slider_widget;
 mod status_line_widget;
@@ -29,6 +30,7 @@ pub use scroll_view_widget::ScrollViewWidget;
 pub use scrollbar_widget::{
     ScrollBarOrientation, ScrollBarWidget, ScrollBarWidgetStyle, ScrollUnit,
 };
+pub use select_widget::{SelectItem, SelectStyle, SelectWidget};
 pub use separator_widget::SeparatorWidget;
 pub use slider_widget::{SliderOrientation, SliderStyle, SliderWidget};
 pub use status_line_widget::{StatusLineStyle, StatusLineWidget};

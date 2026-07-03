@@ -8,8 +8,8 @@ use opentui_core::renderable::layout::ComputedLayout;
 use opentui_core::renderable::node::NodeId;
 use opentui_core::renderable::tree::{Overlay, RenderTree};
 use opentui_core::widgets::{
-    BoxWidget, ProgressBarWidget, ScrollBarWidget, ScrollViewWidget, SliderWidget,
-    StatusLineWidget, Tab, TabsWidget, TextLineWidget, TextWidget,
+    BoxWidget, ProgressBarWidget, ScrollBarWidget, ScrollViewWidget, SelectItem, SelectWidget,
+    SliderWidget, StatusLineWidget, Tab, TabsWidget, TextLineWidget, TextWidget,
 };
 use opentui_core::{OptimizedBuffer, Rgba, Style};
 
@@ -531,6 +531,191 @@ fn test_scrollbar_mouse_track_and_arrows_update_position() {
         .downcast_ref::<ScrollBarWidget>()
         .unwrap();
     assert_eq!(scrollbar_widget.scroll_position_value(), 50.0);
+}
+
+#[test]
+fn test_select_renders_items_and_selection() {
+    let mut buf = OptimizedBuffer::new(20, 5);
+    let theme = UiTheme::dark_default();
+    let mut tree = RenderTree::new();
+
+    let _select = tree.set_root(Box::new(
+        SelectWidget::new(LayoutStyle::default().width(20.0).height(5.0)).items(vec![
+            SelectItem::new("Apple"),
+            SelectItem::new("Banana"),
+            SelectItem::new("Cherry"),
+        ]),
+    ));
+    tree.focus(tree.root().unwrap());
+
+    tree.run_layout(20.0, 5.0);
+    {
+        let mut ctx = make_ctx(&mut buf, &theme);
+        tree.run_render(&mut ctx, 0.0);
+    }
+
+    assert_eq!(cell_char(&buf, 0, 0), Some('\u{25B8}'));
+    assert_eq!(cell_char(&buf, 2, 0), Some('A'));
+    assert_eq!(cell_char(&buf, 3, 0), Some('p'));
+    assert_eq!(cell_char(&buf, 0, 1), Some(' '));
+    assert_eq!(cell_char(&buf, 2, 1), Some('B'));
+}
+
+#[test]
+fn test_select_keyboard_navigation() {
+    let mut tree = RenderTree::new();
+    let select = tree.set_root(Box::new(
+        SelectWidget::new(LayoutStyle::default().width(20.0).height(5.0)).items(vec![
+            SelectItem::new("One"),
+            SelectItem::new("Two"),
+            SelectItem::new("Three"),
+        ]),
+    ));
+    tree.focus(select);
+
+    let node = tree.get(select).unwrap();
+    let sw = node
+        .behavior
+        .as_any()
+        .downcast_ref::<SelectWidget>()
+        .unwrap();
+    assert_eq!(sw.selected_index(), 0);
+
+    assert!(tree.dispatch_key(&opentui_core::KeyEvent::key(opentui_core::KeyCode::Down)));
+    let node = tree.get(select).unwrap();
+    let sw = node
+        .behavior
+        .as_any()
+        .downcast_ref::<SelectWidget>()
+        .unwrap();
+    assert_eq!(sw.selected_index(), 1);
+
+    assert!(tree.dispatch_key(&opentui_core::KeyEvent::key(opentui_core::KeyCode::Down,)));
+    let node = tree.get(select).unwrap();
+    let sw = node
+        .behavior
+        .as_any()
+        .downcast_ref::<SelectWidget>()
+        .unwrap();
+    assert_eq!(sw.selected_index(), 2);
+
+    assert!(!tree.dispatch_key(&opentui_core::KeyEvent::key(opentui_core::KeyCode::Down,)));
+
+    assert!(tree.dispatch_key(&opentui_core::KeyEvent::key(opentui_core::KeyCode::Home)));
+    let node = tree.get(select).unwrap();
+    let sw = node
+        .behavior
+        .as_any()
+        .downcast_ref::<SelectWidget>()
+        .unwrap();
+    assert_eq!(sw.selected_index(), 0);
+}
+
+#[test]
+fn test_select_wrap_around() {
+    let mut tree = RenderTree::new();
+    let select = tree.set_root(Box::new(
+        SelectWidget::new(LayoutStyle::default().width(20.0).height(5.0))
+            .items(vec![
+                SelectItem::new("A"),
+                SelectItem::new("B"),
+                SelectItem::new("C"),
+            ])
+            .wrap_selection(true),
+    ));
+    tree.focus(select);
+
+    assert!(tree.dispatch_key(&opentui_core::KeyEvent::key(opentui_core::KeyCode::Up)));
+    let node = tree.get(select).unwrap();
+    let sw = node
+        .behavior
+        .as_any()
+        .downcast_ref::<SelectWidget>()
+        .unwrap();
+    assert_eq!(sw.selected_index(), 2);
+
+    assert!(tree.dispatch_key(&opentui_core::KeyEvent::key(opentui_core::KeyCode::Down)));
+    let node = tree.get(select).unwrap();
+    let sw = node
+        .behavior
+        .as_any()
+        .downcast_ref::<SelectWidget>()
+        .unwrap();
+    assert_eq!(sw.selected_index(), 0);
+}
+
+#[test]
+fn test_select_mouse_click_selects_item() {
+    let mut buf = OptimizedBuffer::new(20, 5);
+    let theme = UiTheme::dark_default();
+    let mut tree = RenderTree::new();
+    let select = tree.set_root(Box::new(
+        SelectWidget::new(LayoutStyle::default().width(20.0).height(5.0)).items(vec![
+            SelectItem::new("Alpha"),
+            SelectItem::new("Beta"),
+            SelectItem::new("Gamma"),
+        ]),
+    ));
+
+    tree.run_layout(20.0, 5.0);
+    {
+        let mut ctx = make_ctx(&mut buf, &theme);
+        tree.run_render(&mut ctx, 0.0);
+    }
+
+    assert!(
+        tree.dispatch_mouse_to(
+            select,
+            &opentui_core::terminal::MouseEvent::press(
+                2,
+                2,
+                opentui_core::terminal::MouseButton::Left,
+            ),
+        )
+    );
+    let node = tree.get(select).unwrap();
+    let sw = node
+        .behavior
+        .as_any()
+        .downcast_ref::<SelectWidget>()
+        .unwrap();
+    assert_eq!(sw.selected_index(), 2);
+}
+
+#[test]
+fn test_select_scrolls_to_keep_selected_visible() {
+    let mut buf = OptimizedBuffer::new(10, 2);
+    let theme = UiTheme::dark_default();
+    let mut tree = RenderTree::new();
+    let select = tree.set_root(Box::new(
+        SelectWidget::new(LayoutStyle::default().width(10.0).height(2.0)).items(vec![
+            SelectItem::new("0"),
+            SelectItem::new("1"),
+            SelectItem::new("2"),
+            SelectItem::new("3"),
+            SelectItem::new("4"),
+        ]),
+    ));
+    tree.focus(select);
+
+    tree.run_layout(10.0, 2.0);
+    {
+        let mut ctx = make_ctx(&mut buf, &theme);
+        tree.run_render(&mut ctx, 0.0);
+    }
+    assert_eq!(cell_char(&buf, 2, 0), Some('0'));
+
+    for _ in 0..4 {
+        tree.dispatch_key(&opentui_core::KeyEvent::key(opentui_core::KeyCode::Down));
+    }
+
+    tree.run_layout(10.0, 2.0);
+    {
+        let mut ctx = make_ctx(&mut buf, &theme);
+        tree.run_render(&mut ctx, 0.0);
+    }
+
+    assert_eq!(cell_char(&buf, 2, 1), Some('4'));
 }
 
 #[test]
