@@ -8,8 +8,8 @@ use opentui_core::renderable::layout::ComputedLayout;
 use opentui_core::renderable::node::NodeId;
 use opentui_core::renderable::tree::{Overlay, RenderTree};
 use opentui_core::widgets::{
-    BoxWidget, ProgressBarWidget, ScrollViewWidget, SliderWidget, StatusLineWidget, Tab,
-    TabsWidget, TextLineWidget, TextWidget,
+    BoxWidget, ProgressBarWidget, ScrollBarWidget, ScrollViewWidget, SliderWidget,
+    StatusLineWidget, Tab, TabsWidget, TextLineWidget, TextWidget,
 };
 use opentui_core::{OptimizedBuffer, Rgba, Style};
 
@@ -406,6 +406,131 @@ fn test_scroll_view_offsets_child_rendering() {
     }
 
     assert_eq!(cell_char(&buf, 0, 0), Some('B'));
+}
+
+#[test]
+fn test_scrollbar_clamps_scroll_position() {
+    let mut scrollbar = ScrollBarWidget::vertical(LayoutStyle::default().width(1.0).height(10.0))
+        .scroll_size(100.0)
+        .viewport_size(20.0)
+        .scroll_position(200.0);
+
+    assert_eq!(scrollbar.scroll_position_value(), 80.0);
+
+    scrollbar.set_viewport_size(90.0);
+    assert_eq!(scrollbar.scroll_position_value(), 10.0);
+
+    scrollbar.set_scroll_position(-10.0);
+    assert_eq!(scrollbar.scroll_position_value(), 0.0);
+}
+
+#[test]
+fn test_scrollbar_renders_vertical_thumb() {
+    let mut buf = OptimizedBuffer::new(1, 10);
+    let theme = UiTheme::dark_default();
+    let mut tree = RenderTree::new();
+
+    let _scrollbar = tree.set_root(Box::new(
+        ScrollBarWidget::vertical(LayoutStyle::default().width(1.0).height(10.0))
+            .scroll_size(100.0)
+            .viewport_size(20.0)
+            .scroll_position(40.0),
+    ));
+
+    tree.run_layout(1.0, 10.0);
+    {
+        let mut ctx = make_ctx(&mut buf, &theme);
+        tree.run_render(&mut ctx, 0.0);
+    }
+
+    assert_eq!(cell_char(&buf, 0, 4), Some('█'));
+    assert_eq!(cell_char(&buf, 0, 5), Some('█'));
+}
+
+#[test]
+fn test_scrollbar_keyboard_updates_focused_position() {
+    let mut tree = RenderTree::new();
+    let scrollbar = tree.set_root(Box::new(
+        ScrollBarWidget::vertical(LayoutStyle::default().width(1.0).height(10.0))
+            .scroll_size(100.0)
+            .viewport_size(20.0),
+    ));
+    tree.focus(scrollbar);
+
+    assert!(tree.dispatch_key(&opentui_core::KeyEvent::key(opentui_core::KeyCode::Down,)));
+    let node = tree.get(scrollbar).unwrap();
+    let scrollbar_widget = node
+        .behavior
+        .as_any()
+        .downcast_ref::<ScrollBarWidget>()
+        .unwrap();
+    assert_eq!(scrollbar_widget.scroll_position_value(), 4.0);
+
+    assert!(tree.dispatch_key(&opentui_core::KeyEvent::key(opentui_core::KeyCode::End,)));
+    let node = tree.get(scrollbar).unwrap();
+    let scrollbar_widget = node
+        .behavior
+        .as_any()
+        .downcast_ref::<ScrollBarWidget>()
+        .unwrap();
+    assert_eq!(scrollbar_widget.scroll_position_value(), 80.0);
+}
+
+#[test]
+fn test_scrollbar_mouse_track_and_arrows_update_position() {
+    let mut buf = OptimizedBuffer::new(1, 10);
+    let theme = UiTheme::dark_default();
+    let mut tree = RenderTree::new();
+    let scrollbar = tree.set_root(Box::new(
+        ScrollBarWidget::vertical(LayoutStyle::default().width(1.0).height(10.0))
+            .scroll_size(100.0)
+            .viewport_size(20.0)
+            .show_arrows(true),
+    ));
+
+    tree.run_layout(1.0, 10.0);
+    {
+        let mut ctx = make_ctx(&mut buf, &theme);
+        tree.run_render(&mut ctx, 0.0);
+    }
+    assert_eq!(cell_char(&buf, 0, 0), Some('▲'));
+    assert_eq!(cell_char(&buf, 0, 9), Some('▼'));
+
+    assert!(
+        tree.dispatch_mouse_to(
+            scrollbar,
+            &opentui_core::terminal::MouseEvent::press(
+                0,
+                5,
+                opentui_core::terminal::MouseButton::Left,
+            ),
+        )
+    );
+    let node = tree.get(scrollbar).unwrap();
+    let scrollbar_widget = node
+        .behavior
+        .as_any()
+        .downcast_ref::<ScrollBarWidget>()
+        .unwrap();
+    assert_eq!(scrollbar_widget.scroll_position_value(), 40.0);
+
+    assert!(
+        tree.dispatch_mouse_to(
+            scrollbar,
+            &opentui_core::terminal::MouseEvent::press(
+                0,
+                9,
+                opentui_core::terminal::MouseButton::Left,
+            ),
+        )
+    );
+    let node = tree.get(scrollbar).unwrap();
+    let scrollbar_widget = node
+        .behavior
+        .as_any()
+        .downcast_ref::<ScrollBarWidget>()
+        .unwrap();
+    assert_eq!(scrollbar_widget.scroll_position_value(), 50.0);
 }
 
 #[test]
