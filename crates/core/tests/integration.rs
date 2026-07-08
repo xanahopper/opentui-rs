@@ -8,8 +8,8 @@ use opentui_core::renderable::layout::ComputedLayout;
 use opentui_core::renderable::node::NodeId;
 use opentui_core::renderable::tree::{Overlay, RenderTree};
 use opentui_core::widgets::{
-    BoxWidget, ProgressBarWidget, ScrollBarWidget, ScrollViewWidget, SelectItem, SelectWidget,
-    SliderWidget, StatusLineWidget, Tab, TabsWidget, TextLineWidget, TextWidget,
+    BoxWidget, CheckboxWidget, ProgressBarWidget, ScrollBarWidget, ScrollViewWidget, SelectItem,
+    SelectWidget, SliderWidget, StatusLineWidget, Tab, TabsWidget, TextLineWidget, TextWidget,
 };
 use opentui_core::{OptimizedBuffer, Rgba, Style};
 
@@ -531,6 +531,127 @@ fn test_scrollbar_mouse_track_and_arrows_update_position() {
         .downcast_ref::<ScrollBarWidget>()
         .unwrap();
     assert_eq!(scrollbar_widget.scroll_position_value(), 50.0);
+}
+
+#[test]
+fn test_checkbox_renders_checked_and_unchecked() {
+    let mut buf = OptimizedBuffer::new(20, 2);
+    let theme = UiTheme::dark_default();
+    let mut tree = RenderTree::new();
+
+    let _cb = tree.set_root(Box::new(
+        CheckboxWidget::new(LayoutStyle::default().width(20.0).height(2.0))
+            .checked(true)
+            .label("Enable notifications"),
+    ));
+
+    tree.run_layout(20.0, 2.0);
+    {
+        let mut ctx = make_ctx(&mut buf, &theme);
+        tree.run_render(&mut ctx, 0.0);
+    }
+
+    assert_eq!(cell_char(&buf, 0, 0), Some('['));
+    assert_eq!(cell_char(&buf, 1, 0), Some('x'));
+    assert_eq!(cell_char(&buf, 2, 0), Some(']'));
+    assert_eq!(cell_char(&buf, 4, 0), Some('E'));
+}
+
+#[test]
+fn test_checkbox_keyboard_toggles() {
+    let mut tree = RenderTree::new();
+    let cb = tree.set_root(Box::new(
+        CheckboxWidget::new(LayoutStyle::default().width(20.0).height(1.0)).label("Test"),
+    ));
+    tree.focus(cb);
+
+    let node = tree.get(cb).unwrap();
+    let cw = node
+        .behavior
+        .as_any()
+        .downcast_ref::<CheckboxWidget>()
+        .unwrap();
+    assert!(!cw.is_checked());
+
+    assert!(
+        tree.dispatch_key(&opentui_core::KeyEvent::key(opentui_core::KeyCode::Char(
+            ' '
+        ),))
+    );
+    let node = tree.get(cb).unwrap();
+    let cw = node
+        .behavior
+        .as_any()
+        .downcast_ref::<CheckboxWidget>()
+        .unwrap();
+    assert!(cw.is_checked());
+
+    assert!(tree.dispatch_key(&opentui_core::KeyEvent::key(opentui_core::KeyCode::Enter,)));
+    let node = tree.get(cb).unwrap();
+    let cw = node
+        .behavior
+        .as_any()
+        .downcast_ref::<CheckboxWidget>()
+        .unwrap();
+    assert!(!cw.is_checked());
+}
+
+#[test]
+fn test_checkbox_mouse_click_toggles() {
+    let mut buf = OptimizedBuffer::new(20, 1);
+    let theme = UiTheme::dark_default();
+    let mut tree = RenderTree::new();
+    let cb = tree.set_root(Box::new(
+        CheckboxWidget::new(LayoutStyle::default().width(20.0).height(1.0)).label("Click me"),
+    ));
+
+    tree.run_layout(20.0, 1.0);
+    {
+        let mut ctx = make_ctx(&mut buf, &theme);
+        tree.run_render(&mut ctx, 0.0);
+    }
+
+    let node = tree.get(cb).unwrap();
+    let cw = node
+        .behavior
+        .as_any()
+        .downcast_ref::<CheckboxWidget>()
+        .unwrap();
+    assert!(!cw.is_checked());
+
+    assert!(
+        tree.dispatch_mouse_to(
+            cb,
+            &opentui_core::terminal::MouseEvent::press(
+                1,
+                0,
+                opentui_core::terminal::MouseButton::Left,
+            ),
+        )
+    );
+    let node = tree.get(cb).unwrap();
+    let cw = node
+        .behavior
+        .as_any()
+        .downcast_ref::<CheckboxWidget>()
+        .unwrap();
+    assert!(cw.is_checked());
+
+    assert!(tree.dispatch_mouse_to(
+        cb,
+        &opentui_core::terminal::MouseEvent::press(
+            10,
+            0,
+            opentui_core::terminal::MouseButton::Left,
+        ),
+    ));
+    let node = tree.get(cb).unwrap();
+    let cw = node
+        .behavior
+        .as_any()
+        .downcast_ref::<CheckboxWidget>()
+        .unwrap();
+    assert!(!cw.is_checked());
 }
 
 #[test]

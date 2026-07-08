@@ -3,6 +3,7 @@
 //! This module provides ready-to-use widget types built on the [`Widget`](crate::Widget) trait.
 
 mod box_widget;
+mod checkbox_widget;
 mod editor_widget;
 mod fill_widget;
 mod input_widget;
@@ -21,6 +22,7 @@ mod text_widget;
 mod view_widget;
 
 pub use box_widget::{BorderChars, BorderSides, BorderStyle, BoxWidget};
+pub use checkbox_widget::{CheckboxChars, CheckboxStyle, CheckboxWidget};
 pub use editor_widget::EditorWidget;
 pub use fill_widget::FillWidget;
 pub use input_widget::{InputMode, InputWidget};
