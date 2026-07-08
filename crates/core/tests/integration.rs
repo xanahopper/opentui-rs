@@ -8,9 +8,10 @@ use opentui_core::renderable::layout::ComputedLayout;
 use opentui_core::renderable::node::NodeId;
 use opentui_core::renderable::tree::{Overlay, RenderTree};
 use opentui_core::widgets::{
-    BadgeStyle, BadgeWidget, BoxWidget, CheckboxWidget, ProgressBarWidget, ScrollBarWidget,
-    ScrollViewWidget, SelectItem, SelectWidget, SliderWidget, SpinnerFrames, SpinnerWidget,
-    StatusLineWidget, Tab, TabsWidget, TextLineWidget, TextWidget,
+    BadgeStyle, BadgeWidget, BoxWidget, CheckboxWidget, GaugeWidget, ProgressBarWidget,
+    RadioGroupWidget, RadioOption, ScrollBarWidget, ScrollViewWidget, SelectItem, SelectWidget,
+    SliderWidget, SpinnerFrames, SpinnerWidget, StatusLineWidget, Tab, TabsWidget, TextLineWidget,
+    TextWidget,
 };
 use opentui_core::{OptimizedBuffer, Rgba, Style};
 
@@ -685,6 +686,164 @@ fn test_badge_bracketed_shape() {
     assert_eq!(cell_char(&buf, 0, 0), Some('['));
     assert_eq!(cell_char(&buf, 1, 0), Some('F'));
     assert_eq!(cell_char(&buf, 5, 0), Some(']'));
+}
+
+#[test]
+fn test_radio_group_renders_selection() {
+    let mut buf = OptimizedBuffer::new(30, 3);
+    let theme = UiTheme::dark_default();
+    let mut tree = RenderTree::new();
+
+    let _radio = tree.set_root(Box::new(
+        RadioGroupWidget::vertical(LayoutStyle::default().width(30.0).height(3.0)).options(vec![
+            RadioOption::new("Red"),
+            RadioOption::new("Green"),
+            RadioOption::new("Blue"),
+        ]),
+    ));
+
+    tree.run_layout(30.0, 3.0);
+    {
+        let mut ctx = make_ctx(&mut buf, &theme);
+        tree.run_render(&mut ctx, 0.0);
+    }
+
+    assert_eq!(cell_char(&buf, 1, 0), Some('\u{25CF}'));
+    assert_eq!(cell_char(&buf, 4, 0), Some('R'));
+    assert_eq!(cell_char(&buf, 1, 1), Some('\u{25CB}'));
+    assert_eq!(cell_char(&buf, 4, 1), Some('G'));
+}
+
+#[test]
+fn test_radio_group_keyboard_navigation() {
+    let mut tree = RenderTree::new();
+    let radio = tree.set_root(Box::new(
+        RadioGroupWidget::vertical(LayoutStyle::default().width(20.0).height(3.0)).options(vec![
+            RadioOption::new("A"),
+            RadioOption::new("B"),
+            RadioOption::new("C"),
+        ]),
+    ));
+    tree.focus(radio);
+
+    assert!(tree.dispatch_key(&opentui_core::KeyEvent::key(opentui_core::KeyCode::Down,)));
+    let node = tree.get(radio).unwrap();
+    let rw = node
+        .behavior
+        .as_any()
+        .downcast_ref::<RadioGroupWidget>()
+        .unwrap();
+    assert_eq!(rw.selected_index(), 1);
+
+    assert!(tree.dispatch_key(&opentui_core::KeyEvent::key(opentui_core::KeyCode::Down,)));
+    let node = tree.get(radio).unwrap();
+    let rw = node
+        .behavior
+        .as_any()
+        .downcast_ref::<RadioGroupWidget>()
+        .unwrap();
+    assert_eq!(rw.selected_index(), 2);
+
+    assert!(tree.dispatch_key(&opentui_core::KeyEvent::key(opentui_core::KeyCode::Down,)));
+    let node = tree.get(radio).unwrap();
+    let rw = node
+        .behavior
+        .as_any()
+        .downcast_ref::<RadioGroupWidget>()
+        .unwrap();
+    assert_eq!(rw.selected_index(), 0);
+}
+
+#[test]
+fn test_radio_group_mouse_click_selects() {
+    let mut buf = OptimizedBuffer::new(20, 3);
+    let theme = UiTheme::dark_default();
+    let mut tree = RenderTree::new();
+    let radio = tree.set_root(Box::new(
+        RadioGroupWidget::vertical(LayoutStyle::default().width(20.0).height(3.0)).options(vec![
+            RadioOption::new("One"),
+            RadioOption::new("Two"),
+            RadioOption::new("Three"),
+        ]),
+    ));
+
+    tree.run_layout(20.0, 3.0);
+    {
+        let mut ctx = make_ctx(&mut buf, &theme);
+        tree.run_render(&mut ctx, 0.0);
+    }
+
+    assert!(
+        tree.dispatch_mouse_to(
+            radio,
+            &opentui_core::terminal::MouseEvent::press(
+                4,
+                2,
+                opentui_core::terminal::MouseButton::Left,
+            ),
+        )
+    );
+    let node = tree.get(radio).unwrap();
+    let rw = node
+        .behavior
+        .as_any()
+        .downcast_ref::<RadioGroupWidget>()
+        .unwrap();
+    assert_eq!(rw.selected_index(), 2);
+}
+
+#[test]
+fn test_gauge_renders_filled_segments() {
+    let mut buf = OptimizedBuffer::new(20, 1);
+    let theme = UiTheme::dark_default();
+    let mut tree = RenderTree::new();
+
+    let _gauge = tree.set_root(Box::new(
+        GaugeWidget::horizontal(LayoutStyle::default().width(20.0).height(1.0))
+            .range(0.0, 100.0)
+            .value(50.0)
+            .segments(10)
+            .show_label(true),
+    ));
+
+    tree.run_layout(20.0, 1.0);
+    {
+        let mut ctx = make_ctx(&mut buf, &theme);
+        tree.run_render(&mut ctx, 0.0);
+    }
+
+    assert_eq!(cell_char(&buf, 0, 0), Some('\u{2588}'));
+    assert_eq!(cell_char(&buf, 4, 0), Some('\u{2588}'));
+    assert_eq!(cell_char(&buf, 5, 0), Some('\u{2591}'));
+    assert_eq!(cell_char(&buf, 6, 0), Some('\u{2591}'));
+    assert_eq!(cell_char(&buf, 16, 0), Some('5'));
+    assert_eq!(cell_char(&buf, 17, 0), Some('0'));
+    assert_eq!(cell_char(&buf, 18, 0), Some('%'));
+}
+
+#[test]
+fn test_gauge_color_gradient_by_ratio() {
+    let mut buf = OptimizedBuffer::new(10, 1);
+    let theme = UiTheme::dark_default();
+    let mut tree = RenderTree::new();
+
+    let _gauge = tree.set_root(Box::new(
+        GaugeWidget::horizontal(LayoutStyle::default().width(10.0).height(1.0))
+            .range(0.0, 100.0)
+            .value(90.0)
+            .segments(10),
+    ));
+
+    tree.run_layout(10.0, 1.0);
+    {
+        let mut ctx = make_ctx(&mut buf, &theme);
+        tree.run_render(&mut ctx, 0.0);
+    }
+
+    // Segment 0 → low (red), segment 5 → mid (yellow), segment 8 → high (green)
+    let seg0_fg = buf.get(0, 0).unwrap().fg;
+    let seg8_fg = buf.get(8, 0).unwrap().fg;
+    assert_ne!(seg0_fg, seg8_fg);
 }
 
 #[test]

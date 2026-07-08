@@ -7,9 +7,11 @@ mod box_widget;
 mod checkbox_widget;
 mod editor_widget;
 mod fill_widget;
+mod gauge_widget;
 mod input_widget;
 mod list_widget;
 mod progress_widget;
+mod radio_group_widget;
 mod scroll_view_widget;
 mod scrollbar_widget;
 mod select_widget;
@@ -28,9 +30,13 @@ pub use box_widget::{BorderChars, BorderSides, BorderStyle, BoxWidget};
 pub use checkbox_widget::{CheckboxChars, CheckboxStyle, CheckboxWidget};
 pub use editor_widget::EditorWidget;
 pub use fill_widget::FillWidget;
+pub use gauge_widget::{GaugeChars, GaugeOrientation, GaugeStyle, GaugeWidget};
 pub use input_widget::{InputMode, InputWidget};
 pub use list_widget::ListWidget;
 pub use progress_widget::{ProgressBarStyle, ProgressBarWidget, ProgressChars};
+pub use radio_group_widget::{
+    RadioChars, RadioGroupWidget, RadioOption, RadioOrientation, RadioStyle,
+};
 pub use scroll_view_widget::ScrollViewWidget;
 pub use scrollbar_widget::{
     ScrollBarOrientation, ScrollBarWidget, ScrollBarWidgetStyle, ScrollUnit,
