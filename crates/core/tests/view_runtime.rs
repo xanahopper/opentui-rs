@@ -1,7 +1,10 @@
 #![allow(clippy::cast_precision_loss)]
 
 use opentui_core::renderable::context::RenderContext;
-use opentui_core::view::{ViewRuntime, overlay, panel, text, view};
+use opentui_core::view::{
+    ViewRuntime, badge, checkbox, gauge, overlay, panel, radio_group, select, slider, spinner,
+    text, view,
+};
 use opentui_core::{OptimizedBuffer, Rgba};
 
 const BG: Rgba = Rgba::new(0.0, 0.0, 0.0, 1.0);
@@ -487,4 +490,139 @@ fn test_grapheme_pool_zwj_emoji() {
         cont.is_some_and(|c| c.content.is_continuation()),
         "ZWJ emoji (width 2) should have continuation cell at col 1"
     );
+}
+
+#[test]
+fn test_rebuild_checkbox_declarative() {
+    let node = view()
+        .column()
+        .size(30.0, 1.0)
+        .children([checkbox("Accept terms").height(1.0).build()])
+        .build();
+
+    let buffer = render_node(&node, 30, 1);
+    assert_eq!(
+        buffer.get(0, 0).and_then(|c| c.content.as_char()),
+        Some('[')
+    );
+    assert_eq!(
+        buffer.get(1, 0).and_then(|c| c.content.as_char()),
+        Some(' ')
+    );
+    assert_eq!(
+        buffer.get(4, 0).and_then(|c| c.content.as_char()),
+        Some('A')
+    );
+}
+
+#[test]
+fn test_rebuild_spinner_declarative() {
+    let node = view()
+        .column()
+        .size(20.0, 1.0)
+        .children([spinner().label("Loading").height(1.0).build()])
+        .build();
+
+    let buffer = render_node(&node, 20, 1);
+    let ch = buffer.get(0, 0).and_then(|c| c.content.as_char());
+    assert!(ch.is_some(), "spinner should render a frame char");
+    assert_eq!(
+        buffer.get(2, 0).and_then(|c| c.content.as_char()),
+        Some('L')
+    );
+}
+
+#[test]
+fn test_rebuild_badge_declarative() {
+    let node = view()
+        .column()
+        .size(20.0, 1.0)
+        .children([badge("OK").height(1.0).build()])
+        .build();
+
+    let buffer = render_node(&node, 20, 1);
+    assert_eq!(
+        buffer.get(0, 0).and_then(|c| c.content.as_char()),
+        Some(' ')
+    );
+    assert_eq!(
+        buffer.get(2, 0).and_then(|c| c.content.as_char()),
+        Some('O')
+    );
+    assert_eq!(
+        buffer.get(3, 0).and_then(|c| c.content.as_char()),
+        Some('K')
+    );
+}
+
+#[test]
+fn test_rebuild_slider_declarative() {
+    let node = view()
+        .column()
+        .size(20.0, 1.0)
+        .children([slider().height(1.0).build()])
+        .build();
+
+    let buffer = render_node(&node, 20, 1);
+    let ch = buffer.get(0, 0).and_then(|c| c.content.as_char());
+    assert!(ch.is_some(), "slider should render track");
+}
+
+#[test]
+fn test_rebuild_select_declarative() {
+    let node = view()
+        .column()
+        .size(20.0, 3.0)
+        .children([select(vec!["One".into(), "Two".into(), "Three".into()])
+            .height(3.0)
+            .build()])
+        .build();
+
+    let buffer = render_node(&node, 20, 3);
+    assert_eq!(
+        buffer.get(2, 0).and_then(|c| c.content.as_char()),
+        Some('O')
+    );
+    assert_eq!(
+        buffer.get(2, 1).and_then(|c| c.content.as_char()),
+        Some('T')
+    );
+}
+
+#[test]
+fn test_rebuild_radio_group_declarative() {
+    let node = view()
+        .column()
+        .size(20.0, 3.0)
+        .children([radio_group(vec!["Yes".into(), "No".into()])
+            .height(3.0)
+            .build()])
+        .build();
+
+    let buffer = render_node(&node, 20, 3);
+    assert_eq!(
+        buffer.get(1, 0).and_then(|c| c.content.as_char()),
+        Some('\u{25CF}')
+    );
+    assert_eq!(
+        buffer.get(4, 0).and_then(|c| c.content.as_char()),
+        Some('Y')
+    );
+    assert_eq!(
+        buffer.get(1, 1).and_then(|c| c.content.as_char()),
+        Some('\u{25CB}')
+    );
+}
+
+#[test]
+fn test_rebuild_gauge_declarative() {
+    let node = view()
+        .column()
+        .size(10.0, 1.0)
+        .children([gauge().height(1.0).build()])
+        .build();
+
+    let buffer = render_node(&node, 10, 1);
+    let ch = buffer.get(0, 0).and_then(|c| c.content.as_char());
+    assert!(ch.is_some(), "gauge should render");
 }

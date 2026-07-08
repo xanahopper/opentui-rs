@@ -7,7 +7,9 @@ use crate::view::element::{Element, ElementKind};
 use crate::view::key::Key;
 use crate::view::node::{Node, OverlayNode};
 use crate::view::props::{
-    FillProps, InputProps, ListProps, Props, SeparatorProps, StyledTextProps, TextProps, ViewProps,
+    BadgeProps, CheckboxProps, FillProps, GaugeProps, InputProps, ListProps, Props,
+    RadioGroupProps, ScrollBarProps, SelectProps, SeparatorProps, SliderProps, SpinnerProps,
+    StyledTextProps, TextProps, ViewProps,
 };
 use crate::widgets::{BorderChars, BorderSides, BorderStyle, StyledSegment};
 
@@ -65,6 +67,66 @@ pub fn fill(color: Rgba) -> ElementBuilder {
 pub fn separator() -> ElementBuilder {
     let mut builder = ElementBuilder::new(ElementKind::Separator);
     builder.props = Props::Separator(SeparatorProps::default());
+    builder
+}
+
+pub fn checkbox(label: impl Into<String>) -> ElementBuilder {
+    let mut builder = ElementBuilder::new(ElementKind::Checkbox);
+    builder.props = Props::Checkbox(CheckboxProps {
+        checked: false,
+        label: Some(label.into()),
+    });
+    builder
+}
+
+pub fn spinner() -> ElementBuilder {
+    let mut builder = ElementBuilder::new(ElementKind::Spinner);
+    builder.props = Props::Spinner(SpinnerProps::default());
+    builder
+}
+
+pub fn badge(text: impl Into<String>) -> ElementBuilder {
+    let mut builder = ElementBuilder::new(ElementKind::Badge);
+    builder.props = Props::Badge(BadgeProps {
+        text: text.into(),
+        ..Default::default()
+    });
+    builder
+}
+
+pub fn slider() -> ElementBuilder {
+    let mut builder = ElementBuilder::new(ElementKind::Slider);
+    builder.props = Props::Slider(SliderProps::default());
+    builder
+}
+
+pub fn select(items: Vec<String>) -> ElementBuilder {
+    let mut builder = ElementBuilder::new(ElementKind::Select);
+    builder.props = Props::Select(SelectProps {
+        items,
+        ..Default::default()
+    });
+    builder
+}
+
+pub fn radio_group(options: Vec<String>) -> ElementBuilder {
+    let mut builder = ElementBuilder::new(ElementKind::RadioGroup);
+    builder.props = Props::RadioGroup(RadioGroupProps {
+        options,
+        ..Default::default()
+    });
+    builder
+}
+
+pub fn gauge() -> ElementBuilder {
+    let mut builder = ElementBuilder::new(ElementKind::Gauge);
+    builder.props = Props::Gauge(GaugeProps::default());
+    builder
+}
+
+pub fn scrollbar() -> ElementBuilder {
+    let mut builder = ElementBuilder::new(ElementKind::ScrollBar);
+    builder.props = Props::ScrollBar(ScrollBarProps::default());
     builder
 }
 
@@ -166,6 +228,14 @@ impl ElementBuilder {
             ElementKind::List => Props::List(ListProps::default()),
             ElementKind::Fill => Props::Fill(FillProps::default()),
             ElementKind::Separator => Props::Separator(SeparatorProps::default()),
+            ElementKind::Checkbox => Props::Checkbox(CheckboxProps::default()),
+            ElementKind::Spinner => Props::Spinner(SpinnerProps::default()),
+            ElementKind::Badge => Props::Badge(BadgeProps::default()),
+            ElementKind::Slider => Props::Slider(SliderProps::default()),
+            ElementKind::Select => Props::Select(SelectProps::default()),
+            ElementKind::RadioGroup => Props::RadioGroup(RadioGroupProps::default()),
+            ElementKind::Gauge => Props::Gauge(GaugeProps::default()),
+            ElementKind::ScrollBar => Props::ScrollBar(ScrollBarProps::default()),
             ElementKind::Custom(_) => Props::Empty,
         };
         Self {
@@ -297,6 +367,17 @@ impl ElementBuilder {
         match &mut self.props {
             Props::View(vp) => vp.bg = Some(color),
             Props::Text(tp) => tp.bg = Some(color),
+            Props::Badge(bp) => bp.bg = color,
+            _ => {}
+        }
+        self
+    }
+
+    pub fn label(mut self, label: impl Into<String>) -> Self {
+        let label = label.into();
+        match &mut self.props {
+            Props::Checkbox(cp) => cp.label = Some(label),
+            Props::Spinner(sp) => sp.label = Some(label),
             _ => {}
         }
         self

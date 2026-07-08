@@ -17,13 +17,17 @@ pub use crate::scroll::{ScrollBarRenderer, ScrollState, ScrollView};
 pub use crate::theme::{UiTheme, UiThemeRegistry};
 pub use crate::view::{
     ElementBuilder, ElementKind, Key, Node, Props, TextProps, ViewMouseDispatchResult, ViewProps,
-    ViewRuntime, empty, fill, fragment, input, overlay, panel, rich_text, separator, span, text,
-    view, when,
+    ViewRuntime, badge, checkbox, empty, fill, fragment, gauge, input, overlay, panel, radio_group,
+    rich_text, scrollbar, select, separator, slider, span, spinner, text, view, when,
 };
 pub use crate::widgets::{
-    BorderChars, BorderSides, BorderStyle, BoxWidget, EditorWidget, FillWidget, InputMode,
-    InputWidget, ListWidget, ProgressBarStyle, ProgressBarWidget, ProgressChars, ScrollViewWidget,
-    SeparatorWidget, StatusLineStyle, StatusLineWidget, StyledSegment, StyledTextAlign,
+    BadgeShape, BadgeStyle, BadgeWidget, BorderChars, BorderSides, BorderStyle, BoxWidget,
+    CheckboxChars, CheckboxStyle, CheckboxWidget, EditorWidget, FillWidget, GaugeChars,
+    GaugeOrientation, GaugeStyle, GaugeWidget, InputMode, InputWidget, ListWidget,
+    ProgressBarStyle, ProgressBarWidget, ProgressChars, RadioGroupWidget, RadioOption,
+    RadioOrientation, RadioStyle, ScrollBarWidget, ScrollViewWidget, SelectItem, SelectStyle,
+    SelectWidget, SeparatorWidget, SliderOrientation, SliderStyle, SliderWidget, SpinnerFrames,
+    SpinnerStyle, SpinnerWidget, StatusLineStyle, StatusLineWidget, StyledSegment, StyledTextAlign,
     StyledTextWidget, Tab, TabsStyle, TabsWidget, TextAlign, TextLineAlign, TextLineWidget,
     TextWidget, ViewWidget,
 };

@@ -22,5 +22,13 @@ pub enum ElementKind {
     List,
     Fill,
     Separator,
+    Checkbox,
+    Spinner,
+    Badge,
+    Slider,
+    Select,
+    RadioGroup,
+    Gauge,
+    ScrollBar,
     Custom(&'static str),
 }

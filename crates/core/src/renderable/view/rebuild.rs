@@ -6,7 +6,7 @@ use crate::renderable::node::NodeId;
 use crate::renderable::tree::RenderTree;
 use crate::view::element::{Element, ElementKind};
 use crate::view::node::Node;
-use crate::view::props::Props;
+use crate::view::props::{Props, SpinnerPreset};
 
 pub fn build_tree(node: &Node) -> RenderTree {
     build_tree_with_actions(node).0
@@ -81,6 +81,7 @@ fn add_element(tree: &mut RenderTree, parent: Option<NodeId>, elem: &Element) ->
     id
 }
 
+#[allow(clippy::too_many_lines)]
 fn create_behavior(elem: &Element) -> (Box<dyn Behavior>, FrameworkDefaults) {
     match elem.kind {
         ElementKind::Text => {
@@ -135,6 +136,147 @@ fn create_behavior(elem: &Element) -> (Box<dyn Behavior>, FrameworkDefaults) {
             if let Props::Separator(ref props) = elem.props {
                 w = w.char_(props.char).fg(props.fg);
             }
+            let d = w.framework_defaults();
+            (Box::new(w), d)
+        }
+        ElementKind::Checkbox => {
+            let mut w = crate::renderable::widgets::CheckboxWidget::new(elem.layout.clone());
+            if let Props::Checkbox(ref props) = elem.props {
+                if props.checked {
+                    w = w.checked(true);
+                }
+                if let Some(ref label) = props.label {
+                    w = w.label(label);
+                }
+            }
+            let d = w.framework_defaults();
+            (Box::new(w), d)
+        }
+        ElementKind::Spinner => {
+            let mut w = crate::renderable::widgets::SpinnerWidget::new(elem.layout.clone());
+            if let Props::Spinner(ref props) = elem.props {
+                let frames = match props.preset {
+                    SpinnerPreset::Braille => crate::renderable::widgets::SpinnerFrames::braille(),
+                    SpinnerPreset::Dots => crate::renderable::widgets::SpinnerFrames::dots(),
+                    SpinnerPreset::Arrow => crate::renderable::widgets::SpinnerFrames::arrow(),
+                    SpinnerPreset::Line => crate::renderable::widgets::SpinnerFrames::line(),
+                    SpinnerPreset::Bounce => crate::renderable::widgets::SpinnerFrames::bounce(),
+                    SpinnerPreset::Ascii => crate::renderable::widgets::SpinnerFrames::ascii(),
+                };
+                w = w.frames(frames).running(props.running);
+                if let Some(ref label) = props.label {
+                    w = w.label(label);
+                }
+            }
+            let d = w.framework_defaults();
+            (Box::new(w), d)
+        }
+        ElementKind::Badge => {
+            let mut w = if let Props::Badge(ref props) = elem.props {
+                crate::renderable::widgets::BadgeWidget::new(elem.layout.clone(), &props.text)
+                    .badge_style(crate::renderable::widgets::BadgeStyle {
+                        shape: props.shape,
+                        fg: props.fg,
+                        bg: props.bg,
+                        ..Default::default()
+                    })
+            } else {
+                crate::renderable::widgets::BadgeWidget::new(elem.layout.clone(), "")
+            };
+            let _ = &mut w;
+            let d = w.framework_defaults();
+            (Box::new(w), d)
+        }
+        ElementKind::Slider => {
+            let mut w = if let Props::Slider(ref props) = elem.props {
+                let s = if props.horizontal {
+                    crate::renderable::widgets::SliderWidget::horizontal(elem.layout.clone())
+                } else {
+                    crate::renderable::widgets::SliderWidget::vertical(elem.layout.clone())
+                };
+                s.range(props.min, props.max)
+                    .value(props.value)
+                    .viewport_size(props.viewport_size)
+            } else {
+                crate::renderable::widgets::SliderWidget::horizontal(elem.layout.clone())
+            };
+            let _ = &mut w;
+            let d = w.framework_defaults();
+            (Box::new(w), d)
+        }
+        ElementKind::Select => {
+            let mut w = crate::renderable::widgets::SelectWidget::new(elem.layout.clone());
+            if let Props::Select(ref props) = elem.props {
+                let items: Vec<_> = props
+                    .items
+                    .iter()
+                    .map(|s| crate::renderable::widgets::SelectItem::new(s.as_str()))
+                    .collect();
+                w = w
+                    .items(items)
+                    .wrap_selection(props.wrap)
+                    .show_description(props.show_description);
+                w.set_selected(props.selected);
+            }
+            let d = w.framework_defaults();
+            (Box::new(w), d)
+        }
+        ElementKind::RadioGroup => {
+            let mut w = if let Props::RadioGroup(ref props) = elem.props {
+                let opts: Vec<_> = props
+                    .options
+                    .iter()
+                    .map(|s| crate::renderable::widgets::RadioOption::new(s.as_str()))
+                    .collect();
+                if props.horizontal {
+                    crate::renderable::widgets::RadioGroupWidget::horizontal(elem.layout.clone())
+                        .options(opts)
+                        .selected(props.selected)
+                } else {
+                    crate::renderable::widgets::RadioGroupWidget::vertical(elem.layout.clone())
+                        .options(opts)
+                        .selected(props.selected)
+                }
+            } else {
+                crate::renderable::widgets::RadioGroupWidget::vertical(elem.layout.clone())
+            };
+            let _ = &mut w;
+            let d = w.framework_defaults();
+            (Box::new(w), d)
+        }
+        ElementKind::Gauge => {
+            let mut w = if let Props::Gauge(ref props) = elem.props {
+                let g = if props.horizontal {
+                    crate::renderable::widgets::GaugeWidget::horizontal(elem.layout.clone())
+                } else {
+                    crate::renderable::widgets::GaugeWidget::vertical(elem.layout.clone())
+                };
+                g.range(props.min, props.max)
+                    .value(props.value)
+                    .segments(props.segments)
+                    .show_label(props.show_label)
+            } else {
+                crate::renderable::widgets::GaugeWidget::horizontal(elem.layout.clone())
+            };
+            let _ = &mut w;
+            let d = w.framework_defaults();
+            (Box::new(w), d)
+        }
+        ElementKind::ScrollBar => {
+            let mut w = if let Props::ScrollBar(ref props) = elem.props {
+                let sb = if props.horizontal {
+                    crate::renderable::widgets::ScrollBarWidget::horizontal(elem.layout.clone())
+                } else {
+                    crate::renderable::widgets::ScrollBarWidget::vertical(elem.layout.clone())
+                };
+                sb.scroll_size(props.scroll_size)
+                    .viewport_size(props.viewport_size)
+                    .scroll_position(props.scroll_position)
+                    .show_arrows(props.show_arrows)
+            } else {
+                crate::renderable::widgets::ScrollBarWidget::vertical(elem.layout.clone())
+            };
+            let _ = &mut w;
             let d = w.framework_defaults();
             (Box::new(w), d)
         }
