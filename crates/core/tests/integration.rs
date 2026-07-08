@@ -8,8 +8,9 @@ use opentui_core::renderable::layout::ComputedLayout;
 use opentui_core::renderable::node::NodeId;
 use opentui_core::renderable::tree::{Overlay, RenderTree};
 use opentui_core::widgets::{
-    BoxWidget, CheckboxWidget, ProgressBarWidget, ScrollBarWidget, ScrollViewWidget, SelectItem,
-    SelectWidget, SliderWidget, StatusLineWidget, Tab, TabsWidget, TextLineWidget, TextWidget,
+    BadgeStyle, BadgeWidget, BoxWidget, CheckboxWidget, ProgressBarWidget, ScrollBarWidget,
+    ScrollViewWidget, SelectItem, SelectWidget, SliderWidget, SpinnerFrames, SpinnerWidget,
+    StatusLineWidget, Tab, TabsWidget, TextLineWidget, TextWidget,
 };
 use opentui_core::{OptimizedBuffer, Rgba, Style};
 
@@ -531,6 +532,159 @@ fn test_scrollbar_mouse_track_and_arrows_update_position() {
         .downcast_ref::<ScrollBarWidget>()
         .unwrap();
     assert_eq!(scrollbar_widget.scroll_position_value(), 50.0);
+}
+
+#[test]
+fn test_spinner_renders_current_frame() {
+    let mut buf = OptimizedBuffer::new(20, 1);
+    let theme = UiTheme::dark_default();
+    let mut tree = RenderTree::new();
+
+    let _spinner = tree.set_root(Box::new(
+        SpinnerWidget::new(LayoutStyle::default().width(20.0).height(1.0)).label("Loading..."),
+    ));
+
+    tree.run_layout(20.0, 1.0);
+    {
+        let mut ctx = make_ctx(&mut buf, &theme);
+        tree.run_render(&mut ctx, 0.0);
+    }
+
+    let ch = buf.get(0, 0).and_then(|c| c.content.as_char());
+    assert!(ch.is_some());
+    assert_eq!(cell_char(&buf, 2, 0), Some('L'));
+    assert_eq!(cell_char(&buf, 3, 0), Some('o'));
+}
+
+#[test]
+fn test_spinner_advances_on_update() {
+    let mut tree = RenderTree::new();
+    let spinner = tree.set_root(Box::new(
+        SpinnerWidget::new(LayoutStyle::default().width(10.0).height(1.0))
+            .frames(SpinnerFrames::line()),
+    ));
+
+    tree.run_layout(10.0, 1.0);
+
+    let node = tree.get(spinner).unwrap();
+    let sw = node
+        .behavior
+        .as_any()
+        .downcast_ref::<SpinnerWidget>()
+        .unwrap();
+    let initial = sw.current_char();
+
+    tree.set_live(spinner, true);
+    tree.run_render(
+        &mut RenderContext {
+            buffer: &mut OptimizedBuffer::new(10, 1),
+            grapheme_pool: None,
+            link_pool: None,
+            hit_grid: None,
+            theme: None,
+        },
+        0.13,
+    );
+
+    let node = tree.get(spinner).unwrap();
+    let sw = node
+        .behavior
+        .as_any()
+        .downcast_ref::<SpinnerWidget>()
+        .unwrap();
+    assert_ne!(sw.current_char(), initial);
+}
+
+#[test]
+fn test_spinner_stops_when_not_running() {
+    let mut tree = RenderTree::new();
+    let spinner = tree.set_root(Box::new(
+        SpinnerWidget::new(LayoutStyle::default().width(10.0).height(1.0))
+            .frames(SpinnerFrames::line())
+            .running(false),
+    ));
+
+    tree.run_layout(10.0, 1.0);
+
+    let node = tree.get(spinner).unwrap();
+    let sw = node
+        .behavior
+        .as_any()
+        .downcast_ref::<SpinnerWidget>()
+        .unwrap();
+    let before = sw.current_char();
+
+    tree.set_live(spinner, true);
+    tree.run_render(
+        &mut RenderContext {
+            buffer: &mut OptimizedBuffer::new(10, 1),
+            grapheme_pool: None,
+            link_pool: None,
+            hit_grid: None,
+            theme: None,
+        },
+        1.0,
+    );
+
+    let node = tree.get(spinner).unwrap();
+    let sw = node
+        .behavior
+        .as_any()
+        .downcast_ref::<SpinnerWidget>()
+        .unwrap();
+    assert_eq!(sw.current_char(), before);
+}
+
+#[test]
+fn test_badge_renders_padded_text() {
+    let mut buf = OptimizedBuffer::new(20, 1);
+    let theme = UiTheme::dark_default();
+    let mut tree = RenderTree::new();
+
+    let _badge = tree.set_root(Box::new(
+        BadgeWidget::new(LayoutStyle::default().width(20.0).height(1.0), "PASS")
+            .badge_style(BadgeStyle::success()),
+    ));
+
+    tree.run_layout(20.0, 1.0);
+    {
+        let mut ctx = make_ctx(&mut buf, &theme);
+        tree.run_render(&mut ctx, 0.0);
+    }
+
+    assert_eq!(cell_char(&buf, 0, 0), Some(' '));
+    assert_eq!(cell_char(&buf, 1, 0), Some(' '));
+    assert_eq!(cell_char(&buf, 2, 0), Some('P'));
+    assert_eq!(cell_char(&buf, 3, 0), Some('A'));
+    assert_eq!(cell_char(&buf, 5, 0), Some('S'));
+    assert_eq!(cell_char(&buf, 6, 0), Some(' '));
+    assert_eq!(cell_char(&buf, 7, 0), Some(' '));
+}
+
+#[test]
+fn test_badge_bracketed_shape() {
+    let mut buf = OptimizedBuffer::new(20, 1);
+    let theme = UiTheme::dark_default();
+    let mut tree = RenderTree::new();
+
+    let _badge = tree.set_root(Box::new(
+        BadgeWidget::new(LayoutStyle::default().width(20.0).height(1.0), "FAIL").badge_style(
+            BadgeStyle {
+                shape: opentui_core::widgets::BadgeShape::Bracketed,
+                ..BadgeStyle::error()
+            },
+        ),
+    ));
+
+    tree.run_layout(20.0, 1.0);
+    {
+        let mut ctx = make_ctx(&mut buf, &theme);
+        tree.run_render(&mut ctx, 0.0);
+    }
+
+    assert_eq!(cell_char(&buf, 0, 0), Some('['));
+    assert_eq!(cell_char(&buf, 1, 0), Some('F'));
+    assert_eq!(cell_char(&buf, 5, 0), Some(']'));
 }
 
 #[test]
