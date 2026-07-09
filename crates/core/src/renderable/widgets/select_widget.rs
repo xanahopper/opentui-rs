@@ -180,10 +180,10 @@ impl SelectWidget {
         if self.items.is_empty() {
             return;
         }
-        let vis = self
-            .last_layout
-            .map_or(1, |l| self.visible_count(&l))
-            .max(1);
+        let Some(layout) = self.last_layout else {
+            return;
+        };
+        let vis = self.visible_count(&layout).max(1);
         if self.selected_index < self.scroll_offset as usize {
             self.scroll_offset = self.selected_index as u32;
         } else if self.selected_index >= (self.scroll_offset + vis) as usize {
@@ -364,6 +364,8 @@ impl Behavior for SelectWidget {
         if !self.visible || self.items.is_empty() {
             return;
         }
+
+        self.ensure_visible();
 
         let x = layout.x as u32;
         let y = layout.y as u32;

@@ -626,3 +626,147 @@ fn test_rebuild_gauge_declarative() {
     let ch = buffer.get(0, 0).and_then(|c| c.content.as_char());
     assert!(ch.is_some(), "gauge should render");
 }
+
+#[test]
+fn test_declarative_checkbox_checked() {
+    let node = view()
+        .column()
+        .size(20.0, 1.0)
+        .children([checkbox("Done").checked(true).height(1.0).build()])
+        .build();
+
+    let buffer = render_node(&node, 20, 1);
+    assert_eq!(
+        buffer.get(1, 0).and_then(|c| c.content.as_char()),
+        Some('x'),
+        "checked checkbox should show 'x'"
+    );
+}
+
+#[test]
+fn test_declarative_slider_value_range() {
+    let node = view()
+        .column()
+        .size(20.0, 1.0)
+        .children([slider().value(50.0).range(0.0, 100.0).height(1.0).build()])
+        .build();
+
+    let buffer = render_node(&node, 20, 1);
+    let has_thumb = (0..20).any(|x| {
+        buffer
+            .get(x, 0)
+            .is_some_and(|c| c.content.as_char() == Some('\u{2588}'))
+    });
+    assert!(has_thumb, "slider at 50% should render thumb");
+}
+
+#[test]
+fn test_declarative_gauge_configured() {
+    let node = view()
+        .column()
+        .size(16.0, 1.0)
+        .children([gauge()
+            .value(75.0)
+            .range(0.0, 100.0)
+            .segments(10)
+            .show_label()
+            .height(1.0)
+            .build()])
+        .build();
+
+    let buffer = render_node(&node, 16, 1);
+    assert_eq!(
+        buffer.get(0, 0).and_then(|c| c.content.as_char()),
+        Some('\u{2588}'),
+        "first segment should be full"
+    );
+    assert_eq!(
+        buffer.get(12, 0).and_then(|c| c.content.as_char()),
+        Some('7'),
+        "label should show 75%"
+    );
+}
+
+#[test]
+fn test_declarative_select_selected_wrap() {
+    let node = view()
+        .column()
+        .size(20.0, 3.0)
+        .children([select(vec!["A".into(), "B".into(), "C".into()])
+            .selected(2)
+            .wrap()
+            .height(3.0)
+            .build()])
+        .build();
+
+    let buffer = render_node(&node, 20, 3);
+    assert_eq!(
+        buffer.get(2, 2).and_then(|c| c.content.as_char()),
+        Some('C'),
+        "third item should be at row 2"
+    );
+    assert_eq!(
+        buffer.get(0, 2).and_then(|c| c.content.as_char()),
+        Some('\u{25B8}'),
+        "selected indicator should be on row 2"
+    );
+}
+
+#[test]
+fn test_declarative_radio_group_selected() {
+    let node = view()
+        .column()
+        .size(20.0, 3.0)
+        .children([radio_group(vec!["X".into(), "Y".into(), "Z".into()])
+            .selected(1)
+            .height(3.0)
+            .build()])
+        .build();
+
+    let buffer = render_node(&node, 20, 3);
+    assert_eq!(
+        buffer.get(1, 0).and_then(|c| c.content.as_char()),
+        Some('\u{25CB}'),
+        "first option should be unselected"
+    );
+    assert_eq!(
+        buffer.get(1, 1).and_then(|c| c.content.as_char()),
+        Some('\u{25CF}'),
+        "second option should be selected"
+    );
+}
+
+#[test]
+fn test_declarative_badge_fg_bg() {
+    let node = view()
+        .column()
+        .size(20.0, 1.0)
+        .children([badge("TAG").fg(TEXT).bg(BG).height(1.0).build()])
+        .build();
+
+    let buffer = render_node(&node, 20, 1);
+    let cell = buffer.get(2, 0).unwrap();
+    assert_eq!(cell.fg, TEXT);
+    assert_eq!(cell.bg, BG);
+}
+
+#[test]
+fn test_declarative_scrollbar_configured() {
+    let node = view()
+        .column()
+        .size(1.0, 10.0)
+        .children([opentui_core::view::scrollbar()
+            .scroll_size(100.0)
+            .viewport_size(20.0)
+            .scroll_position(40.0)
+            .height(10.0)
+            .build()])
+        .build();
+
+    let buffer = render_node(&node, 1, 10);
+    assert_eq!(
+        buffer.get(0, 4).and_then(|c| c.content.as_char()),
+        Some('\u{2588}'),
+        "thumb should be visible at ~40% position"
+    );
+}

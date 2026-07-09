@@ -384,8 +384,10 @@ impl ElementBuilder {
     }
 
     pub fn fg(mut self, color: Rgba) -> Self {
-        if let Props::Text(tp) = &mut self.props {
-            tp.fg = color;
+        match &mut self.props {
+            Props::Text(tp) => tp.fg = color,
+            Props::Badge(bp) => bp.fg = color,
+            _ => {}
         }
         self
     }
@@ -506,6 +508,145 @@ impl ElementBuilder {
     pub fn default_value(mut self, text: impl Into<String>) -> Self {
         if let Props::Input(ip) = &mut self.props {
             ip.default_value = Some(text.into());
+        }
+        self
+    }
+
+    // ── Checkbox ──────────────────────────────────────────────
+
+    pub fn checked(mut self, checked: bool) -> Self {
+        if let Props::Checkbox(cp) = &mut self.props {
+            cp.checked = checked;
+        }
+        self
+    }
+
+    // ── Spinner ───────────────────────────────────────────────
+
+    pub fn running(mut self, running: bool) -> Self {
+        if let Props::Spinner(sp) = &mut self.props {
+            sp.running = running;
+        }
+        self
+    }
+
+    // ── Slider / Gauge shared ─────────────────────────────────
+
+    pub fn value(mut self, value: f32) -> Self {
+        match &mut self.props {
+            Props::Slider(sp) => sp.value = value,
+            Props::Gauge(gp) => gp.value = value,
+            _ => {}
+        }
+        self
+    }
+
+    pub fn range(mut self, min: f32, max: f32) -> Self {
+        match &mut self.props {
+            Props::Slider(sp) => {
+                sp.min = min;
+                sp.max = max;
+            }
+            Props::Gauge(gp) => {
+                gp.min = min;
+                gp.max = max;
+            }
+            _ => {}
+        }
+        self
+    }
+
+    // ── Orientation (Slider, Select, RadioGroup, Gauge, ScrollBar) ──
+
+    pub fn horizontal(mut self) -> Self {
+        match &mut self.props {
+            Props::Slider(sp) => sp.horizontal = true,
+            Props::RadioGroup(rp) => rp.horizontal = true,
+            Props::Gauge(gp) => gp.horizontal = true,
+            Props::ScrollBar(sb) => sb.horizontal = true,
+            _ => {}
+        }
+        self
+    }
+
+    pub fn vertical(mut self) -> Self {
+        match &mut self.props {
+            Props::Slider(sp) => sp.horizontal = false,
+            Props::RadioGroup(rp) => rp.horizontal = false,
+            Props::Gauge(gp) => gp.horizontal = false,
+            Props::ScrollBar(sb) => sb.horizontal = false,
+            _ => {}
+        }
+        self
+    }
+
+    // ── Select ────────────────────────────────────────────────
+
+    pub fn selected(mut self, index: usize) -> Self {
+        match &mut self.props {
+            Props::Select(sp) => sp.selected = index,
+            Props::RadioGroup(rp) => rp.selected = index,
+            _ => {}
+        }
+        self
+    }
+
+    pub fn wrap(mut self) -> Self {
+        if let Props::Select(sp) = &mut self.props {
+            sp.wrap = true;
+        }
+        self
+    }
+
+    pub fn show_description(mut self) -> Self {
+        if let Props::Select(sp) = &mut self.props {
+            sp.show_description = true;
+        }
+        self
+    }
+
+    // ── Gauge ─────────────────────────────────────────────────
+
+    pub fn segments(mut self, count: u32) -> Self {
+        if let Props::Gauge(gp) = &mut self.props {
+            gp.segments = count;
+        }
+        self
+    }
+
+    pub fn show_label(mut self) -> Self {
+        if let Props::Gauge(gp) = &mut self.props {
+            gp.show_label = true;
+        }
+        self
+    }
+
+    // ── ScrollBar ─────────────────────────────────────────────
+
+    pub fn scroll_size(mut self, size: f32) -> Self {
+        if let Props::ScrollBar(sb) = &mut self.props {
+            sb.scroll_size = size;
+        }
+        self
+    }
+
+    pub fn viewport_size(mut self, size: f32) -> Self {
+        if let Props::ScrollBar(sb) = &mut self.props {
+            sb.viewport_size = size;
+        }
+        self
+    }
+
+    pub fn scroll_position(mut self, pos: f32) -> Self {
+        if let Props::ScrollBar(sb) = &mut self.props {
+            sb.scroll_position = pos;
+        }
+        self
+    }
+
+    pub fn show_arrows(mut self) -> Self {
+        if let Props::ScrollBar(sb) = &mut self.props {
+            sb.show_arrows = true;
         }
         self
     }
