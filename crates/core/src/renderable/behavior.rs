@@ -52,6 +52,22 @@ pub trait Behavior {
     /// Called when the node's computed size changes.
     fn on_resize(&mut self, _width: f32, _height: f32) {}
 
+    /// Report the intrinsic content size for layout measurement.
+    ///
+    /// Called by the layout engine for leaf nodes whose style does not fix
+    /// the relevant dimension. Return `Some((width, height))` to declare the
+    /// natural content size under the given constraints, or `None` to fall
+    /// back to a zero-sized leaf (the previous default behavior).
+    fn measure(
+        &self,
+        _known_width: Option<f32>,
+        _known_height: Option<f32>,
+        _available_width: Option<f32>,
+        _available_height: Option<f32>,
+    ) -> Option<(f32, f32)> {
+        None
+    }
+
     /// Sync framework-owned focus state into behavior-owned rendering state.
     fn set_focus_state(&mut self, _focused: bool, _has_focused_descendant: bool) {}
 

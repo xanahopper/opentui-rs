@@ -628,6 +628,44 @@ fn test_rebuild_gauge_declarative() {
 }
 
 #[test]
+fn test_wrapped_text_gets_measured_height() {
+    let long = "x".repeat(100);
+    let node = view()
+        .column()
+        .size(10.0, 5.0)
+        .children([text(long).fg(TEXT).wrap().build()])
+        .build();
+
+    let buffer = render_node(&node, 10, 5);
+    assert_eq!(
+        buffer.get(0, 0).and_then(|c| c.content.as_char()),
+        Some('x'),
+        "wrapped text row 0 should render"
+    );
+    assert_eq!(
+        buffer.get(0, 4).and_then(|c| c.content.as_char()),
+        Some('x'),
+        "wrapped text should fill the parent's 5 rows (measured height 10 clamped)"
+    );
+}
+
+#[test]
+fn test_unwrapped_text_uses_line_height() {
+    let node = view()
+        .column()
+        .size(20.0, 3.0)
+        .children([text("hello").fg(TEXT).build()])
+        .build();
+
+    let buffer = render_node(&node, 20, 3);
+    assert_eq!(
+        buffer.get(0, 0).and_then(|c| c.content.as_char()),
+        Some('h'),
+        "plain text() should get height 1 from TextLineWidget::measure"
+    );
+}
+
+#[test]
 fn test_declarative_checkbox_checked() {
     let node = view()
         .column()

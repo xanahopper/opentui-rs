@@ -147,7 +147,6 @@ impl Behavior for TextLineWidget {
         if w == 0 || h == 0 {
             return;
         }
-
         if let Some(bg) = self.bg {
             if bg.a > 0.0 {
                 ctx.buffer.fill_rect(x, y, w, h, bg);
@@ -213,6 +212,17 @@ impl Behavior for TextLineWidget {
 
     fn handle_key(&mut self, _key: &crate::KeyEvent) -> bool {
         false
+    }
+
+    fn measure(
+        &self,
+        _known_width: Option<f32>,
+        _known_height: Option<f32>,
+        _available_width: Option<f32>,
+        _available_height: Option<f32>,
+    ) -> Option<(f32, f32)> {
+        let w = crate::unicode::display_width(&self.text) as f32;
+        Some((w, 1.0))
     }
 
     fn handle_mouse(&mut self, _mouse: &crate::MouseEvent) -> bool {

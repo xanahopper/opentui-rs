@@ -19,6 +19,7 @@
 use std::collections::HashMap;
 
 use slotmap::SlotMap;
+use taffy::Size;
 
 use crate::input::{KeyEvent, MouseEvent};
 use crate::renderable::behavior::Behavior;
@@ -181,8 +182,10 @@ impl RenderTree {
     /// Insert a root node with the given behavior.
     pub fn set_root(&mut self, behavior: Box<dyn Behavior>) -> NodeId {
         let defaults = behavior.framework_defaults();
-        let taffy_node = self.layout_engine.new_leaf(behavior.style().clone());
         let num = allocate_num();
+        let taffy_node = self
+            .layout_engine
+            .new_leaf_with_context(behavior.style().clone(), num);
         let id = self
             .nodes
             .insert(make_node(num, None, taffy_node, defaults, behavior));
@@ -196,8 +199,10 @@ impl RenderTree {
     /// Add a child node to a parent. Returns the child's NodeId.
     pub fn add_child(&mut self, parent: NodeId, behavior: Box<dyn Behavior>) -> NodeId {
         let defaults = behavior.framework_defaults();
-        let taffy_node = self.layout_engine.new_leaf(behavior.style().clone());
         let num = allocate_num();
+        let taffy_node = self
+            .layout_engine
+            .new_leaf_with_context(behavior.style().clone(), num);
         let id = self
             .nodes
             .insert(make_node(num, Some(parent), taffy_node, defaults, behavior));
@@ -219,8 +224,10 @@ impl RenderTree {
     /// Add a detached node, useful as an overlay root.
     pub fn add_detached(&mut self, behavior: Box<dyn Behavior>) -> NodeId {
         let defaults = behavior.framework_defaults();
-        let taffy_node = self.layout_engine.new_leaf(behavior.style().clone());
         let num = allocate_num();
+        let taffy_node = self
+            .layout_engine
+            .new_leaf_with_context(behavior.style().clone(), num);
         let id = self
             .nodes
             .insert(make_node(num, None, taffy_node, defaults, behavior));
@@ -769,8 +776,43 @@ impl RenderTree {
             return;
         };
         let taffy_root = root_node.taffy_node;
-        self.layout_engine
-            .compute_with_size(taffy_root, width, height);
+
+        let num_to_node = &self.num_to_node;
+        let nodes = &self.nodes;
+        self.layout_engine.compute_with_size_and_measure(
+            taffy_root,
+            width,
+            height,
+            |known, avail, ctx| {
+                let Some(num) = ctx else {
+                    return Size::ZERO;
+                };
+                let Some(node_id) = num_to_node.get(num) else {
+                    return Size::ZERO;
+                };
+                let Some(node) = nodes.get(*node_id) else {
+                    return Size::ZERO;
+                };
+                let avail_w = match avail.width {
+                    taffy::style::AvailableSpace::Definite(w) => Some(w),
+                    _ => None,
+                };
+                let avail_h = match avail.height {
+                    taffy::style::AvailableSpace::Definite(h) => Some(h),
+                    _ => None,
+                };
+                match node
+                    .behavior
+                    .measure(known.width, known.height, avail_w, avail_h)
+                {
+                    Some((w, h)) => Size {
+                        width: w,
+                        height: h,
+                    },
+                    None => Size::ZERO,
+                }
+            },
+        );
         self.layout_generation = self.layout_generation.wrapping_add(1);
 
         // Propagate computed layout to all nodes

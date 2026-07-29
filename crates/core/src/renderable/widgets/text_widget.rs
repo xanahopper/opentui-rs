@@ -71,6 +71,7 @@ impl TextWidget {
 
     pub fn default_style(mut self, style: Style) -> Self {
         self.default_style = style;
+        self.buffer.set_default_style(style);
         self
     }
 
@@ -130,6 +131,52 @@ impl Behavior for TextWidget {
             view.render_to_with_pool(ctx.buffer, pool, x, y);
         } else {
             view.render_to(ctx.buffer, x, y);
+        }
+    }
+
+    fn measure(
+        &self,
+        known_width: Option<f32>,
+        _known_height: Option<f32>,
+        available_width: Option<f32>,
+        _available_height: Option<f32>,
+    ) -> Option<(f32, f32)> {
+        let text = self.buffer.to_string();
+        if text.is_empty() {
+            return Some((0.0, 0.0));
+        }
+
+        match self.wrap_mode {
+            WrapMode::None => {
+                let mut max_w: u32 = 0;
+                let mut lines: u32 = 0;
+                for line in text.lines() {
+                    max_w = max_w.max(crate::unicode::display_width(line) as u32);
+                    lines += 1;
+                }
+                Some((max_w as f32, lines.max(1) as f32))
+            }
+            WrapMode::Char | WrapMode::Word => {
+                let wrap_width = known_width
+                    .or(available_width)
+                    .filter(|w| *w > 0.0)
+                    .map(|w| w as u32);
+                let Some(width) = wrap_width else {
+                    let mut max_w: u32 = 0;
+                    let mut lines: u32 = 0;
+                    for line in text.lines() {
+                        max_w = max_w.max(crate::unicode::display_width(line) as u32);
+                        lines += 1;
+                    }
+                    return Some((max_w as f32, lines.max(1) as f32));
+                };
+                let mut total: u32 = 0;
+                for line in text.lines() {
+                    let line_w = crate::unicode::display_width(line) as u32;
+                    total += line_w.div_ceil(width).max(1);
+                }
+                Some((width as f32, total.max(1) as f32))
+            }
         }
     }
 

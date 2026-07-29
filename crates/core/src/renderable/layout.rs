@@ -260,7 +260,7 @@ impl LayoutStyle {
 }
 
 pub struct LayoutEngine {
-    tree: TaffyTree<()>,
+    tree: TaffyTree<u32>,
 }
 
 impl LayoutEngine {
@@ -272,6 +272,16 @@ impl LayoutEngine {
 
     pub fn new_leaf(&mut self, style: LayoutStyle) -> taffy::tree::NodeId {
         self.tree.new_leaf(style.inner).unwrap()
+    }
+
+    pub fn new_leaf_with_context(
+        &mut self,
+        style: LayoutStyle,
+        context: u32,
+    ) -> taffy::tree::NodeId {
+        self.tree
+            .new_leaf_with_context(style.inner, context)
+            .unwrap()
     }
 
     pub fn new_node(
@@ -296,6 +306,24 @@ impl LayoutEngine {
             height: AvailableSpace::Definite(height),
         };
         self.tree.compute_layout(root, available).unwrap();
+    }
+
+    pub fn compute_with_size_and_measure(
+        &mut self,
+        root: taffy::tree::NodeId,
+        width: f32,
+        height: f32,
+        mut measure: impl FnMut(Size<Option<f32>>, Size<AvailableSpace>, Option<&mut u32>) -> Size<f32>,
+    ) {
+        let available = Size {
+            width: AvailableSpace::Definite(width),
+            height: AvailableSpace::Definite(height),
+        };
+        self.tree
+            .compute_layout_with_measure(root, available, |known, avail, _node, ctx, _style| {
+                measure(known, avail, ctx)
+            })
+            .unwrap();
     }
 
     pub fn layout(&self, node: taffy::tree::NodeId) -> ComputedLayout {
