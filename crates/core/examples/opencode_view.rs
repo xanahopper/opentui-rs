@@ -218,60 +218,60 @@ fn ui_sidebar() -> opentui_core::view::Node {
         .column()
         .width(SIDEBAR_WIDTH)
         .padding(0.0, 2.0, 0.0, 2.0)
-        .bg(BG_PANEL)
+        .bg(BG)
         .children([
-            fill(BG_PANEL).height(1.0).shrink(0.0).build(),
+            fill(BG).height(1.0).shrink(0.0).build(),
             text("OpenCode")
                 .fg(TEXT)
-                .bg(BG_PANEL)
+                .bg(BG)
                 .bold()
                 .height(1.0)
                 .shrink(0.0)
                 .build(),
-            fill(BG_PANEL).height(1.0).shrink(0.0).build(),
+            fill(BG).height(1.0).shrink(0.0).build(),
             text("Session")
                 .fg(TEXT_MUTED)
-                .bg(BG_PANEL)
+                .bg(BG)
                 .height(1.0)
                 .shrink(0.0)
                 .build(),
             text("abc123def456")
                 .fg(TEXT_MUTED)
-                .bg(BG_PANEL)
+                .bg(BG)
                 .height(1.0)
                 .shrink(0.0)
                 .build(),
-            fill(BG_PANEL).height(1.0).shrink(0.0).build(),
+            fill(BG).height(1.0).shrink(0.0).build(),
             text("\u{25CF} git: main")
                 .fg(SUCCESS)
-                .bg(BG_PANEL)
+                .bg(BG)
                 .height(1.0)
                 .shrink(0.0)
                 .build(),
-            fill(BG_PANEL).height(1.0).shrink(0.0).build(),
+            fill(BG).height(1.0).shrink(0.0).build(),
             separator()
                 .height(1.0)
                 .shrink(0.0)
                 .fg(Rgba::new(0.176, 0.176, 0.216, 1.0))
-                .bg(BG_PANEL)
+                .bg(BG)
                 .build(),
-            fill(BG_PANEL).height(1.0).shrink(0.0).build(),
+            fill(BG).height(1.0).shrink(0.0).build(),
             text("Share URL")
                 .fg(TEXT_MUTED)
-                .bg(BG_PANEL)
+                .bg(BG)
                 .height(1.0)
                 .shrink(0.0)
                 .build(),
             text("Not shared")
                 .fg(TEXT_MUTED)
-                .bg(BG_PANEL)
+                .bg(BG)
                 .height(1.0)
                 .shrink(0.0)
                 .build(),
-            fill(BG_PANEL).grow(1.0).build(),
+            fill(BG).grow(1.0).build(),
             text("\u{25CF} OpenCode v0.1.0")
                 .fg(TEXT_MUTED)
-                .bg(BG_PANEL)
+                .bg(BG)
                 .height(1.0)
                 .shrink(0.0)
                 .build(),
@@ -431,7 +431,6 @@ fn ui_messages(app: &App) -> Vec<opentui_core::view::Node> {
         .enumerate()
         .flat_map(|(idx, msg)| {
             let lines: Vec<&str> = msg.text.split('\n').collect();
-            let margin_top = if idx == 0 { 0.0 } else { 1.0 };
 
             let msg_children: Vec<opentui_core::view::Node> = lines
                 .iter()
@@ -460,9 +459,8 @@ fn ui_messages(app: &App) -> Vec<opentui_core::view::Node> {
                     view()
                         .column()
                         .shrink(0.0)
-                        .margin(margin_top, 0.0, 0.0, 0.0)
                         .bg(BG_PANEL)
-                        .padding(1.0, 0.0, 1.0, 2.0)
+                        .padding(0.0, 0.0, 0.0, 2.0)
                         .border(BorderStyle {
                             chars: BorderChars::split_left(),
                             color: PRIMARY,
@@ -477,7 +475,6 @@ fn ui_messages(app: &App) -> Vec<opentui_core::view::Node> {
                     view()
                         .column()
                         .shrink(0.0)
-                        .margin(margin_top, 0.0, 0.0, 0.0)
                         .bg(BG)
                         .padding(0.0, 0.0, 0.0, 3.0)
                         .children(msg_children)
