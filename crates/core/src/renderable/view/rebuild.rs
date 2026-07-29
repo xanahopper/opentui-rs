@@ -85,6 +85,31 @@ fn add_element(tree: &mut RenderTree, parent: Option<NodeId>, elem: &Element) ->
 fn create_behavior(elem: &Element) -> (Box<dyn Behavior>, FrameworkDefaults) {
     match elem.kind {
         ElementKind::Text => {
+            if let Props::Text(ref props) = elem.props {
+                if let Some(wrap_mode) = props.wrap {
+                    let mut w = crate::renderable::widgets::TextWidget::with_text(
+                        elem.layout.clone(),
+                        &props.content,
+                    )
+                    .wrap(wrap_mode);
+                    let mut style = crate::Style::builder().fg(props.fg);
+                    if let Some(bg) = props.bg {
+                        style = style.bg(bg);
+                    }
+                    if props.bold {
+                        style = style.bold();
+                    }
+                    if props.italic {
+                        style = style.italic();
+                    }
+                    if props.underline {
+                        style = style.underline();
+                    }
+                    w = w.default_style(style.build());
+                    let d = w.framework_defaults();
+                    return (Box::new(w), d);
+                }
+            }
             let w = crate::renderable::widgets::TextLineWidget::from_element(elem);
             let d = w.framework_defaults();
             (Box::new(w), d)

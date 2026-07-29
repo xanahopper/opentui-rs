@@ -413,6 +413,13 @@ impl ElementBuilder {
         self
     }
 
+    pub fn wrap_word(mut self) -> Self {
+        if let Props::Text(tp) = &mut self.props {
+            tp.wrap = Some(crate::text::WrapMode::Word);
+        }
+        self
+    }
+
     pub fn border_rounded(mut self, color: Rgba) -> Self {
         if let Props::View(vp) = &mut self.props {
             vp.border = Some(BorderStyle {
@@ -592,8 +599,10 @@ impl ElementBuilder {
     }
 
     pub fn wrap(mut self) -> Self {
-        if let Props::Select(sp) = &mut self.props {
-            sp.wrap = true;
+        match &mut self.props {
+            Props::Select(sp) => sp.wrap = true,
+            Props::Text(tp) => tp.wrap = Some(crate::text::WrapMode::Char),
+            _ => {}
         }
         self
     }

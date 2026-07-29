@@ -433,17 +433,12 @@ fn ui_messages(app: &App) -> Vec<opentui_core::view::Node> {
                 .map(|line| {
                     let is_tool = line.starts_with("  \u{25B8}") || line.starts_with("  \u{25CF}");
                     if msg.role == "user" {
-                        text(*line)
-                            .fg(TEXT)
-                            .bg(BG_PANEL)
-                            .height(1.0)
-                            .shrink(0.0)
-                            .build()
+                        text(*line).fg(TEXT).bg(BG_PANEL).wrap().shrink(0.0).build()
                     } else {
                         text(*line)
                             .fg(if is_tool { TEXT_MUTED } else { TEXT })
                             .bg(BG)
-                            .height(1.0)
+                            .wrap()
                             .shrink(0.0)
                             .build()
                     }

@@ -1,5 +1,6 @@
 use crate::Rgba;
 use crate::buffer::TitleAlign;
+use crate::text::WrapMode;
 
 use crate::renderable::node::Overflow;
 use crate::widgets::{BadgeShape, BorderStyle, StyledSegment, TextLineAlign};
@@ -62,6 +63,7 @@ pub struct TextProps {
     pub italic: bool,
     pub underline: bool,
     pub align: TextLineAlign,
+    pub wrap: Option<WrapMode>,
 }
 
 impl Default for TextProps {
@@ -74,6 +76,7 @@ impl Default for TextProps {
             italic: false,
             underline: false,
             align: TextLineAlign::Left,
+            wrap: None,
         }
     }
 }

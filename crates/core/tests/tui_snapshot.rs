@@ -326,7 +326,7 @@ fn test_layout_no_sidebar() {
     let names = ["root", "main", "messages", "prompt", "hint"];
     let dump = dump_layouts(&tree, &ids, &names);
 
-    let (root_id, main_id, msg_id, prompt_id, hint_id) = (ids[0], ids[1], ids[2], ids[3], ids[4]);
+    let [root_id, main_id, msg_id, prompt_id, hint_id] = ids;
 
     let root_l = tree.computed_layout(root_id).unwrap();
     assert_eq!(root_l.x, 0.0);
