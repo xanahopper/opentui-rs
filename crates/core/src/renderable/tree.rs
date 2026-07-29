@@ -16,7 +16,7 @@
 //! Pass 2 is skipped entirely when the render list can be reused (no layout
 //! change, no time-varying behaviors, no live nodes).
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 
 use slotmap::SlotMap;
 use taffy::Size;
@@ -97,6 +97,7 @@ pub struct RenderTree {
     hovered: Option<NodeId>,
     captured: Option<NodeId>,
     dragging: bool,
+    selection: Option<TreeSelection>,
 
     // Lifecycle pass registry
     lifecycle_nodes: Vec<NodeId>,
@@ -106,6 +107,17 @@ pub struct RenderTree {
 
     // Overlays
     overlays: Vec<Overlay>,
+}
+
+#[derive(Debug)]
+struct TreeSelection {
+    anchor_node: NodeId,
+    anchor_relative: (i32, i32),
+    focus: (i32, i32),
+    containers: Vec<NodeId>,
+    touched: Vec<NodeId>,
+    selected: Vec<NodeId>,
+    dragging: bool,
 }
 
 /// A floating overlay rendered above the main tree.
@@ -179,6 +191,7 @@ impl RenderTree {
             hovered: None,
             captured: None,
             dragging: false,
+            selection: None,
             lifecycle_nodes: Vec::new(),
             live_count: 0,
             overlays: Vec::new(),
@@ -330,6 +343,14 @@ impl RenderTree {
         if self.captured == Some(id) {
             self.captured = None;
             self.dragging = false;
+        }
+        if self.selection.as_ref().is_some_and(|selection| {
+            selection.anchor_node == id
+                || selection.containers.contains(&id)
+                || selection.touched.contains(&id)
+                || selection.selected.contains(&id)
+        }) {
+            self.clear_selection();
         }
         if self.root == Some(id) {
             self.root = None;
@@ -628,6 +649,10 @@ impl RenderTree {
     /// button captures that node so subsequent drag events keep reaching it
     /// even after the pointer leaves its bounds.
     pub fn dispatch_mouse_event(&mut self, hit_target: Option<NodeId>, event: &MouseEvent) -> bool {
+        if let Some(consumed) = self.dispatch_selection_event(hit_target, event) {
+            return consumed;
+        }
+
         let mut consumed = false;
 
         if matches!(event.kind, MouseEventKind::Move | MouseEventKind::Drag)
@@ -682,6 +707,232 @@ impl RenderTree {
         }
 
         consumed
+    }
+
+    fn dispatch_selection_event(
+        &mut self,
+        hit_target: Option<NodeId>,
+        event: &MouseEvent,
+    ) -> Option<bool> {
+        if event.button != MouseButton::Left {
+            return None;
+        }
+        if event.kind == MouseEventKind::Press && !event.ctrl {
+            let target = hit_target.filter(|&id| {
+                self.nodes
+                    .get(id)
+                    .is_some_and(|node| node.behavior.selectable())
+            });
+            if let Some(target) = target {
+                self.start_selection(target, event.x as i32, event.y as i32);
+                if let Some(focus_target) = self.nearest_focusable(target) {
+                    self.focus(focus_target);
+                }
+                self.dispatch_mouse_bubbling(target, event);
+                return Some(true);
+            }
+            self.clear_selection();
+        } else if event.kind == MouseEventKind::Press && event.ctrl && self.selection.is_some() {
+            self.selection.as_mut().expect("selection exists").dragging = true;
+            self.update_selection(event.x as i32, event.y as i32, false);
+            return Some(true);
+        } else if event.kind == MouseEventKind::Drag && self.selection_is_dragging() {
+            self.update_selection(event.x as i32, event.y as i32, false);
+            if let Some(target) = hit_target {
+                self.dispatch_mouse_bubbling(target, event);
+            }
+            return Some(true);
+        } else if matches!(
+            event.kind,
+            MouseEventKind::DragEnd | MouseEventKind::Release
+        ) && self.selection_is_dragging()
+        {
+            self.update_selection(event.x as i32, event.y as i32, false);
+            self.selection.as_mut().expect("selection exists").dragging = false;
+            if let Some(target) = hit_target {
+                self.dispatch_mouse_bubbling(target, event);
+            }
+            return Some(true);
+        }
+        None
+    }
+
+    fn selection_is_dragging(&self) -> bool {
+        self.selection
+            .as_ref()
+            .is_some_and(|selection| selection.dragging)
+    }
+
+    fn start_selection(&mut self, target: NodeId, x: i32, y: i32) {
+        self.clear_selection();
+        let container = self
+            .nodes
+            .get(target)
+            .and_then(|node| node.parent)
+            .unwrap_or(target);
+        let (screen_x, screen_y) = self
+            .nodes
+            .get(target)
+            .map_or((x, y), |node| (node.screen_x as i32, node.screen_y as i32));
+        self.selection = Some(TreeSelection {
+            anchor_node: target,
+            anchor_relative: (x - screen_x, y - screen_y),
+            focus: (x, y),
+            containers: vec![container],
+            touched: Vec::new(),
+            selected: Vec::new(),
+            dragging: true,
+        });
+        self.update_selection(x, y, true);
+    }
+
+    fn update_selection(&mut self, x: i32, y: i32, is_start: bool) {
+        self.adjust_selection_container(x, y);
+        let Some(selection) = &self.selection else {
+            return;
+        };
+        let anchor = self
+            .nodes
+            .get(selection.anchor_node)
+            .map_or((x, y), |node| {
+                (
+                    node.screen_x as i32 + selection.anchor_relative.0,
+                    node.screen_y as i32 + selection.anchor_relative.1,
+                )
+            });
+        let container = *selection
+            .containers
+            .last()
+            .expect("selection must have a container");
+        let previous = selection.touched.clone();
+        let candidates = self.selectable_descendants(container);
+        let mut selected = Vec::new();
+
+        for &id in &candidates {
+            let has_selection = self
+                .nodes
+                .get_mut(id)
+                .is_some_and(|node| node.behavior.update_selection(anchor, (x, y), is_start));
+            self.mark_dirty(id);
+            if has_selection {
+                selected.push(id);
+            }
+        }
+        for id in previous {
+            if !candidates.contains(&id) {
+                if let Some(node) = self.nodes.get_mut(id) {
+                    node.behavior.clear_selection();
+                }
+                self.mark_dirty(id);
+            }
+        }
+        if let Some(selection) = &mut self.selection {
+            selection.focus = (x, y);
+            selection.touched = candidates;
+            selection.selected = selected;
+        }
+    }
+
+    fn adjust_selection_container(&mut self, x: i32, y: i32) {
+        loop {
+            let Some(selection) = &self.selection else {
+                return;
+            };
+            if selection.containers.len() > 1 {
+                let previous = selection.containers[selection.containers.len() - 2];
+                if self.node_contains(previous, x, y) {
+                    self.selection
+                        .as_mut()
+                        .expect("selection exists")
+                        .containers
+                        .pop();
+                    continue;
+                }
+            }
+            let current = *selection
+                .containers
+                .last()
+                .expect("selection must have a container");
+            if self.node_contains(current, x, y) {
+                return;
+            }
+            let parent = self.nodes.get(current).and_then(|node| node.parent);
+            let Some(parent) = parent else {
+                return;
+            };
+            self.selection
+                .as_mut()
+                .expect("selection exists")
+                .containers
+                .push(parent);
+        }
+    }
+
+    fn node_contains(&self, id: NodeId, x: i32, y: i32) -> bool {
+        self.nodes.get(id).is_some_and(|node| {
+            let left = node.screen_x as i32;
+            let top = node.screen_y as i32;
+            x >= left && x < left + node.width as i32 && y >= top && y < top + node.height as i32
+        })
+    }
+
+    fn selectable_descendants(&self, root: NodeId) -> Vec<NodeId> {
+        let mut result = Vec::new();
+        let mut pending = vec![root];
+        while let Some(id) = pending.pop() {
+            let Some(node) = self.nodes.get(id) else {
+                continue;
+            };
+            if node.visible && node.behavior.selectable() {
+                result.push(id);
+            }
+            pending.extend(node.children.iter().rev().copied());
+        }
+        result
+    }
+
+    /// Clear the active text selection.
+    pub fn clear_selection(&mut self) {
+        let touched = self
+            .selection
+            .take()
+            .map(|selection| selection.touched)
+            .unwrap_or_default();
+        for id in touched {
+            if let Some(node) = self.nodes.get_mut(id) {
+                node.behavior.clear_selection();
+            }
+            self.mark_dirty(id);
+        }
+    }
+
+    /// Return selected text in top-to-bottom, left-to-right reading order.
+    #[must_use]
+    pub fn selected_text(&self) -> Option<String> {
+        let selection = self.selection.as_ref()?;
+        let mut lines: BTreeMap<i32, Vec<(i32, String)>> = BTreeMap::new();
+        for &id in &selection.selected {
+            let node = self.nodes.get(id)?;
+            let text = node.behavior.selected_text()?;
+            for (line_offset, line) in text.split('\n').enumerate() {
+                lines
+                    .entry(node.screen_y as i32 + line_offset as i32)
+                    .or_default()
+                    .push((node.screen_x as i32, line.to_owned()));
+            }
+        }
+        let text = lines
+            .into_values()
+            .map(|mut segments| {
+                segments.sort_by_key(|(x, _)| *x);
+                segments
+                    .into_iter()
+                    .map(|(_, text)| text)
+                    .collect::<String>()
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+        (!text.is_empty()).then_some(text)
     }
 
     fn nearest_focusable(&self, target: NodeId) -> Option<NodeId> {

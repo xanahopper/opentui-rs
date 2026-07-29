@@ -33,6 +33,8 @@ pub struct EditorWidget {
     opacity: f32,
     focusable: bool,
     focused: bool,
+    selectable: bool,
+    viewport: Option<(u32, u32, u32, u32)>,
 }
 
 impl EditorWidget {
@@ -48,6 +50,8 @@ impl EditorWidget {
             opacity: 1.0,
             focusable: true,
             focused: false,
+            selectable: true,
+            viewport: None,
         }
     }
 
@@ -93,6 +97,58 @@ impl EditorWidget {
     pub fn is_empty(&self) -> bool {
         self.editor.borrow().edit_buffer().buffer().is_empty()
     }
+
+    pub fn selectable(mut self, selectable: bool) -> Self {
+        self.selectable = selectable;
+        self
+    }
+
+    pub fn selection_style(self, style: Style) -> Self {
+        self.editor.borrow_mut().set_selection_style(style);
+        self
+    }
+
+    #[must_use]
+    pub fn selected_text(&self) -> Option<String> {
+        self.editor.borrow().selected_text()
+    }
+
+    fn offset_at_screen_position(&self, position: (i32, i32)) -> Option<usize> {
+        let (x, y, width, height) = self.viewport?;
+        if width == 0 || height == 0 {
+            return None;
+        }
+        let local_x = position.0 - x as i32;
+        let local_y = position.1 - y as i32;
+        if local_x < 0 || local_y < 0 {
+            return Some(0);
+        }
+        Some(
+            self.editor
+                .borrow()
+                .offset_at_viewport_position(local_x as u32, local_y as u32),
+        )
+    }
+
+    fn selection_intersects(&self, anchor: (i32, i32), focus: (i32, i32)) -> bool {
+        let Some((x, y, width, height)) = self.viewport else {
+            return false;
+        };
+        if width == 0 || height == 0 {
+            return false;
+        }
+        let (start, end) = if (anchor.1, anchor.0) <= (focus.1, focus.0) {
+            (anchor, focus)
+        } else {
+            (focus, anchor)
+        };
+        let node_start = (y as i32, x as i32);
+        let node_end = (
+            y.saturating_add(height.saturating_sub(1)) as i32,
+            x.saturating_add(width) as i32,
+        );
+        (start.1, start.0) <= node_end && (end.1, end.0) >= node_start
+    }
 }
 
 impl Behavior for EditorWidget {
@@ -123,8 +179,11 @@ impl Behavior for EditorWidget {
         let h = layout.height as u32;
 
         if w == 0 || h == 0 {
+            self.viewport = None;
             return;
         }
+
+        self.viewport = Some((x, y, w, h));
 
         let is_empty = self.editor.borrow().edit_buffer().buffer().is_empty();
         if is_empty && !self.focused {
@@ -244,6 +303,41 @@ impl Behavior for EditorWidget {
         false
     }
 
+    fn selectable(&self) -> bool {
+        self.selectable
+    }
+
+    fn update_selection(&mut self, anchor: (i32, i32), focus: (i32, i32), is_start: bool) -> bool {
+        if !self.selectable || !self.selection_intersects(anchor, focus) {
+            self.editor.borrow_mut().clear_selection();
+            return false;
+        }
+        let Some(anchor_offset) = self.offset_at_screen_position(anchor) else {
+            return false;
+        };
+        let Some(focus_offset) = self.offset_at_screen_position(focus) else {
+            return false;
+        };
+        let mut end = anchor_offset.max(focus_offset);
+        if !is_start && focus_offset < anchor_offset {
+            end = end
+                .saturating_add(1)
+                .min(self.editor.borrow().edit_buffer().buffer().len_chars());
+        }
+        let mut editor = self.editor.borrow_mut();
+        editor.set_selection(anchor_offset.min(focus_offset), end);
+        editor.edit_buffer_mut().set_cursor_by_offset(focus_offset);
+        anchor_offset != focus_offset
+    }
+
+    fn clear_selection(&mut self) {
+        self.editor.borrow_mut().clear_selection();
+    }
+
+    fn selected_text(&self) -> Option<String> {
+        EditorWidget::selected_text(self)
+    }
+
     fn as_any(&self) -> &dyn std::any::Any {
         self
     }
@@ -289,5 +383,32 @@ mod tests {
 
         assert!(widget.handle_key(&KeyEvent::new(KeyCode::Left, KeyModifiers::empty(),)));
         assert_eq!(widget.editor.borrow().selected_text(), None);
+    }
+
+    #[test]
+    fn global_pointer_coordinates_update_editor_selection_and_cursor() {
+        let mut widget = EditorWidget::with_text(LayoutStyle::default(), "hello world");
+        let mut buffer = crate::OptimizedBuffer::new(12, 1);
+        let mut ctx = RenderContext {
+            buffer: &mut buffer,
+            grapheme_pool: None,
+            link_pool: None,
+            hit_grid: None,
+            theme: None,
+        };
+        widget.render_self(
+            &mut ctx,
+            &ComputedLayout {
+                x: 0.0,
+                y: 0.0,
+                width: 12.0,
+                height: 1.0,
+            },
+        );
+
+        assert!(!widget.update_selection((1, 0), (1, 0), true));
+        assert!(widget.update_selection((1, 0), (5, 0), false));
+        assert_eq!(widget.selected_text().as_deref(), Some("ello"));
+        assert_eq!(widget.buffer().cursor().offset, 5);
     }
 }

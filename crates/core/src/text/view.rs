@@ -144,7 +144,7 @@ pub struct TextBufferView<'a> {
     scroll_x: u32,
     scroll_y: u32,
     selection: Option<Selection>,
-    local_selection: Option<LocalSelection>,
+    selection_anchor_offset: Option<usize>,
     tab_indicator: Option<char>,
     tab_indicator_color: Option<Rgba>,
     truncate: bool,
@@ -274,7 +274,7 @@ impl<'a> TextBufferView<'a> {
             scroll_x: 0,
             scroll_y: 0,
             selection: None,
-            local_selection: None,
+            selection_anchor_offset: None,
             tab_indicator: None,
             tab_indicator_color: None,
             truncate: false,
@@ -341,30 +341,52 @@ impl<'a> TextBufferView<'a> {
     /// Set selection.
     pub fn set_selection(&mut self, start: usize, end: usize, style: Style) {
         self.selection = Some(Selection::new(start, end, style));
+        self.selection_anchor_offset = None;
     }
 
     /// Clear selection.
     pub fn clear_selection(&mut self) {
         self.selection = None;
+        self.selection_anchor_offset = None;
     }
 
     /// Set a local (viewport) selection.
     pub fn set_local_selection(
         &mut self,
-        anchor_x: u32,
-        anchor_y: u32,
-        focus_x: u32,
-        focus_y: u32,
+        anchor_x: i32,
+        anchor_y: i32,
+        focus_x: i32,
+        focus_y: i32,
         style: Style,
     ) {
-        self.local_selection = Some(LocalSelection::new(
-            anchor_x, anchor_y, focus_x, focus_y, style,
-        ));
+        let max_y = self.line_cache().virtual_lines.len() as i32 - 1 - self.scroll_y as i32;
+        if (anchor_y < 0 && focus_y < 0) || (anchor_y > max_y && focus_y > max_y) {
+            self.clear_selection();
+            return;
+        }
+        let anchor = self.offset_at_signed_position(anchor_x, anchor_y);
+        let focus = self.offset_at_signed_position(focus_x, focus_y);
+        self.selection_anchor_offset = Some(anchor);
+        self.selection = Some(Selection::new(anchor.min(focus), anchor.max(focus), style));
+    }
+
+    /// Update the focus endpoint of a local selection while preserving its anchor.
+    pub fn update_local_selection(&mut self, focus_x: i32, focus_y: i32, style: Style) {
+        let Some(anchor) = self.selection_anchor_offset else {
+            self.set_local_selection(focus_x, focus_y, focus_x, focus_y, style);
+            return;
+        };
+        let focus = self.offset_at_signed_position(focus_x, focus_y);
+        let mut end = anchor.max(focus);
+        if focus < anchor {
+            end = end.saturating_add(1).min(self.buffer.len_chars());
+        }
+        self.selection = Some(Selection::new(anchor.min(focus), end, style));
     }
 
     /// Clear local selection.
     pub fn clear_local_selection(&mut self) {
-        self.local_selection = None;
+        self.clear_selection();
     }
 
     fn clear_line_cache(&self) {
@@ -386,6 +408,52 @@ impl<'a> TextBufferView<'a> {
             return None;
         }
         Some(self.buffer.rope().slice(start..end).to_string())
+    }
+
+    /// Convert viewport cell coordinates to a character offset.
+    #[must_use]
+    pub fn offset_at_position(&self, x: u32, y: u32) -> usize {
+        use unicode_segmentation::UnicodeSegmentation;
+
+        let cache = self.line_cache();
+        let Some(vline) = cache.virtual_lines.get((self.scroll_y + y) as usize) else {
+            return self.buffer.len_chars();
+        };
+        let rope = self.buffer.rope();
+        let char_start = rope.byte_to_char(vline.byte_start);
+        let char_end = rope.byte_to_char(vline.byte_end);
+        let line = rope.slice(char_start..char_end).to_string();
+        let target_col = self.scroll_x.saturating_add(x) as usize;
+        let tab_width = self.buffer.tab_width().max(1) as usize;
+        let method = self.buffer.width_method();
+        let mut col = 0usize;
+        let mut offset = char_start;
+
+        for grapheme in line.graphemes(true) {
+            if col >= target_col {
+                break;
+            }
+            let width = if grapheme == "\t" {
+                tab_width - (col % tab_width)
+            } else {
+                crate::unicode::display_width_with_method(grapheme, method)
+            };
+            if target_col < col + width {
+                break;
+            }
+            col += width;
+            offset += grapheme.chars().count();
+        }
+
+        offset.min(char_end)
+    }
+
+    fn offset_at_signed_position(&self, x: i32, y: i32) -> usize {
+        if x < 0 || y < 0 {
+            0
+        } else {
+            self.offset_at_position(x as u32, y as u32)
+        }
     }
 
     fn effective_wrap_width(&self) -> Option<usize> {
@@ -732,14 +800,7 @@ impl<'a> TextBufferView<'a> {
             // However, render_virtual_line works on one line.
             // We can pass `as_deref_mut`? No, that consumes the option if we are not careful.
             // Actually, we can just pass `pool.as_deref_mut()` to re-borrow.
-            self.render_virtual_line(
-                output,
-                dest_x,
-                dest_row as u32,
-                vline,
-                row_offset as u32,
-                pool.as_deref_mut(),
-            );
+            self.render_virtual_line(output, dest_x, dest_row as u32, vline, pool.as_deref_mut());
         }
     }
 
@@ -749,7 +810,6 @@ impl<'a> TextBufferView<'a> {
         dest_x: i32,
         dest_y: u32,
         vline: &VirtualLine,
-        view_row: u32,
         mut pool: Option<&mut crate::grapheme_pool::GraphemePool>,
     ) {
         use unicode_segmentation::UnicodeSegmentation;
@@ -763,7 +823,6 @@ impl<'a> TextBufferView<'a> {
         let method = self.buffer.width_method();
 
         let selection = self.selection.as_ref().map(Selection::normalized);
-        let local_sel = self.local_selection;
 
         let max_col = self.scroll_x + self.viewport.width;
 
@@ -814,19 +873,6 @@ impl<'a> TextBufferView<'a> {
                             if sel.contains(global_char_offset) {
                                 if let Some(cell) = output.get_mut(screen_col as u32, dest_y) {
                                     cell.apply_style(sel.style);
-                                }
-                            }
-                        }
-                        if let Some(local) = local_sel {
-                            let (min_x, min_y, max_x, max_y) = local.normalized();
-                            let view_col = (screen_col - dest_x) as u32;
-                            if view_col >= min_x
-                                && view_col <= max_x
-                                && view_row >= min_y
-                                && view_row <= max_y
-                            {
-                                if let Some(cell) = output.get_mut(screen_col as u32, dest_y) {
-                                    cell.apply_style(local.style);
                                 }
                             }
                         }
@@ -882,7 +928,7 @@ impl<'a> TextBufferView<'a> {
 
                 // Check visibility for this specific column
                 if screen_col >= 0 {
-                    let mut cell = if i == 0 {
+                    let cell = if i == 0 {
                         main_cell
                     } else {
                         // Continuation cell - ensure it carries background/style
@@ -891,19 +937,6 @@ impl<'a> TextBufferView<'a> {
                         c.attributes = main_cell.attributes;
                         c
                     };
-
-                    // Apply local selection per-column
-                    if let Some(local) = local_sel {
-                        let (min_x, min_y, max_x, max_y) = local.normalized();
-                        let view_col = (screen_col - dest_x) as u32;
-                        if view_col >= min_x
-                            && view_col <= max_x
-                            && view_row >= min_y
-                            && view_row <= max_y
-                        {
-                            cell.apply_style(local.style);
-                        }
-                    }
 
                     output.set(screen_col as u32, dest_y, cell);
                 }
@@ -947,6 +980,29 @@ mod tests {
         let mut view = TextBufferView::new(&buffer);
         view.set_selection(0, 5, Style::NONE);
         assert_eq!(view.selected_text(), Some("Hello".to_string()));
+    }
+
+    #[test]
+    fn local_selection_maps_coordinates_to_text_offsets() {
+        let buffer = TextBuffer::with_text("hello world");
+        let mut view = TextBufferView::new(&buffer).viewport(0, 0, 20, 1);
+
+        view.set_local_selection(1, 0, 4, 0, Style::NONE);
+        assert_eq!(view.selected_text().as_deref(), Some("ell"));
+
+        view.update_local_selection(5, 0, Style::NONE);
+        assert_eq!(view.selected_text().as_deref(), Some("ello"));
+    }
+
+    #[test]
+    fn local_selection_preserves_anchor_when_dragging_backward() {
+        let buffer = TextBuffer::with_text("hello world");
+        let mut view = TextBufferView::new(&buffer).viewport(0, 0, 20, 1);
+
+        view.set_local_selection(5, 0, 5, 0, Style::NONE);
+        view.update_local_selection(1, 0, Style::NONE);
+
+        assert_eq!(view.selected_text().as_deref(), Some("ello "));
     }
 
     #[test]

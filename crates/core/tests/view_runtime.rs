@@ -390,6 +390,135 @@ fn test_on_action_click_outside_returns_none() {
 }
 
 #[test]
+fn test_mouse_drag_selects_wrapped_text() {
+    let node = view()
+        .column()
+        .size(12.0, 2.0)
+        .children([text("hello world").wrap().size(12.0, 1.0).build()])
+        .build();
+    let mut runtime = ViewRuntime::new();
+    runtime.rebuild(&node);
+    runtime.layout(12.0, 2.0);
+    runtime.register_hit_areas(12, 2);
+    let mut buffer = OptimizedBuffer::new(12, 2);
+    let mut ctx = RenderContext {
+        buffer: &mut buffer,
+        grapheme_pool: None,
+        link_pool: None,
+        hit_grid: None,
+        theme: None,
+    };
+    runtime.render(&mut ctx);
+
+    runtime.dispatch_mouse(&opentui_core::MouseEvent::press(
+        1,
+        0,
+        opentui_core::terminal::MouseButton::Left,
+    ));
+    runtime.dispatch_mouse(&opentui_core::MouseEvent::new(
+        5,
+        0,
+        opentui_core::terminal::MouseButton::Left,
+        opentui_core::terminal::MouseEventKind::Drag,
+    ));
+    runtime.dispatch_mouse(&opentui_core::MouseEvent::new(
+        5,
+        0,
+        opentui_core::terminal::MouseButton::Left,
+        opentui_core::terminal::MouseEventKind::DragEnd,
+    ));
+
+    assert_eq!(runtime.tree().selected_text().as_deref(), Some("ello"));
+}
+
+#[test]
+fn test_mouse_drag_selects_default_text_line() {
+    let node = view()
+        .column()
+        .size(12.0, 1.0)
+        .children([text("hello world").size(12.0, 1.0).build()])
+        .build();
+    let mut runtime = ViewRuntime::new();
+    runtime.rebuild(&node);
+    runtime.layout(12.0, 1.0);
+    runtime.register_hit_areas(12, 1);
+    let mut buffer = OptimizedBuffer::new(12, 1);
+    let mut ctx = RenderContext {
+        buffer: &mut buffer,
+        grapheme_pool: None,
+        link_pool: None,
+        hit_grid: None,
+        theme: None,
+    };
+    runtime.render(&mut ctx);
+
+    runtime.dispatch_mouse(&opentui_core::MouseEvent::press(
+        1,
+        0,
+        opentui_core::terminal::MouseButton::Left,
+    ));
+    runtime.dispatch_mouse(&opentui_core::MouseEvent::new(
+        5,
+        0,
+        opentui_core::terminal::MouseButton::Left,
+        opentui_core::terminal::MouseEventKind::Drag,
+    ));
+    runtime.dispatch_mouse(&opentui_core::MouseEvent::new(
+        5,
+        0,
+        opentui_core::terminal::MouseButton::Left,
+        opentui_core::terminal::MouseEventKind::DragEnd,
+    ));
+
+    assert_eq!(runtime.tree().selected_text().as_deref(), Some("ello"));
+}
+
+#[test]
+fn test_mouse_selection_spans_text_renderables() {
+    let node = view()
+        .column()
+        .size(8.0, 2.0)
+        .children([
+            text("hello").wrap().size(8.0, 1.0).build(),
+            text("world").wrap().size(8.0, 1.0).build(),
+        ])
+        .build();
+    let mut runtime = ViewRuntime::new();
+    runtime.rebuild(&node);
+    runtime.layout(8.0, 2.0);
+    runtime.register_hit_areas(8, 2);
+    let mut buffer = OptimizedBuffer::new(8, 2);
+    let mut ctx = RenderContext {
+        buffer: &mut buffer,
+        grapheme_pool: None,
+        link_pool: None,
+        hit_grid: None,
+        theme: None,
+    };
+    runtime.render(&mut ctx);
+
+    runtime.dispatch_mouse(&opentui_core::MouseEvent::press(
+        1,
+        0,
+        opentui_core::terminal::MouseButton::Left,
+    ));
+    runtime.dispatch_mouse(&opentui_core::MouseEvent::new(
+        3,
+        1,
+        opentui_core::terminal::MouseButton::Left,
+        opentui_core::terminal::MouseEventKind::Drag,
+    ));
+    runtime.dispatch_mouse(&opentui_core::MouseEvent::new(
+        3,
+        1,
+        opentui_core::terminal::MouseButton::Left,
+        opentui_core::terminal::MouseEventKind::DragEnd,
+    ));
+
+    assert_eq!(runtime.tree().selected_text().as_deref(), Some("ello\nwor"));
+}
+
+#[test]
 fn test_grapheme_pool_combining_mark() {
     let combined = "e\u{0301}";
     let node = view()

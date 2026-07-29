@@ -84,6 +84,36 @@ pub trait Behavior {
         false
     }
 
+    /// Whether pointer dragging can create a text selection in this node.
+    fn selectable(&self) -> bool {
+        false
+    }
+
+    /// Update this node's selection from global screen coordinates.
+    ///
+    /// Return `true` when the node contains selected text.
+    fn update_selection(
+        &mut self,
+        _anchor: (i32, i32),
+        _focus: (i32, i32),
+        _is_start: bool,
+    ) -> bool {
+        false
+    }
+
+    /// Clear text selection owned by this node.
+    fn clear_selection(&mut self) {}
+
+    /// Return text currently selected in this node.
+    fn selected_text(&self) -> Option<String> {
+        None
+    }
+
+    /// Whether this node should be registered in the pointer hit grid.
+    fn hit_testable(&self) -> bool {
+        self.selectable()
+    }
+
     /// Return the subset of children that should be rendered.
     ///
     /// Override this to implement viewport culling (e.g. `ScrollBox`

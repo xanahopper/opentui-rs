@@ -413,6 +413,27 @@ impl ElementBuilder {
         self
     }
 
+    pub fn selectable(mut self, selectable: bool) -> Self {
+        if let Props::Text(tp) = &mut self.props {
+            tp.selectable = selectable;
+        }
+        self
+    }
+
+    pub fn selection_fg(mut self, color: Rgba) -> Self {
+        if let Props::Text(tp) = &mut self.props {
+            tp.selection_fg = Some(color);
+        }
+        self
+    }
+
+    pub fn selection_bg(mut self, color: Rgba) -> Self {
+        if let Props::Text(tp) = &mut self.props {
+            tp.selection_bg = Some(color);
+        }
+        self
+    }
+
     pub fn wrap_word(mut self) -> Self {
         if let Props::Text(tp) = &mut self.props {
             tp.wrap = Some(crate::text::WrapMode::Word);

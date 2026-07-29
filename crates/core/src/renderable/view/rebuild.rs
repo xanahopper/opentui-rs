@@ -105,7 +105,17 @@ fn create_behavior(elem: &Element) -> (Box<dyn Behavior>, FrameworkDefaults) {
                     if props.underline {
                         style = style.underline();
                     }
-                    w = w.default_style(style.build());
+                    w = w.default_style(style.build()).selectable(props.selectable);
+                    if props.selection_fg.is_some() || props.selection_bg.is_some() {
+                        let mut selection = crate::Style::builder();
+                        if let Some(fg) = props.selection_fg {
+                            selection = selection.fg(fg);
+                        }
+                        if let Some(bg) = props.selection_bg {
+                            selection = selection.bg(bg);
+                        }
+                        w = w.selection_style(selection.build());
+                    }
                     let d = w.framework_defaults();
                     return (Box::new(w), d);
                 }

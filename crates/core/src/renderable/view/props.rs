@@ -64,6 +64,9 @@ pub struct TextProps {
     pub underline: bool,
     pub align: TextLineAlign,
     pub wrap: Option<WrapMode>,
+    pub selectable: bool,
+    pub selection_fg: Option<Rgba>,
+    pub selection_bg: Option<Rgba>,
 }
 
 impl Default for TextProps {
@@ -77,6 +80,9 @@ impl Default for TextProps {
             underline: false,
             align: TextLineAlign::Left,
             wrap: None,
+            selectable: true,
+            selection_fg: None,
+            selection_bg: None,
         }
     }
 }

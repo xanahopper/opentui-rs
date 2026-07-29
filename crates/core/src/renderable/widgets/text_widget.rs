@@ -29,6 +29,10 @@ pub struct TextWidget {
     default_style: Style,
     overflow: Overflow,
     focusable: bool,
+    selectable: bool,
+    selection: Option<(usize, usize)>,
+    selection_style: Style,
+    viewport: Option<(i32, i32, u32, u32)>,
 }
 
 impl TextWidget {
@@ -42,6 +46,12 @@ impl TextWidget {
             default_style: Style::NONE,
             overflow: Overflow::Hidden,
             focusable: false,
+            selectable: true,
+            selection: None,
+            selection_style: Style::builder()
+                .bg(crate::Rgba::from_rgb_u8(60, 60, 120))
+                .build(),
+            viewport: None,
         }
     }
 
@@ -62,6 +72,7 @@ impl TextWidget {
 
     pub fn set_text(&mut self, text: &str) {
         self.buffer = TextBuffer::with_text(text);
+        self.selection = None;
     }
 
     pub fn wrap(mut self, mode: WrapMode) -> Self {
@@ -93,6 +104,60 @@ impl TextWidget {
         self.focusable = true;
         self
     }
+
+    pub fn selectable(mut self, selectable: bool) -> Self {
+        self.selectable = selectable;
+        self
+    }
+
+    pub fn selection_style(mut self, style: Style) -> Self {
+        self.selection_style = style;
+        self
+    }
+
+    #[must_use]
+    pub fn selected_text(&self) -> Option<String> {
+        let (start, end) = self.selection?;
+        let (start, end) = (start.min(end), start.max(end));
+        if start == end {
+            return None;
+        }
+        Some(self.buffer.rope().slice(start..end).to_string())
+    }
+
+    fn offset_at_screen_position(&self, position: (i32, i32)) -> Option<usize> {
+        let (x, y, width, height) = self.viewport?;
+        if width == 0 || height == 0 {
+            return None;
+        }
+        let local_x = position.0 - x;
+        let local_y = position.1 - y;
+        if local_x < 0 || local_y < 0 {
+            return Some(0);
+        }
+        let view = TextBufferView::new(&self.buffer)
+            .viewport(0, 0, width, height)
+            .wrap_mode(self.wrap_mode)
+            .scroll(self.scroll_x, self.scroll_y);
+        Some(view.offset_at_position(local_x as u32, local_y as u32))
+    }
+
+    fn selection_intersects(&self, anchor: (i32, i32), focus: (i32, i32)) -> bool {
+        let Some((x, y, width, height)) = self.viewport else {
+            return false;
+        };
+        if width == 0 || height == 0 {
+            return false;
+        }
+        let (start, end) = if (anchor.1, anchor.0) <= (focus.1, focus.0) {
+            (anchor, focus)
+        } else {
+            (focus, anchor)
+        };
+        let node_start = (y, x);
+        let node_end = (y + height.saturating_sub(1) as i32, x + width as i32);
+        (start.1, start.0) <= node_end && (end.1, end.0) >= node_start
+    }
 }
 
 impl Behavior for TextWidget {
@@ -119,13 +184,19 @@ impl Behavior for TextWidget {
         let h = layout.height as u32;
 
         if w == 0 || h == 0 {
+            self.viewport = None;
             return;
         }
 
-        let view = TextBufferView::new(&self.buffer)
+        self.viewport = Some((x, y, w, h));
+        let mut view = TextBufferView::new(&self.buffer)
             .viewport(0, 0, w, h)
             .wrap_mode(self.wrap_mode)
             .scroll(self.scroll_x, self.scroll_y);
+
+        if let Some((start, end)) = self.selection {
+            view.set_selection(start, end, self.selection_style);
+        }
 
         if let Some(ref mut pool) = ctx.grapheme_pool {
             view.render_to_with_pool(ctx.buffer, pool, x, y);
@@ -186,6 +257,37 @@ impl Behavior for TextWidget {
 
     fn handle_mouse(&mut self, _mouse: &crate::MouseEvent) -> bool {
         false
+    }
+
+    fn selectable(&self) -> bool {
+        self.selectable
+    }
+
+    fn update_selection(&mut self, anchor: (i32, i32), focus: (i32, i32), is_start: bool) -> bool {
+        if !self.selectable || !self.selection_intersects(anchor, focus) {
+            self.selection = None;
+            return false;
+        }
+        let Some(anchor_offset) = self.offset_at_screen_position(anchor) else {
+            return false;
+        };
+        let Some(focus_offset) = self.offset_at_screen_position(focus) else {
+            return false;
+        };
+        let mut end = anchor_offset.max(focus_offset);
+        if !is_start && focus_offset < anchor_offset {
+            end = end.saturating_add(1).min(self.buffer.len_chars());
+        }
+        self.selection = Some((anchor_offset.min(focus_offset), end));
+        anchor_offset != focus_offset
+    }
+
+    fn clear_selection(&mut self) {
+        self.selection = None;
+    }
+
+    fn selected_text(&self) -> Option<String> {
+        TextWidget::selected_text(self)
     }
 
     fn as_any(&self) -> &dyn std::any::Any {

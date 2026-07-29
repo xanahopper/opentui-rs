@@ -8,7 +8,7 @@ use crate::color::Rgba;
 use crate::highlight::theme::Theme;
 use crate::highlight::tokenizer::TokenizerRegistry;
 use crate::style::Style;
-use crate::text::view::{LocalSelection, Selection, Viewport};
+use crate::text::view::{Selection, Viewport};
 use crate::text::{EditBuffer, TextBufferView, WrapMode};
 
 /// Cursor style for rendering.
@@ -58,7 +58,6 @@ pub struct EditorView {
     scroll_margin: f32,
     selection_follow_cursor: bool,
     selection: Option<Selection>,
-    local_selection: Option<LocalSelection>,
     tab_indicator: Option<char>,
     tab_indicator_color: Option<Rgba>,
     placeholder_text: Option<String>,
@@ -83,7 +82,6 @@ impl EditorView {
             scroll_margin: 0.1,
             selection_follow_cursor: false,
             selection: None,
-            local_selection: None,
             tab_indicator: None,
             tab_indicator_color: None,
             placeholder_text: None,
@@ -209,23 +207,23 @@ impl EditorView {
     /// Set a local (viewport) selection.
     pub fn set_local_selection(
         &mut self,
-        anchor_x: u32,
-        anchor_y: u32,
-        focus_x: u32,
-        focus_y: u32,
+        anchor_x: i32,
+        anchor_y: i32,
+        focus_x: i32,
+        focus_y: i32,
     ) {
-        self.local_selection = Some(LocalSelection::new(
-            anchor_x,
-            anchor_y,
-            focus_x,
-            focus_y,
+        let anchor = self.offset_at_signed_viewport_position(anchor_x, anchor_y);
+        let focus = self.offset_at_signed_viewport_position(focus_x, focus_y);
+        self.selection = Some(Selection::new(
+            anchor.min(focus),
+            anchor.max(focus),
             self.selection_style,
         ));
     }
 
     /// Clear local selection.
     pub fn clear_local_selection(&mut self) {
-        self.local_selection = None;
+        self.clear_selection();
     }
 
     /// Set the tab indicator character.
@@ -296,6 +294,34 @@ impl EditorView {
                 .slice(start..end)
                 .to_string(),
         )
+    }
+
+    /// Convert editor viewport cell coordinates to a character offset.
+    #[must_use]
+    pub fn offset_at_viewport_position(&self, x: u32, y: u32) -> usize {
+        let width = self.viewport.map_or(0, |viewport| viewport.width);
+        let gutter_width = if self.line_numbers {
+            self.gutter_width()
+        } else {
+            0
+        };
+        let text_width = width.saturating_sub(gutter_width);
+        let height = self.viewport.map_or(0, |viewport| viewport.height);
+        let virtual_lines = self.build_virtual_lines(text_width, height);
+        let Some(vline) = virtual_lines.get((self.scroll_y + y) as usize) else {
+            return self.edit_buffer.buffer().len_chars();
+        };
+        let text_x = x.saturating_sub(gutter_width);
+        let target_col = self.scroll_x.saturating_add(text_x) as usize;
+        self.offset_at_visual_col(vline, target_col, text_width)
+    }
+
+    fn offset_at_signed_viewport_position(&self, x: i32, y: i32) -> usize {
+        if x < 0 || y < 0 {
+            0
+        } else {
+            self.offset_at_viewport_position(x as u32, y as u32)
+        }
     }
 
     /// Scroll to make cursor visible.
@@ -826,16 +852,6 @@ impl EditorView {
         if let Some(sel) = self.selection {
             view.set_selection(sel.start, sel.end, sel.style);
         }
-        if let Some(local) = self.local_selection {
-            view.set_local_selection(
-                local.anchor_x,
-                local.anchor_y,
-                local.focus_x,
-                local.focus_y,
-                local.style,
-            );
-        }
-
         view.render_to(output, text_x as i32, y as i32);
 
         // Render cursor

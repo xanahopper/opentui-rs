@@ -79,7 +79,7 @@ impl ViewRuntime {
                     return None;
                 }
                 let has_action = self.actions.contains_key(&id);
-                if has_action || node.focusable {
+                if has_action || node.focusable || node.behavior.hit_testable() {
                     Some((
                         node.screen_x as u32,
                         node.screen_y as u32,
@@ -108,7 +108,7 @@ impl ViewRuntime {
 
         let consumed = self.tree.dispatch_mouse_event(target, mouse);
 
-        let action = target.and_then(|id| self.actions.get(&id).cloned());
+        let action = target.and_then(|id| self.action_for_target(id));
 
         ViewMouseDispatchResult {
             target,
@@ -127,7 +127,7 @@ impl ViewRuntime {
 
         let consumed = self.tree.dispatch_mouse_event(target, mouse);
 
-        let action = target.and_then(|id| self.actions.get(&id).cloned());
+        let action = target.and_then(|id| self.action_for_target(id));
 
         ViewMouseDispatchResult {
             target,
@@ -138,6 +138,17 @@ impl ViewRuntime {
 
     pub fn action_for_node(&self, id: NodeId) -> Option<&str> {
         self.actions.get(&id).map(String::as_str)
+    }
+
+    fn action_for_target(&self, target: NodeId) -> Option<String> {
+        let mut current = Some(target);
+        while let Some(id) = current {
+            if let Some(action) = self.actions.get(&id) {
+                return Some(action.clone());
+            }
+            current = self.tree.get(id).and_then(|node| node.parent);
+        }
+        None
     }
 
     pub fn hit_grid(&self) -> &HitGrid {
