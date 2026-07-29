@@ -218,9 +218,9 @@ fn ui_sidebar() -> opentui_core::view::Node {
         .column()
         .width(SIDEBAR_WIDTH)
         .padding(0.0, 2.0, 0.0, 2.0)
+        .gap(1.0)
         .bg(BG)
         .children([
-            fill(BG).height(1.0).shrink(0.0).build(),
             text("OpenCode")
                 .fg(TEXT)
                 .bg(BG)
@@ -228,7 +228,6 @@ fn ui_sidebar() -> opentui_core::view::Node {
                 .height(1.0)
                 .shrink(0.0)
                 .build(),
-            fill(BG).height(1.0).shrink(0.0).build(),
             text("Session")
                 .fg(TEXT_MUTED)
                 .bg(BG)
@@ -241,21 +240,18 @@ fn ui_sidebar() -> opentui_core::view::Node {
                 .height(1.0)
                 .shrink(0.0)
                 .build(),
-            fill(BG).height(1.0).shrink(0.0).build(),
             text("\u{25CF} git: main")
                 .fg(SUCCESS)
                 .bg(BG)
                 .height(1.0)
                 .shrink(0.0)
                 .build(),
-            fill(BG).height(1.0).shrink(0.0).build(),
             separator()
                 .height(1.0)
                 .shrink(0.0)
                 .fg(Rgba::new(0.176, 0.176, 0.216, 1.0))
                 .bg(BG)
                 .build(),
-            fill(BG).height(1.0).shrink(0.0).build(),
             text("Share URL")
                 .fg(TEXT_MUTED)
                 .bg(BG)
@@ -460,7 +456,7 @@ fn ui_messages(app: &App) -> Vec<opentui_core::view::Node> {
                         .column()
                         .shrink(0.0)
                         .bg(BG_PANEL)
-                        .padding(0.0, 0.0, 0.0, 2.0)
+                        .padding(1.0, 0.0, 1.0, 2.0)
                         .border(BorderStyle {
                             chars: BorderChars::split_left(),
                             color: PRIMARY,
