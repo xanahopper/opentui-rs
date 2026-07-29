@@ -152,20 +152,38 @@ impl Behavior for EditorWidget {
     fn handle_key(&mut self, key: &crate::KeyEvent) -> bool {
         let ctrl = key.modifiers.contains(crate::KeyModifiers::CTRL);
         let alt = key.modifiers.contains(crate::KeyModifiers::ALT);
+        let shift = key.modifiers.contains(crate::KeyModifiers::SHIFT);
         let mut editor = self.editor.borrow_mut();
-        let buf = editor.edit_buffer_mut();
+        let is_navigation = matches!(
+            key.code,
+            crate::KeyCode::Left
+                | crate::KeyCode::Right
+                | crate::KeyCode::Up
+                | crate::KeyCode::Down
+                | crate::KeyCode::Home
+                | crate::KeyCode::End
+        );
+        let selecting = shift && is_navigation;
+
+        if selecting && !editor.has_selection() {
+            editor.start_selection();
+        } else if is_navigation && !shift {
+            editor.clear_selection();
+        }
 
         match key.code {
             crate::KeyCode::Char(ch) if ctrl => match ch {
-                'a' => buf.move_to_line_start(),
-                'e' => buf.move_to_line_end(),
+                'a' => editor.edit_buffer_mut().move_to_line_start(),
+                'e' => editor.edit_buffer_mut().move_to_line_end(),
                 'u' => {
+                    let buf = editor.edit_buffer_mut();
                     let start = buf.cursor();
                     buf.move_to_line_start();
                     let line_start = buf.cursor();
                     buf.delete_range(line_start, start);
                 }
                 'k' => {
+                    let buf = editor.edit_buffer_mut();
                     let start = buf.cursor();
                     buf.move_to_line_end();
                     let line_end = buf.cursor();
@@ -174,45 +192,49 @@ impl Behavior for EditorWidget {
                 _ => return false,
             },
             crate::KeyCode::Char(ch) if !alt => {
-                buf.insert(&ch.to_string());
+                editor.edit_buffer_mut().insert(&ch.to_string());
             }
             crate::KeyCode::Enter => {
-                buf.insert("\n");
+                editor.edit_buffer_mut().insert("\n");
             }
             crate::KeyCode::Backspace => {
-                buf.delete_backward();
+                editor.edit_buffer_mut().delete_backward();
             }
             crate::KeyCode::Delete => {
-                buf.delete_forward();
+                editor.edit_buffer_mut().delete_forward();
             }
             crate::KeyCode::Left if alt => {
-                buf.move_word_left();
+                editor.edit_buffer_mut().move_word_left();
             }
             crate::KeyCode::Left => {
-                buf.move_left();
+                editor.edit_buffer_mut().move_left();
             }
             crate::KeyCode::Right if alt => {
-                buf.move_word_right();
+                editor.edit_buffer_mut().move_word_right();
             }
             crate::KeyCode::Right => {
-                buf.move_right();
+                editor.edit_buffer_mut().move_right();
             }
             crate::KeyCode::Up => {
-                buf.move_up();
+                editor.edit_buffer_mut().move_up();
             }
             crate::KeyCode::Down => {
-                buf.move_down();
+                editor.edit_buffer_mut().move_down();
             }
             crate::KeyCode::Home => {
-                buf.move_to_line_start();
+                editor.edit_buffer_mut().move_to_line_start();
             }
             crate::KeyCode::End => {
-                buf.move_to_line_end();
+                editor.edit_buffer_mut().move_to_line_end();
             }
             crate::KeyCode::Tab => {
-                buf.insert("    ");
+                editor.edit_buffer_mut().insert("    ");
             }
             _ => return false,
+        }
+
+        if selecting {
+            editor.extend_selection_to_cursor();
         }
 
         true
@@ -228,5 +250,44 @@ impl Behavior for EditorWidget {
 
     fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
         self
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{KeyCode, KeyEvent, KeyModifiers};
+
+    #[test]
+    fn shift_navigation_extends_selection() {
+        let mut widget = EditorWidget::with_text(LayoutStyle::default(), "hello");
+        widget
+            .editor
+            .borrow_mut()
+            .edit_buffer_mut()
+            .move_to_line_end();
+
+        assert!(widget.handle_key(&KeyEvent::new(KeyCode::Left, KeyModifiers::SHIFT,)));
+        assert_eq!(widget.editor.borrow().selected_text().as_deref(), Some("o"));
+
+        assert!(widget.handle_key(&KeyEvent::new(KeyCode::Left, KeyModifiers::SHIFT,)));
+        assert_eq!(
+            widget.editor.borrow().selected_text().as_deref(),
+            Some("lo")
+        );
+    }
+
+    #[test]
+    fn navigation_without_shift_clears_selection() {
+        let mut widget = EditorWidget::with_text(LayoutStyle::default(), "hello");
+        widget
+            .editor
+            .borrow_mut()
+            .edit_buffer_mut()
+            .move_to_line_end();
+        widget.handle_key(&KeyEvent::new(KeyCode::Left, KeyModifiers::SHIFT));
+
+        assert!(widget.handle_key(&KeyEvent::new(KeyCode::Left, KeyModifiers::empty(),)));
+        assert_eq!(widget.editor.borrow().selected_text(), None);
     }
 }

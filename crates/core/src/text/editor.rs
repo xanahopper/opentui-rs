@@ -192,6 +192,12 @@ impl EditorView {
         self.selection = None;
     }
 
+    /// Return whether an offset-based selection is active.
+    #[must_use]
+    pub const fn has_selection(&self) -> bool {
+        self.selection.is_some()
+    }
+
     /// Delete selected text (offset-based selection).
     pub fn delete_selected_text(&mut self) {
         if let Some(sel) = self.selection.take() {
