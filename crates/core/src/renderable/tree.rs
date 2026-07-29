@@ -21,7 +21,7 @@ use std::collections::HashMap;
 use slotmap::SlotMap;
 use taffy::Size;
 
-use crate::input::{KeyEvent, MouseEvent};
+use crate::input::{KeyEvent, MouseButton, MouseEvent, MouseEventKind};
 use crate::renderable::behavior::Behavior;
 use crate::renderable::context::RenderContext;
 use crate::renderable::layout::{ComputedLayout, LayoutEngine};
@@ -92,6 +92,11 @@ pub struct RenderTree {
 
     // Focus
     focused: Option<NodeId>,
+
+    // Pointer interaction state
+    hovered: Option<NodeId>,
+    captured: Option<NodeId>,
+    dragging: bool,
 
     // Lifecycle pass registry
     lifecycle_nodes: Vec<NodeId>,
@@ -171,6 +176,9 @@ impl RenderTree {
             layout_generation: 0,
             render_list_revision: 0,
             focused: None,
+            hovered: None,
+            captured: None,
+            dragging: false,
             lifecycle_nodes: Vec::new(),
             live_count: 0,
             overlays: Vec::new(),
@@ -315,6 +323,13 @@ impl RenderTree {
 
         if self.focused == Some(id) {
             self.focused = None;
+        }
+        if self.hovered == Some(id) {
+            self.hovered = None;
+        }
+        if self.captured == Some(id) {
+            self.captured = None;
+            self.dragging = false;
         }
         if self.root == Some(id) {
             self.root = None;
@@ -605,6 +620,92 @@ impl RenderTree {
             current = self.nodes.get(cid).and_then(|n| n.parent);
         }
         false
+    }
+
+    /// Dispatch a pointer event with hover synthesis and drag capture.
+    ///
+    /// `hit_target` is the node currently under the pointer. Pressing the left
+    /// button captures that node so subsequent drag events keep reaching it
+    /// even after the pointer leaves its bounds.
+    pub fn dispatch_mouse_event(&mut self, hit_target: Option<NodeId>, event: &MouseEvent) -> bool {
+        let mut consumed = false;
+
+        if matches!(event.kind, MouseEventKind::Move | MouseEventKind::Drag)
+            && self.hovered != hit_target
+        {
+            if let Some(previous) = self.hovered {
+                let mut out = *event;
+                out.kind = MouseEventKind::Out;
+                consumed |= self.dispatch_mouse_bubbling(previous, &out);
+            }
+            if let Some(current) = hit_target {
+                let mut over = *event;
+                over.kind = MouseEventKind::Over;
+                consumed |= self.dispatch_mouse_bubbling(current, &over);
+            }
+            self.hovered = hit_target;
+        }
+
+        if event.kind == MouseEventKind::Press && event.button == MouseButton::Left {
+            self.captured = hit_target;
+            self.dragging = false;
+            if let Some(focus_target) = hit_target.and_then(|id| self.nearest_focusable(id)) {
+                self.focus(focus_target);
+            }
+        } else if event.kind == MouseEventKind::Drag {
+            self.dragging = self.captured.is_some();
+        }
+
+        let dispatch_target = match event.kind {
+            MouseEventKind::Drag | MouseEventKind::DragEnd | MouseEventKind::Release => {
+                self.captured.or(hit_target)
+            }
+            _ => hit_target,
+        };
+        if let Some(target) = dispatch_target {
+            consumed |= self.dispatch_mouse_bubbling(target, event);
+        }
+
+        if matches!(
+            event.kind,
+            MouseEventKind::DragEnd | MouseEventKind::Release
+        ) {
+            let captured = self.captured.take();
+            if self.dragging && captured != hit_target {
+                if let Some(drop_target) = hit_target {
+                    let mut drop = *event;
+                    drop.kind = MouseEventKind::Drop;
+                    consumed |= self.dispatch_mouse_bubbling(drop_target, &drop);
+                }
+            }
+            self.dragging = false;
+        }
+
+        consumed
+    }
+
+    fn nearest_focusable(&self, target: NodeId) -> Option<NodeId> {
+        let mut current = Some(target);
+        while let Some(id) = current {
+            let node = self.nodes.get(id)?;
+            if node.focusable {
+                return Some(id);
+            }
+            current = node.parent;
+        }
+        None
+    }
+
+    /// Return the render node currently under the pointer.
+    #[must_use]
+    pub fn hovered_node(&self) -> Option<NodeId> {
+        self.hovered
+    }
+
+    /// Return the render node that currently owns a pointer drag.
+    #[must_use]
+    pub fn captured_node(&self) -> Option<NodeId> {
+        self.captured
     }
 
     /// Find the topmost node at a screen position by bounds-checking.
@@ -1131,5 +1232,130 @@ impl RenderTree {
         };
         self.focus(prev);
         Some(prev)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::cell::RefCell;
+    use std::rc::Rc;
+
+    use super::*;
+    use crate::renderable::behavior::FrameworkDefaults;
+    use crate::renderable::layout::LayoutStyle;
+
+    struct MouseRecorder {
+        style: LayoutStyle,
+        events: Rc<RefCell<Vec<MouseEventKind>>>,
+        focusable: bool,
+    }
+
+    impl MouseRecorder {
+        fn new(events: Rc<RefCell<Vec<MouseEventKind>>>) -> Self {
+            Self {
+                style: LayoutStyle::default(),
+                events,
+                focusable: false,
+            }
+        }
+
+        fn focusable(mut self) -> Self {
+            self.focusable = true;
+            self
+        }
+    }
+
+    impl Behavior for MouseRecorder {
+        fn render_self(&mut self, _ctx: &mut RenderContext, _layout: &ComputedLayout) {}
+
+        fn handle_mouse(&mut self, event: &MouseEvent) -> bool {
+            self.events.borrow_mut().push(event.kind);
+            true
+        }
+
+        fn framework_defaults(&self) -> FrameworkDefaults {
+            FrameworkDefaults {
+                focusable: self.focusable,
+                ..FrameworkDefaults::default()
+            }
+        }
+
+        fn style(&self) -> &LayoutStyle {
+            &self.style
+        }
+
+        fn style_mut(&mut self) -> &mut LayoutStyle {
+            &mut self.style
+        }
+
+        fn as_any(&self) -> &dyn std::any::Any {
+            self
+        }
+
+        fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+            self
+        }
+    }
+
+    #[test]
+    fn pointer_move_synthesizes_over_and_out() {
+        let first_events = Rc::new(RefCell::new(Vec::new()));
+        let second_events = Rc::new(RefCell::new(Vec::new()));
+        let mut tree = RenderTree::new();
+        let first = tree.set_root(Box::new(MouseRecorder::new(Rc::clone(&first_events))));
+        let second = tree.add_detached(Box::new(MouseRecorder::new(Rc::clone(&second_events))));
+
+        tree.dispatch_mouse_event(Some(first), &MouseEvent::move_to(1, 1));
+        tree.dispatch_mouse_event(Some(second), &MouseEvent::move_to(2, 1));
+
+        assert_eq!(
+            *first_events.borrow(),
+            vec![
+                MouseEventKind::Over,
+                MouseEventKind::Move,
+                MouseEventKind::Out
+            ]
+        );
+        assert_eq!(
+            *second_events.borrow(),
+            vec![MouseEventKind::Over, MouseEventKind::Move]
+        );
+        assert_eq!(tree.hovered_node(), Some(second));
+    }
+
+    #[test]
+    fn drag_stays_captured_and_drops_on_hit_target() {
+        let source_events = Rc::new(RefCell::new(Vec::new()));
+        let target_events = Rc::new(RefCell::new(Vec::new()));
+        let mut tree = RenderTree::new();
+        let source = tree.set_root(Box::new(
+            MouseRecorder::new(Rc::clone(&source_events)).focusable(),
+        ));
+        let target = tree.add_detached(Box::new(MouseRecorder::new(Rc::clone(&target_events))));
+
+        tree.dispatch_mouse_event(Some(source), &MouseEvent::press(1, 1, MouseButton::Left));
+        tree.dispatch_mouse_event(
+            Some(target),
+            &MouseEvent::new(2, 1, MouseButton::Left, MouseEventKind::Drag),
+        );
+        tree.dispatch_mouse_event(
+            Some(target),
+            &MouseEvent::new(2, 1, MouseButton::Left, MouseEventKind::DragEnd),
+        );
+
+        assert_eq!(
+            *source_events.borrow(),
+            vec![
+                MouseEventKind::Press,
+                MouseEventKind::Drag,
+                MouseEventKind::DragEnd
+            ]
+        );
+        assert_eq!(
+            *target_events.borrow(),
+            vec![MouseEventKind::Over, MouseEventKind::Drop]
+        );
+        assert_eq!(tree.focused_node(), Some(source));
+        assert_eq!(tree.captured_node(), None);
     }
 }

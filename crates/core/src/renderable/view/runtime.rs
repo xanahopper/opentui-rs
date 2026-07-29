@@ -106,7 +106,7 @@ impl ViewRuntime {
         let target_num = self.hit_grid.test(mouse.x, mouse.y);
         let target = target_num.and_then(|num| self.tree.resolve_num(num));
 
-        let consumed = target.is_some_and(|id| self.tree.dispatch_mouse_bubbling(id, mouse));
+        let consumed = self.tree.dispatch_mouse_event(target, mouse);
 
         let action = target.and_then(|id| self.actions.get(&id).cloned());
 
@@ -125,7 +125,7 @@ impl ViewRuntime {
         let target_num = hit_grid.and_then(|grid| grid.test(mouse.x, mouse.y));
         let target = target_num.and_then(|num| self.tree.resolve_num(num));
 
-        let consumed = target.is_some_and(|id| self.tree.dispatch_mouse_bubbling(id, mouse));
+        let consumed = self.tree.dispatch_mouse_event(target, mouse);
 
         let action = target.and_then(|id| self.actions.get(&id).cloned());
 

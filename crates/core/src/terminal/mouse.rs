@@ -26,6 +26,12 @@ pub enum MouseEventKind {
     Drag,
     /// Drag operation ended (last button released after a drag).
     DragEnd,
+    /// Pointer entered a renderable's hit area.
+    Over,
+    /// Pointer left a renderable's hit area.
+    Out,
+    /// A captured drag was released over a different renderable.
+    Drop,
     /// Scroll wheel up.
     ScrollUp,
     /// Scroll wheel down.

@@ -704,6 +704,7 @@ fn verify_input_event(case: &FixtureCase, event: &Event, logger: &ArtifactLogger
                 MouseEventKind::Move => expected_kind == "Move",
                 MouseEventKind::Drag => expected_kind == "Drag" || expected_kind == "Move",
                 MouseEventKind::DragEnd => expected_kind == "DragEnd" || expected_kind == "Release",
+                MouseEventKind::Over | MouseEventKind::Out | MouseEventKind::Drop => false,
                 MouseEventKind::ScrollUp => expected_kind == "ScrollUp",
                 MouseEventKind::ScrollDown => expected_kind == "ScrollDown",
                 MouseEventKind::ScrollLeft => expected_kind == "ScrollLeft",
