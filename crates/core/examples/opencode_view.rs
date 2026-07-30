@@ -77,6 +77,7 @@ struct App {
     palette_selected: usize,
     palette_scroll: usize,
     palette_mouse_mode: bool,
+    hovered_user_message: Option<usize>,
     mouse_x: u32,
     mouse_y: u32,
     leader_pending: bool,
@@ -120,6 +121,7 @@ impl App {
             palette_selected: 0,
             palette_scroll: 0,
             palette_mouse_mode: false,
+            hovered_user_message: None,
             mouse_x: 0,
             mouse_y: 0,
             leader_pending: false,
@@ -427,6 +429,11 @@ fn ui_messages(app: &App) -> Vec<opentui_core::view::Node> {
         .enumerate()
         .flat_map(|(idx, msg)| {
             let lines: Vec<&str> = msg.text.split('\n').collect();
+            let user_bg = if app.hovered_user_message == Some(idx) {
+                BG_ELEMENT
+            } else {
+                BG_PANEL
+            };
 
             let msg_children: Vec<opentui_core::view::Node> = lines
                 .iter()
@@ -435,7 +442,7 @@ fn ui_messages(app: &App) -> Vec<opentui_core::view::Node> {
                     if msg.role == "user" {
                         text(*line)
                             .fg(TEXT)
-                            .bg(BG_PANEL)
+                            .bg(user_bg)
                             .selection_fg(TEXT)
                             .selection_bg(PRIMARY)
                             .wrap()
@@ -459,7 +466,7 @@ fn ui_messages(app: &App) -> Vec<opentui_core::view::Node> {
                     view()
                         .column()
                         .shrink(0.0)
-                        .bg(BG_PANEL)
+                        .bg(user_bg)
                         .padding(1.0, 0.0, 1.0, 2.0)
                         .border(BorderStyle {
                             chars: BorderChars::split_left(),
@@ -467,6 +474,7 @@ fn ui_messages(app: &App) -> Vec<opentui_core::view::Node> {
                             focused_color: None,
                             sides: BorderSides::left_only(),
                         })
+                        .on_action(format!("message:user:{idx}"))
                         .children(msg_children)
                         .build(),
                 ]
@@ -728,6 +736,10 @@ fn parse_palette_select_action(action: &str) -> Option<usize> {
     action.strip_prefix("palette:select:")?.parse().ok()
 }
 
+fn parse_user_message_action(action: &str) -> Option<usize> {
+    action.strip_prefix("message:user:")?.parse().ok()
+}
+
 fn activate_selected_palette_command(app: &mut App, running: &Arc<AtomicBool>) {
     let indices = app.filtered_indices();
     let Some(&oi) = indices.get(app.palette_selected) else {
@@ -850,9 +862,23 @@ pub fn run() -> io::Result<()> {
                             }
                             Event::Mouse(mouse) => {
                                 let dispatch = runtime.dispatch_mouse(&mouse);
+                                let selected_text_active = runtime.tree().selected_text().is_some();
                                 let mut app_mut = app.borrow_mut();
                                 app_mut.mouse_x = mouse.x;
                                 app_mut.mouse_y = mouse.y;
+                                if mouse.kind == MouseEventKind::Move
+                                    && !app_mut.palette_open
+                                    && !selected_text_active
+                                {
+                                    let hovered = dispatch
+                                        .action
+                                        .as_deref()
+                                        .and_then(parse_user_message_action);
+                                    if app_mut.hovered_user_message != hovered {
+                                        app_mut.hovered_user_message = hovered;
+                                        rebuild_ui = true;
+                                    }
+                                }
                                 if app_mut.palette_open {
                                     if let Some(action) = dispatch.action {
                                         if let Some(idx) = parse_palette_select_action(&action) {
@@ -1015,5 +1041,37 @@ fn handle_key_event(
             app.input_text.push(c);
         }
         _ => {}
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use opentui_core::view::{Node, Props};
+
+    fn first_user_message_bg(app: &App) -> Option<Rgba> {
+        let messages = ui_messages(app);
+        let Node::Element(element) = &messages[0] else {
+            panic!("user message should be an element");
+        };
+        let Props::View(props) = &element.props else {
+            panic!("user message should use view props");
+        };
+        props.bg
+    }
+
+    #[test]
+    fn user_message_uses_element_background_while_hovered() {
+        let mut app = App::new(100);
+        assert_eq!(first_user_message_bg(&app), Some(BG_PANEL));
+
+        app.hovered_user_message = Some(0);
+        assert_eq!(first_user_message_bg(&app), Some(BG_ELEMENT));
+    }
+
+    #[test]
+    fn parses_user_message_hover_action() {
+        assert_eq!(parse_user_message_action("message:user:4"), Some(4));
+        assert_eq!(parse_user_message_action("palette:select:4"), None);
     }
 }
