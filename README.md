@@ -1,86 +1,121 @@
 # OpenTUI Rust
 
-<div align="center">
-  <img src="opentui_rust.webp" alt="OpenTUI Rust - High-performance terminal UI library">
-</div>
-
-<div align="center">
-
 [![License: MIT](https://img.shields.io/badge/License-MIT%2BOpenAI%2FAnthropic%20Rider-blue.svg)](LICENSE)
 [![Rust](https://img.shields.io/badge/rust-1.85%2B-orange.svg)](https://www.rust-lang.org)
 [![Edition](https://img.shields.io/badge/edition-2024-purple.svg)](https://doc.rust-lang.org/edition-guide/)
-[![codecov](https://codecov.io/gh/Dicklesworthstone/opentui_rust/graph/badge.svg)](https://codecov.io/gh/Dicklesworthstone/opentui_rust)
+[![codecov](https://codecov.io/gh/xanahopper/opentui-rs/graph/badge.svg)](https://codecov.io/gh/xanahopper/opentui-rs)
 
-*A Rust port of [anomalyco/opentui](https://github.com/anomalyco/opentui) (TypeScript), with native Rust performance and extended features.*
+OpenTUI Rust is a native Rust terminal UI rendering engine inspired by
+[anomalyco/opentui](https://github.com/anomalyco/opentui). It combines the
+low-level rendering primitives of the original Zig core with Rust-native
+layout, widgets, input parsing, text editing, and an optional declarative View
+API.
 
-</div>
-
-**High-performance terminal UI library with alpha blending, scissoring, and double-buffered rendering.**
+This is an independent Rust implementation, not a binding to the upstream Zig
+or TypeScript packages. Applications use Cargo only; Zig, Bun, Node.js, React,
+and Solid are not required.
 
 ```bash
-# Add to your project
-cargo add opentui_rust
+cargo add opentui-core
 ```
 
 ---
 
-## TL;DR
+## What It Provides
 
-### The Problem
-
-Building terminal UIs in Rust means choosing between:
-- **High-level frameworks** (ratatui, cursive) that are opinionated and heavy
-- **Low-level crates** (crossterm, termion) that require manual buffer management
-- Neither offers true alpha blending, layered composition, or sub-millisecond rendering
-
-### The Solution
-
-OpenTUI is a **rendering engine**, not a framework. It gives you:
+- A low-level `OptimizedBuffer` API for applications that want direct control
+- A render tree with Taffy flexbox/grid/block layout
+- A declarative `view()` / `text()` builder API with `ViewRuntime`
+- Built-in widgets, including text, editor, input, list, select, tabs, slider,
+  scrollbar, checkbox, radio group, gauge, spinner, progress, and status line
 - Cell-based buffers with **real RGBA alpha blending**
 - **Scissor clipping** for nested viewports
 - **Double-buffered rendering** with diff detection (only changed cells update)
 - **Rope-based text editing** with undo/redo
-- **Zero opinions** about your application structure
+- Unicode grapheme, width, bidi, normalization, wrapping, and selection support
+- Raw keyboard, mouse, paste, focus, and terminal response parsing
+- Renderable mouse dispatch with bubbling, hover, drag capture, drop, and
+  independent `stop_propagation` / `prevent_default` controls
+- OSC 8 hyperlinks, capability detection, synchronized output, and threaded
+  rendering
 
-### Why OpenTUI?
+OpenTUI Rust does not impose an application runtime. You own the event loop and
+state model, and can choose between direct buffer drawing, imperative widgets,
+or the declarative View layer.
 
-| Feature | OpenTUI | ratatui | crossterm |
-|---------|---------|---------|-----------|
-| Alpha blending | RGBA Porter-Duff | No | No |
-| Scissor clipping | Stack-based | Manual | No |
-| Diff rendering | Automatic | Manual | Manual |
-| Text editing | Rope + undo | No | No |
-| Grapheme support | Full | Partial | No |
-| Framework lock-in | None | Widget system | None |
-| Binary size | ~200KB | ~500KB | ~100KB |
+## Differences From Upstream OpenTUI
+
+| Area | OpenTUI Rust | Upstream OpenTUI |
+|------|--------------|------------------|
+| Runtime | Native Rust crate | Zig core with TypeScript bindings |
+| Toolchain | Cargo + Rust nightly | Bun/Node.js + Zig |
+| UI APIs | Buffers, render tree, widgets, declarative builders | Imperative core plus React/Solid reconcilers |
+| Layout | Taffy flexbox, grid, and block layout | Upstream layout engine |
+| Text storage | Rope-backed Rust text/edit buffers | Upstream text/renderable model |
+| Input | Rust byte parser and render-tree dispatch | TypeScript renderer dispatch |
+| Ecosystem packages | One `opentui-core` crate | `@opentui/core`, React, Solid, Three.js, examples |
+| API compatibility | Rust-native; not source-compatible | Canonical TypeScript API |
+| Maturity | API under active development | Powers OpenCode in production |
 
 ---
 
 ## Quick Example
 
 ```rust
-use opentui_rust::{Renderer, OptimizedBuffer, Style, Rgba, Cell};
+use opentui_core::{Renderer, Rgba, Style};
 
 fn main() -> std::io::Result<()> {
-    // Create renderer (enters alt screen, hides cursor)
     let mut renderer = Renderer::new(80, 24)?;
 
-    // Draw to back buffer
-    let buffer = renderer.buffer();
-    buffer.clear(Rgba::BLACK);
-    buffer.draw_text(10, 5, "Hello, OpenTUI!", Style::fg(Rgba::GREEN));
+    renderer.clear();
+    renderer
+        .buffer()
+        .draw_text(10, 5, "Hello, OpenTUI!", Style::fg(Rgba::GREEN));
 
-    // Present (only changed cells are written)
     renderer.present()?;
-
-    // Renderer::drop() restores terminal automatically
     Ok(())
 }
 ```
 
+### Declarative View
+
+The optional View API builds a render tree backed by Taffy layout. Rebuild it
+from application state, run layout, render through `ViewRuntime`, and dispatch
+parsed key or mouse events back into the runtime.
+
+```rust
+use opentui_core::Rgba;
+use opentui_core::view::{Node, text, view};
+
+fn ui(count: u32) -> Node {
+    view()
+        .column()
+        .size_pct(1.0, 1.0)
+        .padding_all(2.0)
+        .gap(1.0)
+        .children([
+            text("OpenTUI Rust").bold().height(1.0).build(),
+            text(format!("Count: {count}"))
+                .fg(Rgba::GREEN)
+                .height(1.0)
+                .on_mouse_over("counter:hover")
+                .on_mouse_out("counter:out")
+                .build(),
+        ])
+        .build()
+}
+```
+
+See [`declarative_hello.rs`](crates/core/examples/declarative_hello.rs) for a
+complete render/input loop and
+[`opencode_view.rs`](crates/core/examples/opencode_view.rs) for a larger stateful
+application with layout, overlays, mouse hover, drag selection, and actions.
+
 ### Alpha Blending
 
 ```rust
+use opentui_core::{Cell, Rgba, Style};
+
 // 50% transparent red over blue background
 let bg = Rgba::BLUE;
 let overlay = Rgba::RED.with_alpha(0.5);
@@ -93,7 +128,7 @@ buffer.set_blended(10, 5, Cell::new('X', Style::fg(overlay)));
 ### Scissor Clipping
 
 ```rust
-use opentui_rust::buffer::ClipRect;
+use opentui_core::buffer::ClipRect;
 
 // Only draw within this rectangle
 buffer.push_scissor(ClipRect::new(10, 10, 20, 10));
@@ -117,9 +152,11 @@ buffer.pop_opacity();
 
 ## Design Philosophy
 
-### 1. Rendering Engine, Not Framework
+### 1. Layered APIs, Not A Forced Runtime
 
-OpenTUI provides primitives: buffers, cells, colors, text. You decide how to structure your app. No widget trees, no layout systems, no event loops forced on you.
+OpenTUI Rust provides buffers, render trees, widgets, and declarative builders,
+but does not own your event loop or application state. Use only the layers your
+application needs.
 
 ### 2. Correctness Over Convenience
 
@@ -142,9 +179,11 @@ OpenTUI provides primitives: buffers, cells, colors, text. You decide how to str
 - True color support with graceful fallback
 - Works in SSH, tmux, and embedded terminals
 
-### 5. Port of Battle-Tested Code
+### 5. Rust-Native Implementation
 
-Based on OpenTUI's Zig core (~15,900 LOC), which powers production terminal applications. This isn't a weekend experiment.
+The rendering model follows upstream OpenTUI, while the public API, text
+storage, layout integration, input parser, and tests are implemented in Rust.
+This project does not claim production parity with upstream OpenTUI.
 
 ---
 
@@ -152,18 +191,18 @@ Based on OpenTUI's Zig core (~15,900 LOC), which powers production terminal appl
 
 | Library | Abstraction | Alpha | Scissor | Diff | Text Edit | Use Case |
 |---------|-------------|-------|---------|------|-----------|----------|
-| **OpenTUI** | Rendering engine | Yes | Yes | Yes | Yes | Custom TUI apps |
+| **OpenTUI Rust** | Layered rendering engine | Yes | Yes | Yes | Yes | Custom Rust TUIs |
 | ratatui | Widget framework | No | No | Partial | No | Standard TUIs |
 | crossterm | Terminal I/O | No | No | No | No | Low-level control |
 | termion | Terminal I/O | No | No | No | No | Low-level control |
 | cursive | Dialog framework | No | No | Yes | Partial | Form-based apps |
 | tui-rs | Widget framework | No | No | Partial | No | Dashboards |
 
-**Choose OpenTUI when you need:**
+**Choose OpenTUI Rust when you need:**
 - Compositing layers with transparency
 - Pixel-perfect control over rendering
 - High-performance text editing
-- No framework opinions
+- Direct buffers and an optional widget/View layer in one crate
 
 **Choose ratatui when you need:**
 - Quick prototyping with widgets
@@ -177,14 +216,14 @@ Based on OpenTUI's Zig core (~15,900 LOC), which powers production terminal appl
 ### From crates.io
 
 ```bash
-cargo add opentui_rust
+cargo add opentui-core
 ```
 
 ### From Source
 
 ```bash
-git clone https://github.com/Dicklesworthstone/opentui_rust
-cd opentui_rust
+git clone https://github.com/xanahopper/opentui-rs
+cd opentui-rs
 cargo build --release
 ```
 
@@ -192,7 +231,7 @@ cargo build --release
 
 ```toml
 [dependencies]
-opentui_rust = "0.1"
+opentui-core = "0.2.1"
 ```
 
 ---
@@ -202,7 +241,7 @@ opentui_rust = "0.1"
 ### 1. Create a Renderer
 
 ```rust
-use opentui_rust::Renderer;
+use opentui_core::Renderer;
 use std::io;
 
 fn main() -> io::Result<()> {
@@ -219,7 +258,8 @@ fn main() -> io::Result<()> {
 ### 2. Draw to the Buffer
 
 ```rust
-use opentui_rust::{Style, Rgba};
+use opentui_core::{Rgba, Style};
+use opentui_core::buffer::BoxStyle;
 
 let buffer = renderer.buffer();
 
@@ -231,7 +271,7 @@ buffer.draw_text(5, 2, "Title", Style::bold().fg(Rgba::WHITE));
 buffer.draw_text(5, 4, "Normal text", Style::fg(Rgba::from_hex("#888888").unwrap()));
 
 // Draw a box
-buffer.draw_box(2, 1, 40, 10, opentui_rust::buffer::BoxStyle::single());
+buffer.draw_box(2, 1, 40, 10, BoxStyle::single());
 ```
 
 ### 3. Present Frame
@@ -245,26 +285,22 @@ renderer.invalidate();
 renderer.present()?;
 ```
 
-### 4. Handle Input (bring your own)
+### 4. Parse Input
 
-OpenTUI doesn't include an event loop. Use `crossterm` or `termion`:
+OpenTUI Rust includes an ANSI input parser but leaves polling and the event loop
+to the application:
 
 ```rust
-use crossterm::event::{self, Event, KeyCode};
+use opentui_core::{Event, InputParser, KeyCode};
 
-loop {
-    // Draw
-    renderer.buffer().draw_text(0, 0, "Press 'q' to quit", Style::default());
-    renderer.present()?;
+let mut parser = InputParser::new();
+let bytes = b"q"; // Read bytes from stdin in your event loop.
 
-    // Handle input
-    if event::poll(std::time::Duration::from_millis(100))? {
-        if let Event::Key(key) = event::read()? {
-            if key.code == KeyCode::Char('q') {
-                break;
-            }
-        }
+if let Ok((Event::Key(key), consumed)) = parser.parse(bytes) {
+    if key.code == KeyCode::Char('q') {
+        // Exit the application loop.
     }
+    assert_eq!(consumed, 1);
 }
 ```
 
@@ -422,7 +458,7 @@ For the best visual experience, use a terminal that supports:
 Use the threaded renderer when you want terminal I/O off the main thread:
 
 ```rust
-use opentui_rust::renderer::ThreadedRenderer;
+use opentui_core::renderer::ThreadedRenderer;
 
 let mut renderer = ThreadedRenderer::new(80, 24)?;
 renderer.buffer().draw_text(1, 1, "Threaded!", Style::fg(Rgba::GREEN));
@@ -523,7 +559,11 @@ color.to_rgb_u8()               // Convert to (u8, u8, u8)
 ### Module Breakdown
 
 ```
-opentui_rust/
+opentui-rs/
+├── Cargo.toml       # Workspace configuration
+└── crates/core/
+    ├── Cargo.toml   # opentui-core package
+    └── src/
 ├── lib.rs          # Public API exports
 ├── color.rs        # RGBA type, blending, conversions
 ├── style.rs        # TextAttributes, Style builder
@@ -557,6 +597,10 @@ opentui_rust/
 │   ├── capabilities.rs
 │   ├── cursor.rs
 │   └── mouse.rs
+├── input/          # Keyboard, mouse, paste, focus, and response parser
+├── renderable/     # Render tree, Taffy layout, View API, and widgets
+│   ├── view/       # Declarative builders and ViewRuntime
+│   └── widgets/    # Concrete widget implementations
 ├── unicode/        # Unicode handling
 │   ├── mod.rs
 │   ├── grapheme.rs
@@ -586,19 +630,10 @@ reset
 stty sane
 ```
 
-For robust cleanup, install a panic hook:
-
-```rust
-use std::panic;
-
-let original_hook = panic::take_hook();
-panic::set_hook(Box::new(move |info| {
-    // Restore terminal before printing panic
-    let _ = crossterm::terminal::disable_raw_mode();
-    let _ = crossterm::execute!(std::io::stdout(), crossterm::terminal::LeaveAlternateScreen);
-    original_hook(info);
-}));
-```
+`Renderer`, `Terminal`, and `RawModeGuard` restore managed terminal state when
+they are dropped during normal return or panic unwinding. Applications that use
+`panic = "abort"` should install a panic hook appropriate to their process and
+terminal lifecycle.
 
 ### Characters display with wrong width
 
@@ -654,11 +689,16 @@ loop {
 
 ## Limitations
 
-- **No built-in event loop**: You provide your own (use crossterm/termion)
-- **No widgets**: OpenTUI is a rendering engine, not a widget toolkit
-- **No layout system**: You calculate positions yourself
-- **Nightly Rust required**: Uses edition 2024 features
-- **No Windows ConPTY**: Windows support is terminal-dependent
+- **No built-in event loop**: input parsing and dispatch are included, but the
+  application owns byte polling, scheduling, and state updates
+- **Nightly toolchain currently pinned**: see `rust-toolchain.toml`; the crate
+  declares Rust 1.85 as its minimum language version
+- **Unix terminal backend**: raw mode currently uses `libc` termios and Unix
+  file descriptors; native Windows support is not implemented
+- **Not API-compatible with upstream**: upstream TypeScript, React, Solid, and
+  Three.js code cannot be used directly
+- **API stability**: the Rust widget and declarative APIs are under active
+  development
 - **Text-only**: No image protocols (sixel, kitty graphics) yet
 
 ---
@@ -667,11 +707,15 @@ loop {
 
 **Q: Why not just use ratatui?**
 
-A: ratatui is excellent for standard TUI patterns. OpenTUI is for when you need lower-level control: alpha blending, precise clipping, custom rendering pipelines, or want to build your own widget system.
+A: ratatui is excellent for standard TUI patterns. OpenTUI Rust is useful when
+you need true RGBA composition, precise clipping, editable rope-backed text, or
+both direct-buffer and retained/declarative rendering in the same engine.
 
 **Q: Is this production-ready?**
 
-A: The core rendering is solid (ported from battle-tested Zig code). The Rust API is still stabilizing. Pin your version and expect some churn.
+A: The rendering core has broad unit, integration, property, snapshot, and PTY
+coverage, but the Rust API is still stabilizing. Pin your version and expect
+some churn.
 
 **Q: Why f32 for colors instead of u8?**
 
@@ -683,29 +727,36 @@ A: Yes, but `Renderer` isn't `Send`. Keep it on one thread and send drawing comm
 
 **Q: Why require nightly Rust?**
 
-A: Edition 2024 provides better ergonomics. We'll support stable once edition 2024 stabilizes.
+A: The repository currently pins nightly so contributors and CI use one known
+toolchain with the required rustfmt and clippy components. Edition 2024 itself
+is stable in Rust 1.85.
 
 **Q: How do I handle terminal resize?**
 
-A: Listen for `SIGWINCH` (Unix) or use crossterm's resize event, then call `renderer.resize(w, h)`.
+A: Detect `SIGWINCH` or consume a parsed `Event::Resize`, then call
+`renderer.resize(width, height)` and rerun layout before rendering.
 
 ---
 
 ## About Contributions
 
-Please don't take this the wrong way, but I do not accept outside contributions for any of my projects. I simply don't have the mental bandwidth to review anything, and it's my name on the thing, so I'm responsible for any problems it causes; thus, the risk-reward is highly asymmetric from my perspective. I'd also have to worry about other "stakeholders," which seems unwise for tools I mostly make for myself for free. Feel free to submit issues, and even PRs if you want to illustrate a proposed fix, but know I won't merge them directly. Instead, I'll have Claude or Codex review submissions via `gh` and independently decide whether and how to address them. Bug reports in particular are welcome. Sorry if this offends, but I want to avoid wasted time and hurt feelings. I understand this isn't in sync with the prevailing open-source ethos that seeks community contributions, but it's the only way I can move at this velocity and keep my sanity.
+Bug reports and focused pull requests are welcome. Before submitting a change,
+run `cargo fmt --check`, `cargo check --all-targets`,
+`cargo clippy --all-targets -- -D warnings`, and the relevant tests.
 
 ---
 
 ## License
 
-MIT License (with OpenAI/Anthropic Rider). See [LICENSE](LICENSE) for details.
+MIT License with OpenAI/Anthropic Rider. See [LICENSE](LICENSE) for details.
 
 ---
 
 ## Acknowledgments
 
-- Original OpenTUI Zig implementation for the battle-tested architecture
+- [OpenTUI](https://github.com/anomalyco/opentui) for the original rendering
+  model and ongoing reference behavior
+- [Taffy](https://github.com/DioxusLabs/taffy) for layout
 - [ropey](https://crates.io/crates/ropey) for the rope data structure
 - [unicode-segmentation](https://crates.io/crates/unicode-segmentation) for grapheme clustering
 - [unicode-width](https://crates.io/crates/unicode-width) for display width calculation
