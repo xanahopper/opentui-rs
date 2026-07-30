@@ -2,7 +2,7 @@
 //!
 //! This example uses `view()`, `text()`, `fill()`, `separator()`, `rich_text()`,
 //! `when()`, `overlay()` etc. to build the entire UI as a `Node` tree.
-//! The `ViewRuntime` handles rebuild + layout + render each frame.
+//! The `ViewRuntime` retains interaction state between application updates.
 //!
 //! Compare with `opencode_declarative.rs` which uses the imperative WidgetTree API.
 //!
@@ -433,11 +433,20 @@ fn ui_messages(app: &App) -> Vec<opentui_core::view::Node> {
                 .map(|line| {
                     let is_tool = line.starts_with("  \u{25B8}") || line.starts_with("  \u{25CF}");
                     if msg.role == "user" {
-                        text(*line).fg(TEXT).bg(BG_PANEL).wrap().shrink(0.0).build()
+                        text(*line)
+                            .fg(TEXT)
+                            .bg(BG_PANEL)
+                            .selection_fg(TEXT)
+                            .selection_bg(PRIMARY)
+                            .wrap()
+                            .shrink(0.0)
+                            .build()
                     } else {
                         text(*line)
                             .fg(if is_tool { TEXT_MUTED } else { TEXT })
                             .bg(BG)
+                            .selection_fg(TEXT)
+                            .selection_bg(PRIMARY)
                             .wrap()
                             .shrink(0.0)
                             .build()
@@ -505,8 +514,10 @@ fn ui(app: &App, w: u32, h: u32) -> opentui_core::view::Node {
                 span("agents", TEXT_MUTED),
                 span("  ctrl+p ", TEXT),
                 span("commands", TEXT_MUTED),
+                span("  drag ", TEXT),
+                span("select text", TEXT_MUTED),
             ])
-            .width(27.0)
+            .width(45.0)
             .height(1.0)
             .shrink(0.0)
             .build(),
@@ -766,16 +777,22 @@ pub fn run() -> io::Result<()> {
     let mut read_buf = [0u8; 1024];
     let mut pending: Vec<u8> = Vec::new();
     let mut runtime = ViewRuntime::new();
+    let mut rebuild_ui = true;
 
     while running.load(Ordering::SeqCst) {
-        let app_ref = app.clone();
+        if rebuild_ui {
+            let app_borrowed = app.borrow();
+            let node = ui(&app_borrowed, w, h);
+            runtime.rebuild(&node);
+            runtime.layout(w as f32, h as f32);
+            runtime.register_hit_areas(w, h);
+            rebuild_ui = false;
+        }
 
         {
-            let app_borrowed = app.borrow();
             let buffer = renderer.buffer();
             buffer.clear(Rgba::TRANSPARENT);
 
-            let node = ui(&app_borrowed, w, h);
             let mut ctx = RenderContext {
                 buffer,
                 grapheme_pool: None,
@@ -783,10 +800,9 @@ pub fn run() -> io::Result<()> {
                 hit_grid: None,
                 theme: None,
             };
-            runtime.render_to_buffer(&mut ctx, &node, w as f32, h as f32);
+            runtime.render(&mut ctx);
         }
 
-        drop(app_ref);
         renderer.present()?;
 
         if let Ok(n) = read_with_timeout(&stdin, &mut read_buf, Duration::from_millis(50)) {
@@ -799,6 +815,7 @@ pub fn run() -> io::Result<()> {
                         &mut app_mut,
                         &running,
                     );
+                    rebuild_ui = true;
                 }
                 pending.clear();
                 continue;
@@ -829,13 +846,14 @@ pub fn run() -> io::Result<()> {
                             Event::Key(key) => {
                                 let mut app_mut = app.borrow_mut();
                                 handle_key_event(key.code, key.modifiers, &mut app_mut, &running);
+                                rebuild_ui = true;
                             }
                             Event::Mouse(mouse) => {
+                                let dispatch = runtime.dispatch_mouse(&mouse);
                                 let mut app_mut = app.borrow_mut();
                                 app_mut.mouse_x = mouse.x;
                                 app_mut.mouse_y = mouse.y;
                                 if app_mut.palette_open {
-                                    let dispatch = runtime.dispatch_mouse(&mouse);
                                     if let Some(action) = dispatch.action {
                                         if let Some(idx) = parse_palette_select_action(&action) {
                                             let indices = app_mut.filtered_indices();
@@ -843,6 +861,7 @@ pub fn run() -> io::Result<()> {
                                             if idx < indices.len() {
                                                 app_mut.palette_selected = idx;
                                             }
+                                            rebuild_ui = true;
                                             if mouse.kind == MouseEventKind::Press {
                                                 activate_selected_palette_command(
                                                     &mut app_mut,
