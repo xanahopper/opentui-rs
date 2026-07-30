@@ -24,6 +24,7 @@ use taffy::Size;
 use crate::input::{KeyEvent, MouseButton, MouseEvent, MouseEventKind};
 use crate::renderable::behavior::Behavior;
 use crate::renderable::context::RenderContext;
+use crate::renderable::event::{RenderableMouseDispatch, RenderableMouseEvent};
 use crate::renderable::layout::{ComputedLayout, LayoutEngine};
 use crate::renderable::node::{NodeId, Overflow, RenderNode};
 use crate::renderable::render_command::RenderCommand;
@@ -611,8 +612,9 @@ impl RenderTree {
 
     /// Dispatch a mouse event to a specific node (by NodeId).
     pub fn dispatch_mouse_to(&mut self, id: NodeId, event: &MouseEvent) -> bool {
+        let mut event = RenderableMouseEvent::new(*event, id, None, event.is_drag());
         let consumed = if let Some(node) = self.nodes.get_mut(id) {
-            node.behavior.handle_mouse(event)
+            node.behavior.handle_mouse_event(&mut event)
         } else {
             false
         };
@@ -626,21 +628,44 @@ impl RenderTree {
     ///
     /// Walks from the target node up through ancestors until a handler
     /// returns `true` (consumed) or the root is reached.
-    pub fn dispatch_mouse_bubbling(&mut self, target: NodeId, event: &MouseEvent) -> bool {
+    pub fn dispatch_mouse_bubbling(
+        &mut self,
+        target: NodeId,
+        event: &MouseEvent,
+    ) -> RenderableMouseDispatch {
+        self.dispatch_mouse_bubbling_with(target, event, None, event.is_drag())
+    }
+
+    fn dispatch_mouse_bubbling_with(
+        &mut self,
+        target: NodeId,
+        event: &MouseEvent,
+        source: Option<NodeId>,
+        is_dragging: bool,
+    ) -> RenderableMouseDispatch {
+        let mut event = RenderableMouseEvent::new(*event, target, source, is_dragging);
+        let mut result = RenderableMouseDispatch::default();
         let mut current = Some(target);
         while let Some(cid) = current {
+            event.set_current_target(cid);
+            result.delivered.push(cid);
             let consumed = if let Some(node) = self.nodes.get_mut(cid) {
-                node.behavior.handle_mouse(event)
+                node.behavior.handle_mouse_event(&mut event)
             } else {
                 false
             };
             if consumed {
                 self.mark_dirty(cid);
-                return true;
+                result.consumed = true;
+            }
+            if event.propagation_stopped() {
+                break;
             }
             current = self.nodes.get(cid).and_then(|n| n.parent);
         }
-        false
+        result.default_prevented = event.default_prevented();
+        result.propagation_stopped = event.propagation_stopped();
+        result
     }
 
     /// Dispatch a pointer event with hover synthesis and drag capture.
@@ -661,12 +686,12 @@ impl RenderTree {
             if let Some(previous) = self.hovered {
                 let mut out = *event;
                 out.kind = MouseEventKind::Out;
-                consumed |= self.dispatch_mouse_bubbling(previous, &out);
+                consumed |= self.dispatch_mouse_bubbling(previous, &out).consumed;
             }
             if let Some(current) = hit_target {
                 let mut over = *event;
                 over.kind = MouseEventKind::Over;
-                consumed |= self.dispatch_mouse_bubbling(current, &over);
+                consumed |= self.dispatch_mouse_bubbling(current, &over).consumed;
             }
             self.hovered = hit_target;
         }
@@ -688,7 +713,7 @@ impl RenderTree {
             _ => hit_target,
         };
         if let Some(target) = dispatch_target {
-            consumed |= self.dispatch_mouse_bubbling(target, event);
+            consumed |= self.dispatch_mouse_bubbling(target, event).consumed;
         }
 
         if matches!(
@@ -700,7 +725,7 @@ impl RenderTree {
                 if let Some(drop_target) = hit_target {
                     let mut drop = *event;
                     drop.kind = MouseEventKind::Drop;
-                    consumed |= self.dispatch_mouse_bubbling(drop_target, &drop);
+                    consumed |= self.dispatch_mouse_bubbling(drop_target, &drop).consumed;
                 }
             }
             self.dragging = false;
@@ -1499,6 +1524,8 @@ mod tests {
         style: LayoutStyle,
         events: Rc<RefCell<Vec<MouseEventKind>>>,
         focusable: bool,
+        stop_propagation: bool,
+        prevent_default: bool,
     }
 
     impl MouseRecorder {
@@ -1507,6 +1534,8 @@ mod tests {
                 style: LayoutStyle::default(),
                 events,
                 focusable: false,
+                stop_propagation: false,
+                prevent_default: false,
             }
         }
 
@@ -1514,13 +1543,25 @@ mod tests {
             self.focusable = true;
             self
         }
+
+        fn controlled(mut self) -> Self {
+            self.stop_propagation = true;
+            self.prevent_default = true;
+            self
+        }
     }
 
     impl Behavior for MouseRecorder {
         fn render_self(&mut self, _ctx: &mut RenderContext, _layout: &ComputedLayout) {}
 
-        fn handle_mouse(&mut self, event: &MouseEvent) -> bool {
+        fn handle_mouse_event(&mut self, event: &mut RenderableMouseEvent) -> bool {
             self.events.borrow_mut().push(event.kind);
+            if self.stop_propagation {
+                event.stop_propagation();
+            }
+            if self.prevent_default {
+                event.prevent_default();
+            }
             true
         }
 
@@ -1608,5 +1649,27 @@ mod tests {
         );
         assert_eq!(tree.focused_node(), Some(source));
         assert_eq!(tree.captured_node(), None);
+    }
+
+    #[test]
+    fn mouse_event_controls_stop_bubbling_and_prevent_defaults() {
+        let parent_events = Rc::new(RefCell::new(Vec::new()));
+        let child_events = Rc::new(RefCell::new(Vec::new()));
+        let mut tree = RenderTree::new();
+        let parent = tree.set_root(Box::new(MouseRecorder::new(Rc::clone(&parent_events))));
+        let child = tree.add_child(
+            parent,
+            Box::new(MouseRecorder::new(Rc::clone(&child_events)).controlled()),
+        );
+
+        let result =
+            tree.dispatch_mouse_bubbling(child, &MouseEvent::press(1, 1, MouseButton::Left));
+
+        assert!(result.consumed);
+        assert!(result.default_prevented);
+        assert!(result.propagation_stopped);
+        assert_eq!(result.delivered, vec![child]);
+        assert_eq!(*child_events.borrow(), vec![MouseEventKind::Press]);
+        assert!(parent_events.borrow().is_empty());
     }
 }

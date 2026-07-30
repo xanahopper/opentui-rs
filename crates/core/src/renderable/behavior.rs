@@ -9,6 +9,7 @@
 
 use crate::input::{KeyEvent, MouseEvent};
 use crate::renderable::context::RenderContext;
+use crate::renderable::event::RenderableMouseEvent;
 use crate::renderable::layout::{ComputedLayout, LayoutStyle};
 use crate::renderable::node::{NodeId, Overflow};
 
@@ -82,6 +83,15 @@ pub trait Behavior {
     /// Handle a mouse event. Return `true` if consumed.
     fn handle_mouse(&mut self, _event: &MouseEvent) -> bool {
         false
+    }
+
+    /// Handle a renderable-level mouse event with propagation controls.
+    ///
+    /// Existing widgets can continue implementing [`Self::handle_mouse`]. New
+    /// handlers should override this method when they need target metadata,
+    /// `stop_propagation`, or `prevent_default`.
+    fn handle_mouse_event(&mut self, event: &mut RenderableMouseEvent) -> bool {
+        self.handle_mouse(event)
     }
 
     /// Whether pointer dragging can create a text selection in this node.

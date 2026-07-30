@@ -5,7 +5,101 @@
 //! mouse hit testing via the `HitGrid`.
 
 use crate as ot;
+use crate::renderable::node::NodeId;
 use crate::renderer::HitGrid;
+
+/// A mouse event while it is being dispatched through the render tree.
+///
+/// The raw terminal event is available through `Deref`. Dispatch metadata and
+/// controls mirror OpenTUI's renderable-level `MouseEvent`.
+#[derive(Debug, Clone)]
+pub struct RenderableMouseEvent {
+    raw: ot::MouseEvent,
+    target: NodeId,
+    current_target: NodeId,
+    source: Option<NodeId>,
+    is_dragging: bool,
+    propagation_stopped: bool,
+    default_prevented: bool,
+}
+
+impl RenderableMouseEvent {
+    pub(crate) fn new(
+        raw: ot::MouseEvent,
+        target: NodeId,
+        source: Option<NodeId>,
+        is_dragging: bool,
+    ) -> Self {
+        Self {
+            raw,
+            target,
+            current_target: target,
+            source,
+            is_dragging,
+            propagation_stopped: false,
+            default_prevented: false,
+        }
+    }
+
+    #[must_use]
+    pub fn target(&self) -> NodeId {
+        self.target
+    }
+
+    #[must_use]
+    pub fn current_target(&self) -> NodeId {
+        self.current_target
+    }
+
+    #[must_use]
+    pub fn source(&self) -> Option<NodeId> {
+        self.source
+    }
+
+    #[must_use]
+    pub fn is_dragging(&self) -> bool {
+        self.is_dragging
+    }
+
+    pub fn stop_propagation(&mut self) {
+        self.propagation_stopped = true;
+    }
+
+    #[must_use]
+    pub fn propagation_stopped(&self) -> bool {
+        self.propagation_stopped
+    }
+
+    pub fn prevent_default(&mut self) {
+        self.default_prevented = true;
+    }
+
+    #[must_use]
+    pub fn default_prevented(&self) -> bool {
+        self.default_prevented
+    }
+
+    pub(crate) fn set_current_target(&mut self, target: NodeId) {
+        self.current_target = target;
+    }
+}
+
+impl std::ops::Deref for RenderableMouseEvent {
+    type Target = ot::MouseEvent;
+
+    fn deref(&self) -> &Self::Target {
+        &self.raw
+    }
+}
+
+/// Result of bubbling one renderable-level mouse event.
+#[derive(Debug, Default)]
+pub struct RenderableMouseDispatch {
+    pub consumed: bool,
+    pub default_prevented: bool,
+    pub propagation_stopped: bool,
+    pub delivered: Vec<NodeId>,
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct FocusId(u64);
