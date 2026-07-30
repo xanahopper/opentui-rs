@@ -7,6 +7,7 @@
 use crate as ot;
 use crate::renderable::node::NodeId;
 use crate::renderer::HitGrid;
+use crate::terminal::MouseEventKind;
 
 /// A mouse event while it is being dispatched through the render tree.
 ///
@@ -98,7 +99,22 @@ pub struct RenderableMouseDispatch {
     pub consumed: bool,
     pub default_prevented: bool,
     pub propagation_stopped: bool,
-    pub delivered: Vec<NodeId>,
+    pub delivered: Vec<MouseDelivery>,
+}
+
+impl RenderableMouseDispatch {
+    pub(crate) fn merge(&mut self, other: Self) {
+        self.consumed |= other.consumed;
+        self.default_prevented |= other.default_prevented;
+        self.propagation_stopped |= other.propagation_stopped;
+        self.delivered.extend(other.delivered);
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct MouseDelivery {
+    pub node: NodeId,
+    pub kind: MouseEventKind,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

@@ -417,7 +417,10 @@ impl Behavior for SliderWidget {
         }
         if !matches!(
             mouse.kind,
-            MouseEventKind::Press | MouseEventKind::Drag | MouseEventKind::DragEnd
+            MouseEventKind::Press
+                | MouseEventKind::Drag
+                | MouseEventKind::DragEnd
+                | MouseEventKind::Release
         ) {
             return false;
         }

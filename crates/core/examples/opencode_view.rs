@@ -474,7 +474,8 @@ fn ui_messages(app: &App) -> Vec<opentui_core::view::Node> {
                             focused_color: None,
                             sides: BorderSides::left_only(),
                         })
-                        .on_action(format!("message:user:{idx}"))
+                        .on_mouse_over(format!("message:user:over:{idx}"))
+                        .on_mouse_out(format!("message:user:out:{idx}"))
                         .children(msg_children)
                         .build(),
                 ]
@@ -736,8 +737,15 @@ fn parse_palette_select_action(action: &str) -> Option<usize> {
     action.strip_prefix("palette:select:")?.parse().ok()
 }
 
-fn parse_user_message_action(action: &str) -> Option<usize> {
-    action.strip_prefix("message:user:")?.parse().ok()
+fn parse_user_message_hover_action(action: &str) -> Option<(usize, bool)> {
+    if let Some(index) = action.strip_prefix("message:user:over:") {
+        return index.parse().ok().map(|index| (index, true));
+    }
+    action
+        .strip_prefix("message:user:out:")?
+        .parse()
+        .ok()
+        .map(|index| (index, false))
 }
 
 fn activate_selected_palette_command(app: &mut App, running: &Arc<AtomicBool>) {
@@ -862,21 +870,24 @@ pub fn run() -> io::Result<()> {
                             }
                             Event::Mouse(mouse) => {
                                 let dispatch = runtime.dispatch_mouse(&mouse);
-                                let selected_text_active = runtime.tree().selected_text().is_some();
                                 let mut app_mut = app.borrow_mut();
                                 app_mut.mouse_x = mouse.x;
                                 app_mut.mouse_y = mouse.y;
-                                if mouse.kind == MouseEventKind::Move
-                                    && !app_mut.palette_open
-                                    && !selected_text_active
-                                {
-                                    let hovered = dispatch
-                                        .action
-                                        .as_deref()
-                                        .and_then(parse_user_message_action);
-                                    if app_mut.hovered_user_message != hovered {
-                                        app_mut.hovered_user_message = hovered;
-                                        rebuild_ui = true;
+                                for action in &dispatch.mouse_actions {
+                                    if let Some((index, is_over)) =
+                                        parse_user_message_hover_action(action)
+                                    {
+                                        let hovered = if is_over {
+                                            Some(index)
+                                        } else if app_mut.hovered_user_message == Some(index) {
+                                            None
+                                        } else {
+                                            app_mut.hovered_user_message
+                                        };
+                                        if app_mut.hovered_user_message != hovered {
+                                            app_mut.hovered_user_message = hovered;
+                                            rebuild_ui = true;
+                                        }
                                     }
                                 }
                                 if app_mut.palette_open {
@@ -1071,7 +1082,14 @@ mod tests {
 
     #[test]
     fn parses_user_message_hover_action() {
-        assert_eq!(parse_user_message_action("message:user:4"), Some(4));
-        assert_eq!(parse_user_message_action("palette:select:4"), None);
+        assert_eq!(
+            parse_user_message_hover_action("message:user:over:4"),
+            Some((4, true))
+        );
+        assert_eq!(
+            parse_user_message_hover_action("message:user:out:4"),
+            Some((4, false))
+        );
+        assert_eq!(parse_user_message_hover_action("palette:select:4"), None);
     }
 }

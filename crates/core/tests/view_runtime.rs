@@ -319,6 +319,112 @@ fn test_on_action_click_returns_action() {
 }
 
 #[test]
+fn test_declarative_mouse_over_and_out_actions() {
+    let node = view()
+        .row()
+        .size(10.0, 1.0)
+        .children([
+            view()
+                .size(5.0, 1.0)
+                .bg(BG)
+                .on_mouse_over("first-over")
+                .on_mouse_out("first-out")
+                .build(),
+            view()
+                .size(5.0, 1.0)
+                .bg(BG)
+                .on_mouse_over("second-over")
+                .build(),
+        ])
+        .build();
+    let mut runtime = ViewRuntime::new();
+    runtime.rebuild(&node);
+    runtime.layout(10.0, 1.0);
+    runtime.register_hit_areas(10, 1);
+
+    let first = runtime.dispatch_mouse(&opentui_core::MouseEvent::move_to(1, 0));
+    assert_eq!(first.mouse_actions, vec!["first-over"]);
+
+    let second = runtime.dispatch_mouse(&opentui_core::MouseEvent::move_to(6, 0));
+    assert_eq!(second.mouse_actions, vec!["first-out", "second-over"]);
+}
+
+#[test]
+fn test_declarative_drag_end_release_and_drop_actions() {
+    let node = view()
+        .row()
+        .size(10.0, 1.0)
+        .children([
+            view()
+                .size(5.0, 1.0)
+                .bg(BG)
+                .on_mouse_drag_end("source-drag-end")
+                .on_mouse_up("source-up")
+                .build(),
+            view()
+                .size(5.0, 1.0)
+                .bg(BG)
+                .on_mouse_drop("target-drop")
+                .build(),
+        ])
+        .build();
+    let mut runtime = ViewRuntime::new();
+    runtime.rebuild(&node);
+    runtime.layout(10.0, 1.0);
+    runtime.register_hit_areas(10, 1);
+
+    runtime.dispatch_mouse(&opentui_core::MouseEvent::press(
+        1,
+        0,
+        opentui_core::terminal::MouseButton::Left,
+    ));
+    runtime.dispatch_mouse(&opentui_core::MouseEvent::new(
+        6,
+        0,
+        opentui_core::terminal::MouseButton::Left,
+        opentui_core::terminal::MouseEventKind::Drag,
+    ));
+    let release = runtime.dispatch_mouse(&opentui_core::MouseEvent::new(
+        6,
+        0,
+        opentui_core::terminal::MouseButton::Left,
+        opentui_core::terminal::MouseEventKind::Release,
+    ));
+
+    assert_eq!(
+        release.mouse_actions,
+        vec!["source-drag-end", "source-up", "target-drop"]
+    );
+}
+
+#[test]
+fn test_render_to_buffer_registers_hits_after_layout() {
+    let node = view()
+        .column()
+        .size(20.0, 5.0)
+        .children([text("hello").height(1.0).on_action("greet").build()])
+        .build();
+    let mut runtime = ViewRuntime::new();
+    let mut buffer = OptimizedBuffer::new(20, 5);
+    let mut ctx = RenderContext {
+        buffer: &mut buffer,
+        grapheme_pool: None,
+        link_pool: None,
+        hit_grid: None,
+        theme: None,
+    };
+
+    runtime.render_to_buffer(&mut ctx, &node, 20.0, 5.0);
+    let result = runtime.dispatch_mouse(&opentui_core::MouseEvent::press(
+        0,
+        0,
+        opentui_core::terminal::MouseButton::Left,
+    ));
+
+    assert_eq!(result.action.as_deref(), Some("greet"));
+}
+
+#[test]
 fn test_overlay_action_wins_over_background_action() {
     let overlay_content = view()
         .column()
@@ -425,7 +531,7 @@ fn test_mouse_drag_selects_wrapped_text() {
         5,
         0,
         opentui_core::terminal::MouseButton::Left,
-        opentui_core::terminal::MouseEventKind::DragEnd,
+        opentui_core::terminal::MouseEventKind::Release,
     ));
 
     assert_eq!(runtime.tree().selected_text().as_deref(), Some("ello"));
@@ -467,7 +573,7 @@ fn test_mouse_drag_selects_default_text_line() {
         5,
         0,
         opentui_core::terminal::MouseButton::Left,
-        opentui_core::terminal::MouseEventKind::DragEnd,
+        opentui_core::terminal::MouseEventKind::Release,
     ));
 
     assert_eq!(runtime.tree().selected_text().as_deref(), Some("ello"));
@@ -512,7 +618,7 @@ fn test_mouse_selection_spans_text_renderables() {
         3,
         1,
         opentui_core::terminal::MouseButton::Left,
-        opentui_core::terminal::MouseEventKind::DragEnd,
+        opentui_core::terminal::MouseEventKind::Release,
     ));
 
     assert_eq!(runtime.tree().selected_text().as_deref(), Some("ello\nwor"));

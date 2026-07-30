@@ -24,7 +24,7 @@ use taffy::Size;
 use crate::input::{KeyEvent, MouseButton, MouseEvent, MouseEventKind};
 use crate::renderable::behavior::Behavior;
 use crate::renderable::context::RenderContext;
-use crate::renderable::event::{RenderableMouseDispatch, RenderableMouseEvent};
+use crate::renderable::event::{MouseDelivery, RenderableMouseDispatch, RenderableMouseEvent};
 use crate::renderable::layout::{ComputedLayout, LayoutEngine};
 use crate::renderable::node::{NodeId, Overflow, RenderNode};
 use crate::renderable::render_command::RenderCommand;
@@ -96,6 +96,7 @@ pub struct RenderTree {
 
     // Pointer interaction state
     hovered: Option<NodeId>,
+    mouse_down: Option<NodeId>,
     captured: Option<NodeId>,
     dragging: bool,
     selection: Option<TreeSelection>,
@@ -190,6 +191,7 @@ impl RenderTree {
             render_list_revision: 0,
             focused: None,
             hovered: None,
+            mouse_down: None,
             captured: None,
             dragging: false,
             selection: None,
@@ -340,6 +342,9 @@ impl RenderTree {
         }
         if self.hovered == Some(id) {
             self.hovered = None;
+        }
+        if self.mouse_down == Some(id) {
+            self.mouse_down = None;
         }
         if self.captured == Some(id) {
             self.captured = None;
@@ -648,7 +653,10 @@ impl RenderTree {
         let mut current = Some(target);
         while let Some(cid) = current {
             event.set_current_target(cid);
-            result.delivered.push(cid);
+            result.delivered.push(MouseDelivery {
+                node: cid,
+                kind: event.kind,
+            });
             let consumed = if let Some(node) = self.nodes.get_mut(cid) {
                 node.behavior.handle_mouse_event(&mut event)
             } else {
@@ -668,81 +676,147 @@ impl RenderTree {
         result
     }
 
-    /// Dispatch a pointer event with hover synthesis and drag capture.
-    ///
-    /// `hit_target` is the node currently under the pointer. Pressing the left
-    /// button captures that node so subsequent drag events keep reaching it
-    /// even after the pointer leaves its bounds.
-    pub fn dispatch_mouse_event(&mut self, hit_target: Option<NodeId>, event: &MouseEvent) -> bool {
-        if let Some(consumed) = self.dispatch_selection_event(hit_target, event) {
-            return consumed;
-        }
-
-        let mut consumed = false;
-
-        if matches!(event.kind, MouseEventKind::Move | MouseEventKind::Drag)
-            && self.hovered != hit_target
-        {
-            if let Some(previous) = self.hovered {
-                let mut out = *event;
-                out.kind = MouseEventKind::Out;
-                consumed |= self.dispatch_mouse_bubbling(previous, &out).consumed;
-            }
-            if let Some(current) = hit_target {
-                let mut over = *event;
-                over.kind = MouseEventKind::Over;
-                consumed |= self.dispatch_mouse_bubbling(current, &over).consumed;
-            }
-            self.hovered = hit_target;
-        }
-
+    /// Dispatch a pointer event with OpenTUI-compatible hover and drag capture.
+    pub fn dispatch_mouse_event(
+        &mut self,
+        hit_target: Option<NodeId>,
+        event: &MouseEvent,
+    ) -> RenderableMouseDispatch {
         if event.kind == MouseEventKind::Press && event.button == MouseButton::Left {
-            self.captured = hit_target;
-            self.dragging = false;
-            if let Some(focus_target) = hit_target.and_then(|id| self.nearest_focusable(id)) {
-                self.focus(focus_target);
+            self.mouse_down = hit_target;
+        }
+        if let Some(result) = self.dispatch_selection_event(hit_target, event) {
+            if event.kind == MouseEventKind::Release {
+                self.mouse_down = None;
             }
-        } else if event.kind == MouseEventKind::Drag {
-            self.dragging = self.captured.is_some();
+            return result;
         }
 
-        let dispatch_target = match event.kind {
-            MouseEventKind::Drag | MouseEventKind::DragEnd | MouseEventKind::Release => {
-                self.captured.or(hit_target)
-            }
-            _ => hit_target,
-        };
-        if let Some(target) = dispatch_target {
-            consumed |= self.dispatch_mouse_bubbling(target, event).consumed;
+        let mut result = RenderableMouseDispatch::default();
+        if matches!(event.kind, MouseEventKind::Move | MouseEventKind::Drag) {
+            result.merge(self.dispatch_hover_change(hit_target, event));
         }
 
-        if matches!(
-            event.kind,
-            MouseEventKind::DragEnd | MouseEventKind::Release
-        ) {
-            let captured = self.captured.take();
-            if self.dragging && captured != hit_target {
+        if let Some(captured) = self.captured {
+            if event.kind == MouseEventKind::Release {
+                let mut drag_end = *event;
+                drag_end.kind = MouseEventKind::DragEnd;
+                result.merge(self.dispatch_mouse_bubbling_with(captured, &drag_end, None, true));
+                result.merge(self.dispatch_mouse_bubbling_with(captured, event, None, true));
                 if let Some(drop_target) = hit_target {
                     let mut drop = *event;
                     drop.kind = MouseEventKind::Drop;
-                    consumed |= self.dispatch_mouse_bubbling(drop_target, &drop).consumed;
+                    result.merge(self.dispatch_mouse_bubbling_with(
+                        drop_target,
+                        &drop,
+                        Some(captured),
+                        true,
+                    ));
                 }
+                self.hovered = Some(captured);
+                self.mouse_down = None;
+                self.captured = None;
+                self.dragging = false;
+                result.consumed = true;
+                return result;
             }
-            self.dragging = false;
+
+            result.merge(self.dispatch_mouse_bubbling_with(captured, event, None, true));
+            result.consumed = true;
+            return result;
         }
 
-        consumed
+        if event.kind == MouseEventKind::Drag && event.button == MouseButton::Left {
+            let Some(captured) = self.mouse_down else {
+                return result;
+            };
+            self.captured = Some(captured);
+            self.dragging = true;
+            result.merge(self.dispatch_mouse_bubbling_with(captured, event, None, true));
+            result.consumed = true;
+            return result;
+        }
+
+        if let Some(target) = hit_target {
+            result.merge(self.dispatch_mouse_bubbling_with(
+                target,
+                event,
+                None,
+                event.kind == MouseEventKind::Drag,
+            ));
+            if event.kind == MouseEventKind::Press
+                && event.button == MouseButton::Left
+                && !result.default_prevented
+            {
+                if let Some(focus_target) = self.nearest_focusable(target) {
+                    self.focus(focus_target);
+                }
+            }
+        }
+
+        if event.kind == MouseEventKind::Press && !result.default_prevented {
+            self.clear_selection();
+        }
+        if event.kind == MouseEventKind::Release {
+            self.mouse_down = None;
+        }
+        result
+    }
+
+    fn dispatch_hover_change(
+        &mut self,
+        hit_target: Option<NodeId>,
+        event: &MouseEvent,
+    ) -> RenderableMouseDispatch {
+        let mut result = RenderableMouseDispatch::default();
+        if self.hovered == hit_target {
+            return result;
+        }
+        if let Some(previous) = self.hovered {
+            if Some(previous) != self.captured {
+                let mut out = *event;
+                out.kind = MouseEventKind::Out;
+                result.merge(self.dispatch_mouse_bubbling_with(
+                    previous,
+                    &out,
+                    self.captured,
+                    self.dragging,
+                ));
+            }
+        }
+        self.hovered = hit_target;
+        if let Some(current) = hit_target {
+            let mut over = *event;
+            over.kind = MouseEventKind::Over;
+            result.merge(self.dispatch_mouse_bubbling_with(
+                current,
+                &over,
+                self.captured,
+                self.dragging,
+            ));
+        }
+        result
+    }
+
+    /// Re-evaluate hover after layout or hit-grid changes under a stationary pointer.
+    pub fn recheck_hover(
+        &mut self,
+        hit_target: Option<NodeId>,
+        x: u32,
+        y: u32,
+    ) -> RenderableMouseDispatch {
+        self.dispatch_hover_change(hit_target, &MouseEvent::move_to(x, y))
     }
 
     fn dispatch_selection_event(
         &mut self,
         hit_target: Option<NodeId>,
         event: &MouseEvent,
-    ) -> Option<bool> {
-        if event.button != MouseButton::Left {
-            return None;
-        }
+    ) -> Option<RenderableMouseDispatch> {
         if event.kind == MouseEventKind::Press && !event.ctrl {
+            if event.button != MouseButton::Left {
+                return None;
+            }
             let target = hit_target.filter(|&id| {
                 self.nodes
                     .get(id)
@@ -750,34 +824,42 @@ impl RenderTree {
             });
             if let Some(target) = target {
                 self.start_selection(target, event.x as i32, event.y as i32);
-                if let Some(focus_target) = self.nearest_focusable(target) {
-                    self.focus(focus_target);
+                let mut result = self.dispatch_mouse_bubbling(target, event);
+                if !result.default_prevented {
+                    if let Some(focus_target) = self.nearest_focusable(target) {
+                        self.focus(focus_target);
+                    }
                 }
-                self.dispatch_mouse_bubbling(target, event);
-                return Some(true);
+                result.consumed = true;
+                return Some(result);
             }
-            self.clear_selection();
         } else if event.kind == MouseEventKind::Press && event.ctrl && self.selection.is_some() {
+            if event.button != MouseButton::Left {
+                return None;
+            }
             self.selection.as_mut().expect("selection exists").dragging = true;
             self.update_selection(event.x as i32, event.y as i32, false);
-            return Some(true);
+            return Some(RenderableMouseDispatch {
+                consumed: true,
+                ..RenderableMouseDispatch::default()
+            });
         } else if event.kind == MouseEventKind::Drag && self.selection_is_dragging() {
             self.update_selection(event.x as i32, event.y as i32, false);
+            let mut result = RenderableMouseDispatch::default();
             if let Some(target) = hit_target {
-                self.dispatch_mouse_bubbling(target, event);
+                result.merge(self.dispatch_mouse_bubbling_with(target, event, None, true));
             }
-            return Some(true);
-        } else if matches!(
-            event.kind,
-            MouseEventKind::DragEnd | MouseEventKind::Release
-        ) && self.selection_is_dragging()
-        {
+            result.consumed = true;
+            return Some(result);
+        } else if event.kind == MouseEventKind::Release && self.selection_is_dragging() {
             self.update_selection(event.x as i32, event.y as i32, false);
             self.selection.as_mut().expect("selection exists").dragging = false;
+            let mut result = RenderableMouseDispatch::default();
             if let Some(target) = hit_target {
-                self.dispatch_mouse_bubbling(target, event);
+                result.merge(self.dispatch_mouse_bubbling_with(target, event, None, true));
             }
-            return Some(true);
+            result.consumed = true;
+            return Some(result);
         }
         None
     }
@@ -1616,6 +1698,23 @@ mod tests {
     }
 
     #[test]
+    fn hover_recheck_updates_stationary_pointer_target() {
+        let first_events = Rc::new(RefCell::new(Vec::new()));
+        let second_events = Rc::new(RefCell::new(Vec::new()));
+        let mut tree = RenderTree::new();
+        let first = tree.set_root(Box::new(MouseRecorder::new(Rc::clone(&first_events))));
+        let second = tree.add_detached(Box::new(MouseRecorder::new(Rc::clone(&second_events))));
+        tree.dispatch_mouse_event(Some(first), &MouseEvent::move_to(1, 1));
+        first_events.borrow_mut().clear();
+
+        tree.recheck_hover(Some(second), 1, 1);
+
+        assert_eq!(*first_events.borrow(), vec![MouseEventKind::Out]);
+        assert_eq!(*second_events.borrow(), vec![MouseEventKind::Over]);
+        assert_eq!(tree.hovered_node(), Some(second));
+    }
+
+    #[test]
     fn drag_stays_captured_and_drops_on_hit_target() {
         let source_events = Rc::new(RefCell::new(Vec::new()));
         let target_events = Rc::new(RefCell::new(Vec::new()));
@@ -1627,20 +1726,27 @@ mod tests {
 
         tree.dispatch_mouse_event(Some(source), &MouseEvent::press(1, 1, MouseButton::Left));
         tree.dispatch_mouse_event(
+            Some(source),
+            &MouseEvent::new(1, 1, MouseButton::Left, MouseEventKind::Drag),
+        );
+        tree.dispatch_mouse_event(
             Some(target),
             &MouseEvent::new(2, 1, MouseButton::Left, MouseEventKind::Drag),
         );
         tree.dispatch_mouse_event(
             Some(target),
-            &MouseEvent::new(2, 1, MouseButton::Left, MouseEventKind::DragEnd),
+            &MouseEvent::new(2, 1, MouseButton::Left, MouseEventKind::Release),
         );
 
         assert_eq!(
             *source_events.borrow(),
             vec![
                 MouseEventKind::Press,
+                MouseEventKind::Over,
                 MouseEventKind::Drag,
-                MouseEventKind::DragEnd
+                MouseEventKind::Drag,
+                MouseEventKind::DragEnd,
+                MouseEventKind::Release
             ]
         );
         assert_eq!(
@@ -1668,8 +1774,29 @@ mod tests {
         assert!(result.consumed);
         assert!(result.default_prevented);
         assert!(result.propagation_stopped);
-        assert_eq!(result.delivered, vec![child]);
+        assert_eq!(
+            result.delivered,
+            vec![MouseDelivery {
+                node: child,
+                kind: MouseEventKind::Press,
+            }]
+        );
         assert_eq!(*child_events.borrow(), vec![MouseEventKind::Press]);
         assert!(parent_events.borrow().is_empty());
+    }
+
+    #[test]
+    fn prevent_default_suppresses_mouse_autofocus() {
+        let events = Rc::new(RefCell::new(Vec::new()));
+        let mut tree = RenderTree::new();
+        let target = tree.set_root(Box::new(
+            MouseRecorder::new(events).focusable().controlled(),
+        ));
+
+        let result =
+            tree.dispatch_mouse_event(Some(target), &MouseEvent::press(1, 1, MouseButton::Left));
+
+        assert!(result.default_prevented);
+        assert_eq!(tree.focused_node(), None);
     }
 }

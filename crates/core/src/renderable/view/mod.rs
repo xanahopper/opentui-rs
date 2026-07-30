@@ -11,7 +11,7 @@ pub use builder::{
     panel, radio_group, rich_text, scrollbar, select, separator, slider, span, spinner, text, view,
     when,
 };
-pub use element::{Element, ElementKind};
+pub use element::{Element, ElementKind, MouseActions};
 pub use key::Key;
 pub use node::{Node, OverlayNode};
 pub use props::{

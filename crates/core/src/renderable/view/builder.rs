@@ -3,7 +3,7 @@ use crate::buffer::TitleAlign;
 
 use crate::layout::LayoutStyle;
 use crate::renderable::node::Overflow;
-use crate::view::element::{Element, ElementKind};
+use crate::view::element::{Element, ElementKind, MouseActions};
 use crate::view::key::Key;
 use crate::view::node::{Node, OverlayNode};
 use crate::view::props::{
@@ -216,6 +216,7 @@ pub struct ElementBuilder {
     children: Vec<Node>,
     text_content: Option<String>,
     action: Option<String>,
+    mouse_actions: MouseActions,
 }
 
 impl ElementBuilder {
@@ -246,6 +247,7 @@ impl ElementBuilder {
             children: Vec::new(),
             text_content: None,
             action: None,
+            mouse_actions: MouseActions::default(),
         }
     }
 
@@ -512,6 +514,51 @@ impl ElementBuilder {
         self
     }
 
+    pub fn on_mouse_down(mut self, action: impl Into<String>) -> Self {
+        self.mouse_actions.down = Some(action.into());
+        self
+    }
+
+    pub fn on_mouse_up(mut self, action: impl Into<String>) -> Self {
+        self.mouse_actions.up = Some(action.into());
+        self
+    }
+
+    pub fn on_mouse_move(mut self, action: impl Into<String>) -> Self {
+        self.mouse_actions.move_ = Some(action.into());
+        self
+    }
+
+    pub fn on_mouse_drag(mut self, action: impl Into<String>) -> Self {
+        self.mouse_actions.drag = Some(action.into());
+        self
+    }
+
+    pub fn on_mouse_drag_end(mut self, action: impl Into<String>) -> Self {
+        self.mouse_actions.drag_end = Some(action.into());
+        self
+    }
+
+    pub fn on_mouse_drop(mut self, action: impl Into<String>) -> Self {
+        self.mouse_actions.drop = Some(action.into());
+        self
+    }
+
+    pub fn on_mouse_over(mut self, action: impl Into<String>) -> Self {
+        self.mouse_actions.over = Some(action.into());
+        self
+    }
+
+    pub fn on_mouse_out(mut self, action: impl Into<String>) -> Self {
+        self.mouse_actions.out = Some(action.into());
+        self
+    }
+
+    pub fn on_mouse_scroll(mut self, action: impl Into<String>) -> Self {
+        self.mouse_actions.scroll = Some(action.into());
+        self
+    }
+
     pub fn char_(mut self, ch: char) -> Self {
         if let Props::Separator(sp) = &mut self.props {
             sp.char = ch;
@@ -721,6 +768,7 @@ impl ElementBuilder {
             props,
             children: self.children,
             action: self.action,
+            mouse_actions: self.mouse_actions,
         }))
     }
 }

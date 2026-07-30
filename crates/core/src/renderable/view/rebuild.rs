@@ -4,7 +4,7 @@ use crate::Rgba;
 use crate::renderable::behavior::{Behavior, FrameworkDefaults};
 use crate::renderable::node::NodeId;
 use crate::renderable::tree::RenderTree;
-use crate::view::element::{Element, ElementKind};
+use crate::view::element::{Element, ElementKind, MouseActions};
 use crate::view::node::Node;
 use crate::view::props::{Props, SpinnerPreset};
 
@@ -12,7 +12,13 @@ pub fn build_tree(node: &Node) -> RenderTree {
     build_tree_with_actions(node).0
 }
 
-pub fn build_tree_with_actions(node: &Node) -> (RenderTree, HashMap<NodeId, String>) {
+#[derive(Debug, Clone, Default)]
+pub struct ElementActions {
+    pub action: Option<String>,
+    pub mouse: MouseActions,
+}
+
+pub fn build_tree_with_actions(node: &Node) -> (RenderTree, HashMap<NodeId, ElementActions>) {
     let mut tree = RenderTree::new();
     let mut actions = HashMap::new();
     build_recursive(node, &mut tree, None, &mut actions);
@@ -23,13 +29,19 @@ fn build_recursive(
     node: &Node,
     tree: &mut RenderTree,
     parent: Option<NodeId>,
-    actions: &mut HashMap<NodeId, String>,
+    actions: &mut HashMap<NodeId, ElementActions>,
 ) {
     match node {
         Node::Element(elem) => {
             let id = add_element(tree, parent, elem);
-            if let Some(ref action) = elem.action {
-                actions.insert(id, action.clone());
+            if elem.action.is_some() || !elem.mouse_actions.is_empty() {
+                actions.insert(
+                    id,
+                    ElementActions {
+                        action: elem.action.clone(),
+                        mouse: elem.mouse_actions.clone(),
+                    },
+                );
             }
             for child in &elem.children {
                 build_recursive(child, tree, Some(id), actions);
@@ -38,8 +50,14 @@ fn build_recursive(
         Node::Overlay(overlay) => {
             if let Node::Element(ref elem) = *overlay.content {
                 let id = add_element(tree, None, elem);
-                if let Some(ref action) = elem.action {
-                    actions.insert(id, action.clone());
+                if elem.action.is_some() || !elem.mouse_actions.is_empty() {
+                    actions.insert(
+                        id,
+                        ElementActions {
+                            action: elem.action.clone(),
+                            mouse: elem.mouse_actions.clone(),
+                        },
+                    );
                 }
                 for child in &elem.children {
                     build_recursive(child, tree, Some(id), actions);

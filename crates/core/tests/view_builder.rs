@@ -240,3 +240,29 @@ fn test_on_action() {
     let elem = unwrap_element(&node);
     assert_eq!(elem.action.as_deref(), Some("submit"));
 }
+
+#[test]
+fn test_mouse_action_builders() {
+    let node = view()
+        .on_mouse_down("down")
+        .on_mouse_up("up")
+        .on_mouse_move("move")
+        .on_mouse_drag("drag")
+        .on_mouse_drag_end("drag-end")
+        .on_mouse_drop("drop")
+        .on_mouse_over("over")
+        .on_mouse_out("out")
+        .on_mouse_scroll("scroll")
+        .build();
+    let actions = &unwrap_element(&node).mouse_actions;
+
+    assert_eq!(actions.down.as_deref(), Some("down"));
+    assert_eq!(actions.up.as_deref(), Some("up"));
+    assert_eq!(actions.move_.as_deref(), Some("move"));
+    assert_eq!(actions.drag.as_deref(), Some("drag"));
+    assert_eq!(actions.drag_end.as_deref(), Some("drag-end"));
+    assert_eq!(actions.drop.as_deref(), Some("drop"));
+    assert_eq!(actions.over.as_deref(), Some("over"));
+    assert_eq!(actions.out.as_deref(), Some("out"));
+    assert_eq!(actions.scroll.as_deref(), Some("scroll"));
+}

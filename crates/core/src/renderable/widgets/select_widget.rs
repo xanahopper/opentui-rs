@@ -441,7 +441,10 @@ impl Behavior for SelectWidget {
         }
         if !matches!(
             mouse.kind,
-            MouseEventKind::Press | MouseEventKind::Drag | MouseEventKind::DragEnd
+            MouseEventKind::Press
+                | MouseEventKind::Drag
+                | MouseEventKind::DragEnd
+                | MouseEventKind::Release
         ) {
             return false;
         }

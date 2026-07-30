@@ -16,9 +16,10 @@ pub use crate::renderable::tree::{Overlay, RenderTree};
 pub use crate::scroll::{ScrollBarRenderer, ScrollState, ScrollView};
 pub use crate::theme::{UiTheme, UiThemeRegistry};
 pub use crate::view::{
-    ElementBuilder, ElementKind, Key, Node, Props, TextProps, ViewMouseDispatchResult, ViewProps,
-    ViewRuntime, badge, checkbox, empty, fill, fragment, gauge, input, overlay, panel, radio_group,
-    rich_text, scrollbar, select, separator, slider, span, spinner, text, view, when,
+    ElementBuilder, ElementKind, Key, MouseActions, Node, Props, TextProps,
+    ViewMouseDispatchResult, ViewProps, ViewRuntime, badge, checkbox, empty, fill, fragment, gauge,
+    input, overlay, panel, radio_group, rich_text, scrollbar, select, separator, slider, span,
+    spinner, text, view, when,
 };
 pub use crate::widgets::{
     BadgeShape, BadgeStyle, BadgeWidget, BorderChars, BorderSides, BorderStyle, BoxWidget,

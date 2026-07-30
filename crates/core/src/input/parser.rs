@@ -556,25 +556,22 @@ impl InputParser {
             return Err(ParseError::Incomplete);
         }
 
-        let cb = input[start];
+        let cb = input[start].saturating_sub(32);
         let cx = input[start + 1].saturating_sub(33);
         let cy = input[start + 2].saturating_sub(33);
 
-        let (button, mut kind) = decode_x11_button(cb);
+        let (mut button, kind) = decode_x11_button(cb);
         let (shift, alt, ctrl) = decode_x11_modifiers(cb);
 
-        // Track button state and emit DragEnd when the last button is released
-        // after a drag was in progress
         match kind {
             MouseEventKind::Press => {
                 self.mouse_buttons |= Self::button_mask(button);
             }
             MouseEventKind::Release => {
-                let had_buttons = self.mouse_buttons != 0;
-                self.mouse_buttons &= !Self::button_mask(button);
-                if had_buttons && self.mouse_buttons == 0 {
-                    kind = MouseEventKind::DragEnd;
+                if button == MouseButton::None {
+                    button = Self::button_from_mask(self.mouse_buttons);
                 }
+                self.mouse_buttons &= !Self::button_mask(button);
             }
             _ => {}
         }
@@ -619,13 +616,8 @@ impl InputParser {
 
         let (button, mut kind) = decode_sgr_button(cb);
         if is_release {
-            let had_buttons = self.mouse_buttons != 0;
             self.mouse_buttons &= !Self::button_mask(button);
-            kind = if had_buttons && self.mouse_buttons == 0 {
-                MouseEventKind::DragEnd
-            } else {
-                MouseEventKind::Release
-            };
+            kind = MouseEventKind::Release;
         } else if kind == MouseEventKind::Press {
             self.mouse_buttons |= Self::button_mask(button);
         }
@@ -757,6 +749,18 @@ impl InputParser {
             MouseButton::Middle => 0b010,
             MouseButton::Right => 0b100,
             MouseButton::None => 0,
+        }
+    }
+
+    const fn button_from_mask(mask: u8) -> MouseButton {
+        if mask & Self::button_mask(MouseButton::Left) != 0 {
+            MouseButton::Left
+        } else if mask & Self::button_mask(MouseButton::Middle) != 0 {
+            MouseButton::Middle
+        } else if mask & Self::button_mask(MouseButton::Right) != 0 {
+            MouseButton::Right
+        } else {
+            MouseButton::None
         }
     }
 }
@@ -1557,6 +1561,19 @@ mod tests {
         assert_eq!(mouse.x, 10);
         assert_eq!(mouse.y, 5);
         eprintln!("[TEST] PASS: X11 mouse encoding parsed correctly");
+    }
+
+    #[test]
+    fn test_parse_x11_release_retains_pressed_button() {
+        let mut parser = InputParser::new();
+        parser.parse(b"\x1b[M +&").unwrap();
+
+        let (event, _) = parser.parse(b"\x1b[M#,&").unwrap();
+        let mouse = event.mouse().expect("Should be a mouse event");
+
+        assert_eq!(mouse.kind, MouseEventKind::Release);
+        assert_eq!(mouse.button, MouseButton::Left);
+        assert_eq!((mouse.x, mouse.y), (11, 5));
     }
 
     #[test]
